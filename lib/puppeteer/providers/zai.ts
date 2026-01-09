@@ -179,12 +179,38 @@ export class ZaiProvider extends BaseProvider {
           return text || "";
         });
 
+        const isGenerating = await page.evaluate(() => {
+          const stopBtn = document.querySelector(
+            'button[aria-label="Stop generating"], button[aria-label="Stop response"], [class*="stop-button"]'
+          );
+          if (stopBtn) return true;
+
+          const allButtons = Array.from(document.querySelectorAll("button"));
+          const zaiStopBtn = allButtons.find((btn) => {
+            const span = btn.querySelector("span");
+            if (!span) return false;
+            const cls = span.className || "";
+            return cls.includes("size-3") && cls.includes("rounded-xs");
+          });
+          if (zaiStopBtn) return true;
+
+          if (document.querySelector(".loading-container")) return true;
+          return false;
+        });
+
         if (currentResponse && currentResponse.length > lastContent.length) {
           const chunk = currentResponse.substring(lastContent.length);
           onChunk(chunk);
           lastContent = currentResponse;
           stableCount = 0;
-        } else if (currentResponse && currentResponse.length > 0) {
+        }
+
+        if (isGenerating) {
+          stableCount = 0;
+          continue;
+        }
+
+        if (currentResponse && currentResponse.length > 0) {
           // Content didn't change
           stableCount++;
           if (stableCount >= 10) {
@@ -274,7 +300,13 @@ export class ZaiProvider extends BaseProvider {
           return cls.includes("size-3") && cls.includes("rounded-xs");
         });
 
-        return zaiStopBtn !== undefined;
+        if (zaiStopBtn) return true;
+
+        // NEW: Check for loading container (3 dots animation)
+        const loadingContainer = document.querySelector(".loading-container");
+        if (loadingContainer) return true;
+
+        return false;
       });
 
       if (isGenerating) {
