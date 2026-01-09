@@ -16,6 +16,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    console.log("[Stream API] Using browser method...");
     const provider = getProvider(providerName);
 
     // Inject cookies if provided
@@ -28,13 +29,10 @@ export async function POST(request: NextRequest) {
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          // Send initial event
           controller.enqueue(
             encoder.encode(`data: ${JSON.stringify({ type: "start" })}\n\n`)
           );
 
-          // Get the page and send message with streaming
-          // Cast to any since ChatGPTProvider has sendMessageWithStreaming but base doesn't
           const providerWithStreaming = provider as unknown as {
             sendMessageWithStreaming: (
               message: string,
@@ -44,13 +42,11 @@ export async function POST(request: NextRequest) {
               content?: string;
               error?: string;
             }>;
-            injectCookies: (cookies: CookieEntry[]) => Promise<void>;
           };
 
           const result = await providerWithStreaming.sendMessageWithStreaming(
             message,
             (chunk: string) => {
-              // Send each chunk as an SSE event
               controller.enqueue(
                 encoder.encode(
                   `data: ${JSON.stringify({
@@ -62,7 +58,6 @@ export async function POST(request: NextRequest) {
             }
           );
 
-          // Send final event
           controller.enqueue(
             encoder.encode(
               `data: ${JSON.stringify({

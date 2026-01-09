@@ -1,17 +1,8 @@
 import { Page } from "puppeteer";
 import { BaseProvider, SendMessageResult } from "./base";
-import {
-  captureCredentials,
-  getStoredCredentials,
-  sendDirectMessage,
-  sendDirectMessageStreaming,
-  CapturedCredentials,
-} from "../api-capture";
 
 export class ChatGPTProvider extends BaseProvider {
   private hasActiveConversation: boolean = false;
-  private conversationId?: string; // Track conversation for direct API
-  private isCapturing: boolean = false; // Flag to capture credentials
 
   constructor() {
     super("chatgpt", "https://chat.openai.com");
@@ -34,111 +25,11 @@ export class ChatGPTProvider extends BaseProvider {
     }
   }
 
-  // Capture credentials without sending a message - just load page and extract token
-  async captureCredentialsOnly(
-    cookies?: import("@/types").CookieEntry[]
-  ): Promise<boolean> {
-    console.log("[ChatGPT] Capturing credentials from page load...");
-
-    try {
-      const page = await this.getPage();
-
-      // Inject cookies first to ensure we're logged in
-      if (cookies && cookies.length > 0) {
-        await this.injectCookies(cookies);
-      }
-
-      // Set up credential capture
-      const capturePromise = captureCredentials(page, "chatgpt");
-
-      // Navigate to ChatGPT - this will trigger API calls that contain the auth token
-      await this.navigate();
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-
-      // Wait for credentials to be captured (with timeout)
-      const timeoutPromise = new Promise<null>((resolve) =>
-        setTimeout(() => resolve(null), 15000)
-      );
-
-      const result = await Promise.race([capturePromise, timeoutPromise]);
-
-      if (result) {
-        console.log("[ChatGPT] Credentials captured! Closing browser...");
-        // Close the browser - we don't need it anymore
-        const { browserManager } = await import("../browser-manager");
-        await browserManager.closePage("chatgpt");
-        return true;
-      } else {
-        console.log("[ChatGPT] Failed to capture credentials");
-        return false;
-      }
-    } catch (error) {
-      console.error("[ChatGPT] Error capturing credentials:", error);
-      return false;
-    }
-  }
-
   async sendMessage(message: string): Promise<SendMessageResult> {
-    // First, try direct API if we have credentials
-    const credentials = getStoredCredentials("chatgpt");
-
-    if (credentials) {
-      console.log("[ChatGPT] Trying direct API call...");
-      const result = await sendDirectMessage(
-        message,
-        credentials,
-        this.conversationId
-      );
-
-      if (result.success && result.content) {
-        if (result.conversationId) {
-          this.conversationId = result.conversationId;
-        }
-        this.hasActiveConversation = true;
-        console.log(`[ChatGPT] Direct API success!`);
-        return { success: true, content: result.content };
-      }
-
-      // If token expired, try to recapture
-      if (result.error === "TOKEN_EXPIRED") {
-        console.log("[ChatGPT] Token expired, recapturing...");
-        const recaptured = await this.captureCredentialsOnly();
-        if (recaptured) {
-          const newCredentials = getStoredCredentials("chatgpt");
-          if (newCredentials) {
-            const retryResult = await sendDirectMessage(
-              message,
-              newCredentials,
-              this.conversationId
-            );
-            if (retryResult.success && retryResult.content) {
-              if (retryResult.conversationId) {
-                this.conversationId = retryResult.conversationId;
-              }
-              return { success: true, content: retryResult.content };
-            }
-          }
-        }
-      }
-    }
-
-    // If all else fails, fall back to browser-based approach
     console.log("[ChatGPT] Using browser method...");
 
     try {
       const page = await this.getPage();
-
-      // Start capturing credentials in background (for direct API next time)
-      if (!this.isCapturing) {
-        this.isCapturing = true;
-        captureCredentials(page, "chatgpt").then(async () => {
-          this.isCapturing = false;
-          console.log("[ChatGPT] Credentials captured! Closing browser...");
-          // Close browser after capturing - we don't need it anymore
-          const { browserManager } = await import("../browser-manager");
-          await browserManager.closePage("chatgpt");
-        });
-      }
 
       // Only navigate to homepage if we don't have an active conversation
       const currentUrl = page.url();
@@ -372,47 +263,10 @@ export class ChatGPTProvider extends BaseProvider {
     message: string,
     onChunk: (chunk: string) => void
   ): Promise<SendMessageResult> {
-    // First, try direct API streaming if we have credentials
-    const credentials = getStoredCredentials("chatgpt");
-    if (credentials) {
-      console.log("[ChatGPT] Trying direct API streaming...");
-      const result = await sendDirectMessageStreaming(
-        message,
-        credentials,
-        onChunk,
-        this.conversationId
-      );
-
-      if (result.success && result.content) {
-        if (result.conversationId) {
-          this.conversationId = result.conversationId;
-        }
-        this.hasActiveConversation = true;
-        console.log("[ChatGPT] Direct API streaming complete!");
-        return { success: true, content: result.content };
-      }
-
-      if (result.error === "TOKEN_EXPIRED") {
-        console.log("[ChatGPT] Token expired, falling back to browser...");
-      }
-    }
-
-    // Fall back to browser streaming
     console.log("[ChatGPT] Using browser streaming...");
 
     try {
       const page = await this.getPage();
-
-      // Start capturing credentials in background
-      if (!this.isCapturing && !credentials) {
-        this.isCapturing = true;
-        captureCredentials(page, "chatgpt").then(async () => {
-          this.isCapturing = false;
-          console.log("[ChatGPT] Credentials captured! Closing browser...");
-          const { browserManager } = await import("../browser-manager");
-          await browserManager.closePage("chatgpt");
-        });
-      }
 
       // Navigation logic
       const currentUrl = page.url();

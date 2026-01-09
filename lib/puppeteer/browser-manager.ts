@@ -60,7 +60,7 @@ class BrowserManager {
     console.log("[BrowserManager] Initializing puppeteer-real-browser...");
 
     const response = await connect({
-      headless: false, // Use visible browser for reliability (hidden via AppleScript)
+      headless: true, // Use visible browser for reliability (hidden via AppleScript)
       turnstile: true, // Auto-solve Cloudflare Turnstile
       disableXvfb: true, // Disable virtual display on macOS
       args: [
