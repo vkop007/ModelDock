@@ -3,7 +3,7 @@ import { BaseProvider, SendMessageResult } from "./base";
 
 export class GeminiProvider extends BaseProvider {
   constructor() {
-    super("gemini", "https://gemini.google.com");
+    super("gemini", "https://gemini.google.com/app");
   }
 
   async checkAuthentication(page: Page): Promise<boolean> {
@@ -53,7 +53,7 @@ export class GeminiProvider extends BaseProvider {
           waitUntil: "domcontentloaded",
           timeout: 30000,
         });
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+        await new Promise((resolve) => setTimeout(resolve, 500));
       } else if (!conversationId && currentUrl.includes("/app/")) {
         // If no ID but we are in a chat (URL has ID), go to new chat
         const isNewChat =
@@ -64,11 +64,11 @@ export class GeminiProvider extends BaseProvider {
           await page.goto("https://gemini.google.com/app", {
             waitUntil: "domcontentloaded",
           });
-          await new Promise((resolve) => setTimeout(resolve, 2000));
+          await new Promise((resolve) => setTimeout(resolve, 500));
         }
       } else if (!currentUrl.includes("gemini.google.com")) {
         await this.navigate();
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+        await new Promise((resolve) => setTimeout(resolve, 500));
       }
 
       // Wait for the input field
@@ -83,10 +83,10 @@ export class GeminiProvider extends BaseProvider {
       }
 
       await input.click();
-      await page.keyboard.type(message, { delay: 30 });
+      await page.keyboard.type(message, { delay: 10 });
 
       // Small delay before sending
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Click send button
       const sendButton = await page.$(
@@ -99,17 +99,31 @@ export class GeminiProvider extends BaseProvider {
         await page.keyboard.press("Enter");
       }
 
+      // Count existing responses BEFORE sending so we can detect the new one
+      const previousResponseCount = await page.evaluate(() => {
+        const responses = document.querySelectorAll(
+          ".response-content, .model-response-text, message-content"
+        );
+        return responses.length;
+      });
+
       // Wait for response with streaming
       console.log("[Gemini] Waiting for response to start streaming...");
 
-      // Wait for any likely response container or loading indicator
+      // Wait for a NEW response to appear (more than previousResponseCount)
       try {
-        await page.waitForSelector(
-          ".response-content, .model-response-text, message-content, .loading-indicator",
-          { timeout: 15000 }
+        await page.waitForFunction(
+          (prevCount: number) => {
+            const responses = document.querySelectorAll(
+              ".response-content, .model-response-text, message-content"
+            );
+            return responses.length > prevCount;
+          },
+          { timeout: 15000 },
+          previousResponseCount
         );
       } catch {
-        // Continue, might be already there
+        // Continue, might use loading indicator
       }
 
       console.log("[Gemini] Waiting for streaming to complete...");
@@ -134,22 +148,17 @@ export class GeminiProvider extends BaseProvider {
           return stopBtn !== null || loading !== null;
         });
 
-        const currentResponse = await page.evaluate(() => {
+        // Get the NEW response only (at index >= previousResponseCount)
+        const currentResponse = await page.evaluate((prevCount: number) => {
           const responses = document.querySelectorAll(
             ".response-content, .model-response-text, message-content"
           );
-          if (responses.length > 0) {
+          // Get the newest response (index >= prevCount means it's new)
+          if (responses.length > prevCount) {
             return responses[responses.length - 1].textContent || "";
           }
-          // Fallback
-          const markdown = document.querySelectorAll(
-            ".markdown-content, .response-text"
-          );
-          if (markdown.length > 0) {
-            return markdown[markdown.length - 1].textContent || "";
-          }
           return "";
-        });
+        }, previousResponseCount);
 
         // Streaming update
         if (currentResponse.length > lastContent.length) {
