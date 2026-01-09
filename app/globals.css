@@ -880,3 +880,306 @@ body {
     flex-direction: column;
   }
 }
+
+/* ============================================
+   MARKDOWN RENDERER STYLES
+   ============================================ */
+
+.markdown-content {
+  font-size: 1rem;
+  line-height: 1.7;
+  color: var(--text-primary);
+}
+
+/* Code Block Container */
+.code-block {
+  margin: 1rem 0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #1e1e1e;
+  border: 1px solid var(--border-color);
+}
+
+.code-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: #2d2d2d;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.code-language {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  text-transform: lowercase;
+  font-family: monospace;
+}
+
+.copy-button {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.copy-button:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+/* Inline Code */
+.inline-code {
+  background: var(--bg-tertiary);
+  color: #e06c75;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'Fira Code', 'Monaco', 'Consolas', monospace;
+  font-size: 0.875em;
+}
+
+/* Markdown Typography */
+.markdown-paragraph {
+  margin: 0.75rem 0;
+}
+
+.markdown-paragraph:first-child {
+  margin-top: 0;
+}
+
+.markdown-heading {
+  margin: 1.5rem 0 0.75rem 0;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.markdown-heading.h1 {
+  font-size: 1.75rem;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 0.5rem;
+}
+
+.markdown-heading.h2 {
+  font-size: 1.5rem;
+}
+
+.markdown-heading.h3 {
+  font-size: 1.25rem;
+}
+
+/* Lists */
+.markdown-list {
+  margin: 0.75rem 0;
+  padding-left: 1.5rem;
+}
+
+.markdown-list li {
+  margin: 0.25rem 0;
+}
+
+.markdown-list.ordered {
+  list-style-type: decimal;
+}
+
+/* Blockquote */
+.markdown-blockquote {
+  margin: 1rem 0;
+  padding: 0.75rem 1rem;
+  border-left: 4px solid var(--accent-green);
+  background: var(--bg-tertiary);
+  border-radius: 0 8px 8px 0;
+  color: var(--text-secondary);
+}
+
+.markdown-blockquote p {
+  margin: 0;
+}
+
+/* Links */
+.markdown-link {
+  color: var(--accent-blue);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.2s ease;
+}
+
+.markdown-link:hover {
+  border-bottom-color: var(--accent-blue);
+}
+
+/* Tables */
+.table-wrapper {
+  overflow-x: auto;
+  margin: 1rem 0;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.table-wrapper table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table-wrapper th,
+.table-wrapper td {
+  padding: 10px 16px;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.table-wrapper th {
+  background: var(--bg-tertiary);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.table-wrapper tr:hover {
+  background: var(--bg-hover);
+}
+
+.table-wrapper tr:last-child td {
+  border-bottom: none;
+}
+
+/* Strong and Emphasis */
+.markdown-content strong {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.markdown-content em {
+  font-style: italic;
+  color: var(--text-secondary);
+}
+
+/* Horizontal Rule */
+.markdown-content hr {
+  margin: 2rem 0;
+  border: none;
+  border-top: 1px solid var(--border-color);
+}
+
+/* ============================================
+   CHATGPT NATIVE HTML STYLES
+   ============================================ */
+
+.chatgpt-html {
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+/* ChatGPT code blocks */
+.chatgpt-html pre {
+  background: #1e1e1e;
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+  overflow-x: auto;
+  border: 1px solid var(--border-color);
+}
+
+.chatgpt-html pre code {
+  background: transparent;
+  padding: 0;
+  font-family: 'Fira Code', 'Monaco', 'Consolas', monospace;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+/* Inline code */
+.chatgpt-html code {
+  background: var(--bg-tertiary);
+  color: #e06c75;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'Fira Code', 'Monaco', 'Consolas', monospace;
+  font-size: 0.875em;
+}
+
+/* Paragraphs */
+.chatgpt-html p {
+  margin: 0.75rem 0;
+}
+
+.chatgpt-html p:first-child {
+  margin-top: 0;
+}
+
+/* Lists */
+.chatgpt-html ul,
+.chatgpt-html ol {
+  margin: 0.75rem 0;
+  padding-left: 1.5rem;
+}
+
+.chatgpt-html li {
+  margin: 0.25rem 0;
+}
+
+/* Headings */
+.chatgpt-html h1,
+.chatgpt-html h2,
+.chatgpt-html h3,
+.chatgpt-html h4 {
+  margin: 1.5rem 0 0.75rem 0;
+  font-weight: 600;
+}
+
+.chatgpt-html h1 { font-size: 1.75rem; }
+.chatgpt-html h2 { font-size: 1.5rem; }
+.chatgpt-html h3 { font-size: 1.25rem; }
+.chatgpt-html h4 { font-size: 1.1rem; }
+
+/* Links */
+.chatgpt-html a {
+  color: var(--accent-blue);
+  text-decoration: none;
+}
+
+.chatgpt-html a:hover {
+  text-decoration: underline;
+}
+
+/* Blockquotes */
+.chatgpt-html blockquote {
+  margin: 1rem 0;
+  padding: 0.75rem 1rem;
+  border-left: 4px solid var(--accent-green);
+  background: var(--bg-tertiary);
+  border-radius: 0 8px 8px 0;
+}
+
+/* Tables */
+.chatgpt-html table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+}
+
+.chatgpt-html th,
+.chatgpt-html td {
+  padding: 10px 16px;
+  text-align: left;
+  border: 1px solid var(--border-color);
+}
+
+.chatgpt-html th {
+  background: var(--bg-tertiary);
+  font-weight: 600;
+}
+
+/* Strong and emphasis */
+.chatgpt-html strong {
+  font-weight: 600;
+}
+
+.chatgpt-html em {
+  font-style: italic;
+}

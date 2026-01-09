@@ -8,6 +8,8 @@ export interface SendMessageResult {
   error?: string;
 }
 
+export type StreamCallback = (chunk: string) => void;
+
 export abstract class BaseProvider {
   protected provider: LLMProvider;
   protected url: string;

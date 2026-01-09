@@ -2,6 +2,8 @@ import { Page } from "puppeteer";
 import { BaseProvider, SendMessageResult } from "./base";
 
 export class ChatGPTProvider extends BaseProvider {
+  private hasActiveConversation: boolean = false;
+
   constructor() {
     super("chatgpt", "https://chat.openai.com");
   }
@@ -26,33 +28,43 @@ export class ChatGPTProvider extends BaseProvider {
   async sendMessage(message: string): Promise<SendMessageResult> {
     try {
       const page = await this.getPage();
-      await this.navigate();
 
-      // Take a screenshot to see what the page looks like
-      const os = await import("os");
-      const path = await import("path");
-      const screenshotPath = path.join(
-        os.homedir(),
-        ".gemini/antigravity/brain/f02285d8-4121-4715-b45c-b7f48511b7f3",
-        `puppeteer_debug_${Date.now()}.png`
-      );
-      await page.screenshot({ path: screenshotPath, fullPage: true });
-      console.log(`[ChatGPT] Debug screenshot saved to: ${screenshotPath}`);
+      // Only navigate to homepage if we don't have an active conversation
+      const currentUrl = page.url();
+      const isOnChatGPT =
+        currentUrl.includes("chat.openai.com") ||
+        currentUrl.includes("chatgpt.com");
+      const isInConversation =
+        currentUrl.includes("/c/") || currentUrl.includes("/g/");
 
-      // Wait for the page to fully load
-      await new Promise((resolve) => setTimeout(resolve, 3000));
+      if (!isOnChatGPT) {
+        // First time - navigate to ChatGPT
+        console.log("[ChatGPT] First time - navigating to ChatGPT");
+        await this.navigate();
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+      } else if (this.hasActiveConversation && isInConversation) {
+        // Already in a conversation - just wait for page to be ready
+        console.log(
+          "[ChatGPT] Continuing existing conversation at:",
+          currentUrl
+        );
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      } else {
+        // On ChatGPT but not in a conversation yet - wait for page
+        console.log("[ChatGPT] On ChatGPT, waiting for chat interface...");
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
 
-      // Wait for the input field - look for #prompt-textarea specifically
+      // Wait for the input field
       try {
-        await page.waitForSelector("#prompt-textarea", { timeout: 60000 });
+        await page.waitForSelector("#prompt-textarea", { timeout: 30000 });
         console.log("[ChatGPT] Found #prompt-textarea");
       } catch {
-        // Try alternative selectors
         console.log(
           "[ChatGPT] #prompt-textarea not found, trying alternatives..."
         );
         await page.waitForSelector('div[contenteditable="true"], textarea', {
-          timeout: 30000,
+          timeout: 15000,
         });
       }
 
@@ -69,7 +81,7 @@ export class ChatGPTProvider extends BaseProvider {
       await inputEl.click();
       await new Promise((resolve) => setTimeout(resolve, 300));
 
-      // Clear any existing text and type the new message
+      // Type the message
       await page.keyboard.type(message, { delay: 50 });
       console.log(`[ChatGPT] Typed message: ${message}`);
 
@@ -84,7 +96,6 @@ export class ChatGPTProvider extends BaseProvider {
         ) as HTMLButtonElement;
         if (sendBtn && !sendBtn.disabled) {
           sendBtn.click();
-          console.log("[ChatGPT] Clicked send button via data-testid");
           return true;
         }
 
@@ -94,7 +105,6 @@ export class ChatGPTProvider extends BaseProvider {
         ) as HTMLButtonElement;
         if (ariaBtn && !ariaBtn.disabled) {
           ariaBtn.click();
-          console.log("[ChatGPT] Clicked send button via aria-label");
           return true;
         }
 
@@ -105,7 +115,6 @@ export class ChatGPTProvider extends BaseProvider {
           for (const btn of buttons) {
             if (btn.querySelector("svg") && !btn.disabled) {
               btn.click();
-              console.log("[ChatGPT] Clicked form button with svg");
               return true;
             }
           }
@@ -115,7 +124,6 @@ export class ChatGPTProvider extends BaseProvider {
       });
 
       if (!sendButtonClicked) {
-        // Fallback: press Enter
         console.log("[ChatGPT] No button clicked, pressing Enter");
         await page.keyboard.press("Enter");
       }
@@ -125,17 +133,14 @@ export class ChatGPTProvider extends BaseProvider {
       // Wait for response
       const response = await this.waitForResponse();
 
+      // Mark that we now have an active conversation
+      this.hasActiveConversation = true;
+
+      // Log the current URL (should now include /c/ for the conversation)
+      const newUrl = page.url();
+      console.log(`[ChatGPT] Current conversation URL: ${newUrl}`);
+
       if (!response) {
-        // Take screenshot to debug
-        const errorScreenshotPath = path.join(
-          os.homedir(),
-          ".gemini/antigravity/brain/f02285d8-4121-4715-b45c-b7f48511b7f3",
-          `puppeteer_response_error_${Date.now()}.png`
-        );
-        await page.screenshot({ path: errorScreenshotPath, fullPage: true });
-        console.log(
-          `[ChatGPT] Response error screenshot: ${errorScreenshotPath}`
-        );
         return { success: false, error: "No response received from ChatGPT" };
       }
 
@@ -161,7 +166,6 @@ export class ChatGPTProvider extends BaseProvider {
       console.log(
         "[ChatGPT] No response element found, checking for alternatives..."
       );
-      // Try alternative selectors
       try {
         await page.waitForSelector('.markdown, .prose, [class*="message"]', {
           timeout: 15000,
@@ -172,8 +176,7 @@ export class ChatGPTProvider extends BaseProvider {
       }
     }
 
-    // Wait for streaming to complete by checking if "Stop generating" button disappears
-    // or by waiting for the response to stop changing
+    // Wait for streaming to complete by checking if response stops changing
     console.log("[ChatGPT] Waiting for streaming to complete...");
 
     let lastLength = 0;
@@ -193,12 +196,11 @@ export class ChatGPTProvider extends BaseProvider {
       });
 
       if (stopButtonVisible) {
-        console.log("[ChatGPT] Still streaming...");
         stableCount = 0;
         continue;
       }
 
-      // Get current response length
+      // Get current response text - get the LAST message only
       const currentResponse = await page.evaluate(() => {
         const messages = document.querySelectorAll(
           '[data-message-author-role="assistant"]'
@@ -224,7 +226,7 @@ export class ChatGPTProvider extends BaseProvider {
     // Small delay to ensure content is fully rendered
     await new Promise((resolve) => setTimeout(resolve, 500));
 
-    // Get the last assistant message
+    // Get the LAST assistant message text content (for Streamdown markdown rendering)
     const response = await page.evaluate(() => {
       const messages = document.querySelectorAll(
         '[data-message-author-role="assistant"]'
@@ -233,13 +235,6 @@ export class ChatGPTProvider extends BaseProvider {
         const lastMessage = messages[messages.length - 1];
         return lastMessage.textContent || "";
       }
-
-      // Fallback: try to get any markdown content
-      const markdownBlocks = document.querySelectorAll(".markdown, .prose");
-      if (markdownBlocks.length > 0) {
-        return markdownBlocks[markdownBlocks.length - 1].textContent || "";
-      }
-
       return "";
     });
 
@@ -247,5 +242,162 @@ export class ChatGPTProvider extends BaseProvider {
       `[ChatGPT] Response extracted: ${response.substring(0, 100)}...`
     );
     return response;
+  }
+
+  // Reset conversation state (for starting a new conversation)
+  resetConversation(): void {
+    this.hasActiveConversation = false;
+  }
+
+  // Streaming version of sendMessage - calls callback with each chunk
+  async sendMessageWithStreaming(
+    message: string,
+    onChunk: (chunk: string) => void
+  ): Promise<SendMessageResult> {
+    try {
+      const page = await this.getPage();
+
+      // Navigation logic (same as sendMessage)
+      const currentUrl = page.url();
+      const isOnChatGPT =
+        currentUrl.includes("chat.openai.com") ||
+        currentUrl.includes("chatgpt.com");
+
+      if (!isOnChatGPT) {
+        console.log("[ChatGPT] First time - navigating to ChatGPT");
+        await this.navigate();
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+
+      // Wait for input
+      try {
+        await page.waitForSelector("#prompt-textarea", { timeout: 30000 });
+      } catch {
+        await page.waitForSelector('div[contenteditable="true"], textarea', {
+          timeout: 15000,
+        });
+      }
+
+      // Type and send message
+      const inputEl =
+        (await page.$("#prompt-textarea")) ||
+        (await page.$('div[contenteditable="true"]')) ||
+        (await page.$("textarea"));
+
+      if (!inputEl) {
+        return { success: false, error: "Could not find input element" };
+      }
+
+      await inputEl.click();
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      await page.keyboard.type(message, { delay: 50 });
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Click send button
+      const sendButtonClicked = await page.evaluate(() => {
+        const btn = document.querySelector(
+          '[data-testid="send-button"]'
+        ) as HTMLButtonElement;
+        if (btn && !btn.disabled) {
+          btn.click();
+          return true;
+        }
+        const form = document.querySelector("form");
+        if (form) {
+          const buttons = form.querySelectorAll("button");
+          for (const b of buttons) {
+            if (b.querySelector("svg") && !b.disabled) {
+              b.click();
+              return true;
+            }
+          }
+        }
+        return false;
+      });
+
+      if (!sendButtonClicked) {
+        await page.keyboard.press("Enter");
+      }
+
+      console.log("[ChatGPT] Message sent, streaming response...");
+
+      // Wait for response element to appear
+      try {
+        await page.waitForSelector('[data-message-author-role="assistant"]', {
+          timeout: 30000,
+        });
+      } catch {
+        return { success: false, error: "No response received" };
+      }
+
+      // Stream the response
+      let lastContent = "";
+      let stableCount = 0;
+      const maxWait = 120000;
+      const startTime = Date.now();
+
+      while (Date.now() - startTime < maxWait) {
+        await new Promise((resolve) => setTimeout(resolve, 300)); // Poll every 300ms
+
+        // Get current response content (text for length comparison)
+        const currentContent = await page.evaluate(() => {
+          const messages = document.querySelectorAll(
+            '[data-message-author-role="assistant"]'
+          );
+          if (messages.length > 0) {
+            // Use textContent for length comparison during streaming
+            return messages[messages.length - 1].textContent || "";
+          }
+          return "";
+        });
+
+        // If there's new content, send the delta
+        if (currentContent.length > lastContent.length) {
+          const newContent = currentContent.substring(lastContent.length);
+          onChunk(newContent);
+          lastContent = currentContent;
+          stableCount = 0;
+        } else if (currentContent.length > 0) {
+          stableCount++;
+        }
+
+        // Check if streaming is complete
+        const isStreaming = await page.evaluate(() => {
+          return (
+            document.querySelector('button[aria-label="Stop generating"]') !==
+            null
+          );
+        });
+
+        if (!isStreaming && stableCount >= 3) {
+          break;
+        }
+      }
+
+      this.hasActiveConversation = true;
+
+      // Get final text content (for Streamdown markdown rendering)
+      const finalText = await page.evaluate(() => {
+        const messages = document.querySelectorAll(
+          '[data-message-author-role="assistant"]'
+        );
+        if (messages.length > 0) {
+          const lastMessage = messages[messages.length - 1];
+          return lastMessage.textContent || "";
+        }
+        return "";
+      });
+
+      console.log(
+        `[ChatGPT] Streaming complete. Text length: ${finalText.length}`
+      );
+
+      return { success: true, content: finalText };
+    } catch (error) {
+      console.error("[ChatGPT] Streaming error:", error);
+      return { success: false, error: String(error) };
+    }
   }
 }

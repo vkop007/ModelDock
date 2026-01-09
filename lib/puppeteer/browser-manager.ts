@@ -2,21 +2,43 @@ import { connect } from "puppeteer-real-browser";
 import { Browser, Page } from "puppeteer";
 import { LLMProvider, CookieEntry } from "@/types";
 
+// Global state to persist across Next.js hot reloads
+declare global {
+  // eslint-disable-next-line no-var
+  var __browserManager: BrowserManager | undefined;
+}
+
 // Singleton browser manager using puppeteer-real-browser
 // This library bypasses Cloudflare Turnstile and other bot detection
 class BrowserManager {
   private browser: Browser | null = null;
   private page: Page | null = null;
   private pages: Map<LLMProvider, Page> = new Map();
+  private cookiesInjected: Map<LLMProvider, boolean> = new Map();
   private initializing: Promise<{ browser: Browser; page: Page }> | null = null;
 
   async getBrowser(): Promise<Browser> {
-    if (this.browser && this.browser.connected) {
-      return this.browser;
+    // Check if browser is still connected
+    if (this.browser) {
+      try {
+        // Test if browser is still responsive
+        if (this.browser.connected) {
+          console.log("[BrowserManager] Reusing existing browser");
+          return this.browser;
+        }
+      } catch {
+        // Browser disconnected, need to reinitialize
+        console.log("[BrowserManager] Browser disconnected, reinitializing...");
+        this.browser = null;
+        this.page = null;
+        this.pages.clear();
+        this.cookiesInjected.clear();
+      }
     }
 
     // Prevent multiple simultaneous initialization
     if (this.initializing) {
+      console.log("[BrowserManager] Waiting for existing initialization...");
       const result = await this.initializing;
       return result.browser;
     }
@@ -36,9 +58,8 @@ class BrowserManager {
     console.log("[BrowserManager] Initializing puppeteer-real-browser...");
 
     const response = await connect({
-      headless: false, // Run in headless mode (Cloudflare bypass working)
+      headless: false, // Keep visible for now
       turnstile: true, // Auto-solve Cloudflare Turnstile
-      fingerprint: true, // Use unique fingerprint
       disableXvfb: true, // Disable virtual display on macOS
       args: [
         "--no-sandbox",
@@ -60,8 +81,18 @@ class BrowserManager {
   async getPage(provider: LLMProvider): Promise<Page> {
     let page = this.pages.get(provider);
 
-    if (page && !page.isClosed()) {
-      return page;
+    // Check if existing page is still valid
+    if (page) {
+      try {
+        if (!page.isClosed()) {
+          console.log(`[BrowserManager] Reusing existing page for ${provider}`);
+          return page;
+        }
+      } catch {
+        // Page is invalid, remove it
+        this.pages.delete(provider);
+        this.cookiesInjected.delete(provider);
+      }
     }
 
     const browser = await this.getBrowser();
@@ -69,15 +100,16 @@ class BrowserManager {
     // Use the default page for the first provider, create new pages for others
     if (this.page && !this.page.isClosed() && this.pages.size === 0) {
       page = this.page;
+      console.log(`[BrowserManager] Using default page for ${provider}`);
     } else {
       page = await browser.newPage();
+      console.log(`[BrowserManager] Created new page for ${provider}`);
     }
 
     // Set viewport
     await page.setViewport({ width: 1280, height: 800 });
 
     this.pages.set(provider, page);
-    console.log(`[BrowserManager] Created page for ${provider}`);
 
     return page;
   }
@@ -88,6 +120,14 @@ class BrowserManager {
   ): Promise<void> {
     if (!cookies || cookies.length === 0) {
       console.log(`[BrowserManager] No cookies to inject for ${provider}`);
+      return;
+    }
+
+    // Check if cookies already injected for this provider
+    if (this.cookiesInjected.get(provider)) {
+      console.log(
+        `[BrowserManager] Cookies already injected for ${provider}, skipping`
+      );
       return;
     }
 
@@ -130,6 +170,7 @@ class BrowserManager {
 
     if (puppeteerCookies.length > 0) {
       await page.setCookie(...puppeteerCookies);
+      this.cookiesInjected.set(provider, true);
       console.log(
         `[BrowserManager] Injected ${cookies.length} cookies for ${provider}`
       );
@@ -141,6 +182,7 @@ class BrowserManager {
     if (page && !page.isClosed()) {
       await page.close();
       this.pages.delete(provider);
+      this.cookiesInjected.delete(provider);
       console.log(`[BrowserManager] Closed page for ${provider}`);
     }
   }
@@ -152,6 +194,7 @@ class BrowserManager {
       }
       this.pages.delete(provider);
     }
+    this.cookiesInjected.clear();
 
     if (this.browser) {
       await this.browser.close();
@@ -167,5 +210,6 @@ class BrowserManager {
   }
 }
 
-// Export singleton instance
-export const browserManager = new BrowserManager();
+// Use global to persist across hot reloads in development
+export const browserManager: BrowserManager =
+  global.__browserManager || (global.__browserManager = new BrowserManager());

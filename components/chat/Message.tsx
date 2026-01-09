@@ -4,6 +4,7 @@ import { Message } from "@/types";
 import { useState } from "react";
 import { FiUser, FiCopy, FiCheck } from "react-icons/fi";
 import { SiOpenai, SiGoogle } from "react-icons/si";
+import { StreamdownRenderer } from "./StreamdownRenderer";
 
 interface MessageBubbleProps {
   message: Message;
@@ -48,7 +49,16 @@ export default function MessageBubble({ message, isLast }: MessageBubbleProps) {
           </div>
         ) : (
           <>
-            <div className="message-text">{message.content}</div>
+            {isUser ? (
+              <div className="message-text">{message.content}</div>
+            ) : (
+              <div className="message-text">
+                <StreamdownRenderer
+                  content={message.content}
+                  isStreaming={isLast}
+                />
+              </div>
+            )}
             {!isUser && message.content && (
               <div className="message-actions">
                 <button

@@ -332,7 +332,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         const cookies =
           state.cookieConfigs[state.activeProvider]?.cookies || [];
 
-        const response = await fetch("/api/chat", {
+        // Use streaming endpoint
+        const response = await fetch("/api/chat/stream", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -342,20 +343,61 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           }),
         });
 
-        const data = await response.json();
+        if (!response.ok) {
+          throw new Error("Failed to connect to streaming endpoint");
+        }
 
-        if (data.success && data.content) {
-          dispatch({
-            type: "UPDATE_MESSAGE",
-            id: assistantMessage.id,
-            content: data.content,
-          });
-        } else {
-          dispatch({
-            type: "UPDATE_MESSAGE",
-            id: assistantMessage.id,
-            content: `Error: ${data.error || "Failed to get response"}`,
-          });
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+        let accumulatedContent = "";
+
+        if (reader) {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value, { stream: true });
+            const lines = chunk.split("\n");
+
+            for (const line of lines) {
+              if (line.startsWith("data: ")) {
+                try {
+                  const data = JSON.parse(line.substring(6));
+
+                  if (data.type === "chunk" && data.content) {
+                    accumulatedContent += data.content;
+                    dispatch({
+                      type: "UPDATE_MESSAGE",
+                      id: assistantMessage.id,
+                      content: accumulatedContent,
+                    });
+                  } else if (data.type === "done") {
+                    if (data.success && data.content) {
+                      dispatch({
+                        type: "UPDATE_MESSAGE",
+                        id: assistantMessage.id,
+                        content: data.content,
+                      });
+                    } else if (data.error) {
+                      dispatch({
+                        type: "UPDATE_MESSAGE",
+                        id: assistantMessage.id,
+                        content: `Error: ${data.error}`,
+                      });
+                    }
+                  } else if (data.type === "error") {
+                    dispatch({
+                      type: "UPDATE_MESSAGE",
+                      id: assistantMessage.id,
+                      content: `Error: ${data.error}`,
+                    });
+                  }
+                } catch {
+                  // Ignore JSON parse errors for incomplete chunks
+                }
+              }
+            }
+          }
         }
       } catch (error) {
         dispatch({
