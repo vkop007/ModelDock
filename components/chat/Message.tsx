@@ -9,12 +9,18 @@ import { StreamdownRenderer } from "./StreamdownRenderer";
 interface MessageBubbleProps {
   message: Message;
   isLast: boolean;
+  isSending?: boolean;
 }
 
-export default function MessageBubble({ message, isLast }: MessageBubbleProps) {
+export default function MessageBubble({
+  message,
+  isLast,
+  isSending,
+}: MessageBubbleProps) {
   const [copied, setCopied] = useState(false);
   const isUser = message.role === "user";
-  const isLoading = message.role === "assistant" && !message.content && isLast;
+  const isLoading =
+    message.role === "assistant" && !message.content && isLast && isSending;
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(message.content);
@@ -55,7 +61,7 @@ export default function MessageBubble({ message, isLast }: MessageBubbleProps) {
               <div className="message-text">
                 <StreamdownRenderer
                   content={message.content}
-                  isStreaming={isLast}
+                  isStreaming={isLast && !!isSending}
                 />
               </div>
             )}

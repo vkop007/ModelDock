@@ -167,6 +167,15 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
       return { ...state, conversations };
     }
 
+    case "UPDATE_CONVERSATION_EXTERNAL_ID": {
+      const conversations = state.conversations.map((conv) =>
+        conv.id === action.id
+          ? { ...conv, externalId: action.externalId }
+          : conv
+      );
+      return { ...state, conversations };
+    }
+
     default:
       return state;
   }
@@ -250,9 +259,35 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     []
   );
 
-  const deleteConversation = useCallback((id: string) => {
-    dispatch({ type: "DELETE_CONVERSATION", id });
-  }, []);
+  const deleteConversation = useCallback(
+    async (id: string) => {
+      const conversation = state.conversations.find((c) => c.id === id);
+      const externalId = conversation?.externalId;
+      const provider = conversation?.provider;
+
+      // Delete locally first (optimistic update)
+      dispatch({ type: "DELETE_CONVERSATION", id });
+
+      // If we have an external ID, try to delete remotely
+      if (externalId && provider) {
+        try {
+          const cookies = state.cookieConfigs[provider]?.cookies || [];
+          await fetch("/api/chat/delete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              provider,
+              conversationId: externalId,
+              cookies,
+            }),
+          });
+        } catch (error) {
+          console.error("Failed to delete remote conversation", error);
+        }
+      }
+    },
+    [state.conversations, state.cookieConfigs]
+  );
 
   const testConnection = useCallback(
     async (provider: LLMProvider): Promise<boolean> => {
@@ -333,6 +368,11 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           state.cookieConfigs[state.activeProvider]?.cookies || [];
 
         // Use streaming endpoint
+        const currentConv = state.conversations.find(
+          (c) => c.id === state.currentConversationId
+        );
+        const externalId = currentConv?.externalId;
+
         const response = await fetch("/api/chat/stream", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -340,6 +380,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
             provider: state.activeProvider,
             message: content.trim(),
             cookies,
+            conversationId: externalId,
           }),
         });
 
@@ -378,6 +419,15 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
                         id: assistantMessage.id,
                         content: data.content,
                       });
+
+                      // Update conversation external ID if provided
+                      if (state.currentConversationId && data.conversationId) {
+                        dispatch({
+                          type: "UPDATE_CONVERSATION_EXTERNAL_ID",
+                          id: state.currentConversationId,
+                          externalId: data.conversationId,
+                        });
+                      }
                     } else if (data.error) {
                       dispatch({
                         type: "UPDATE_MESSAGE",

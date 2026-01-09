@@ -52,6 +52,7 @@ export interface Conversation {
   provider: LLMProvider;
   createdAt: number;
   updatedAt: number;
+  externalId?: string;
 }
 
 // Cookie configuration per provider
@@ -134,4 +135,5 @@ export type ChatAction =
   | { type: "SET_COOKIES"; provider: LLMProvider; cookies: CookieEntry[] }
   | { type: "LOAD_STATE"; state: Partial<ChatState> }
   | { type: "DELETE_CONVERSATION"; id: string }
-  | { type: "UPDATE_CONVERSATION_TITLE"; id: string; title: string };
+  | { type: "UPDATE_CONVERSATION_TITLE"; id: string; title: string }
+  | { type: "UPDATE_CONVERSATION_EXTERNAL_ID"; id: string; externalId: string };

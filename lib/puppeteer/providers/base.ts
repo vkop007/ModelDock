@@ -6,6 +6,7 @@ export interface SendMessageResult {
   success: boolean;
   content?: string;
   error?: string;
+  conversationId?: string;
 }
 
 export type StreamCallback = (chunk: string) => void;
@@ -49,6 +50,7 @@ export abstract class BaseProvider {
   abstract checkAuthentication(page: Page): Promise<boolean>;
   abstract sendMessage(message: string): Promise<SendMessageResult>;
   abstract waitForResponse(): Promise<string>;
+  abstract deleteConversation(conversationId: string): Promise<boolean>;
 
   async close(): Promise<void> {
     await browserManager.closePage(this.provider);

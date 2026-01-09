@@ -7,7 +7,12 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
   try {
-    const { provider: providerName, message, cookies } = await request.json();
+    const {
+      provider: providerName,
+      message,
+      cookies,
+      conversationId,
+    } = await request.json();
 
     if (!providerName || !message) {
       return new Response(
@@ -36,11 +41,13 @@ export async function POST(request: NextRequest) {
           const providerWithStreaming = provider as unknown as {
             sendMessageWithStreaming: (
               message: string,
-              onChunk: (chunk: string) => void
+              onChunk: (chunk: string) => void,
+              conversationId?: string
             ) => Promise<{
               success: boolean;
               content?: string;
               error?: string;
+              conversationId?: string;
             }>;
           };
 
@@ -55,7 +62,8 @@ export async function POST(request: NextRequest) {
                   })}\n\n`
                 )
               );
-            }
+            },
+            conversationId
           );
 
           controller.enqueue(
@@ -65,6 +73,7 @@ export async function POST(request: NextRequest) {
                 success: result.success,
                 content: result.content,
                 error: result.error,
+                conversationId: result.conversationId,
               })}\n\n`
             )
           );

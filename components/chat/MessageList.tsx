@@ -6,9 +6,10 @@ import MessageBubble from "./Message";
 
 interface MessageListProps {
   messages: Message[];
+  isSending: boolean;
 }
 
-export default function MessageList({ messages }: MessageListProps) {
+export default function MessageList({ messages, isSending }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom when new messages arrive
@@ -23,6 +24,7 @@ export default function MessageList({ messages }: MessageListProps) {
           key={message.id}
           message={message}
           isLast={index === messages.length - 1}
+          isSending={isSending}
         />
       ))}
       <div ref={bottomRef} />
