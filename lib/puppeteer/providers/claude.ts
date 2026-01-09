@@ -73,6 +73,14 @@ export class ClaudeProvider extends BaseProvider {
       await input.click();
       await page.keyboard.type(message, { delay: 10 });
 
+      // Count existing responses BEFORE clicking send
+      const previousResponseCount = await page.evaluate(() => {
+        const responses = document.querySelectorAll(
+          ".font-claude-response .standard-markdown, .font-claude-response .progressive-markdown"
+        );
+        return responses.length;
+      });
+
       // Click send button or press Enter
       const sendButton = await page.$(
         '[data-testid="submit-button"], button[aria-label="Send message"]'
@@ -86,6 +94,22 @@ export class ClaudeProvider extends BaseProvider {
       // Wait for response with streaming
       console.log("[Claude] Waiting for streaming to complete...");
 
+      // Wait for a NEW response to appear (more than previousResponseCount)
+      try {
+        await page.waitForFunction(
+          (prevCount: number) => {
+            const responses = document.querySelectorAll(
+              ".font-claude-response .standard-markdown, .font-claude-response .progressive-markdown"
+            );
+            return responses.length > prevCount;
+          },
+          { timeout: 15000 },
+          previousResponseCount
+        );
+      } catch {
+        // Continue, might be slow
+      }
+
       let lastContent = "";
       let stableCount = 0;
       const maxWait = 180000;
@@ -94,31 +118,25 @@ export class ClaudeProvider extends BaseProvider {
       while (Date.now() - startTime < maxWait) {
         await new Promise((resolve) => setTimeout(resolve, 200));
 
-        // Check for stop button
+        // Check for stop button (indicates still generating)
         const isGenerating = await page.evaluate(() => {
           const stopBtn = document.querySelector(
-            'button[aria-label="Stop generating"], [data-testid="stop-button"]'
+            'button[aria-label="Stop response"], [data-testid="stop-button"]'
           );
           return stopBtn !== null;
         });
 
-        const currentResponse = await page.evaluate(() => {
-          // Primary selector: Claude's response container with standard/progressive markdown
+        // Get the NEW response only (at index >= previousResponseCount)
+        const currentResponse = await page.evaluate((prevCount: number) => {
           const responses = document.querySelectorAll(
             ".font-claude-response .standard-markdown, .font-claude-response .progressive-markdown"
           );
-          if (responses.length > 0) {
+          // Only return content if there's a new response
+          if (responses.length > prevCount) {
             return responses[responses.length - 1].textContent || "";
           }
-          // Fallback: data-testid based selectors
-          const messages = document.querySelectorAll(
-            '[data-testid="assistant-message"], .assistant-message'
-          );
-          if (messages.length > 0) {
-            return messages[messages.length - 1].textContent || "";
-          }
           return "";
-        });
+        }, previousResponseCount);
 
         // Streaming update
         if (currentResponse.length > lastContent.length) {
@@ -189,10 +207,10 @@ export class ClaudeProvider extends BaseProvider {
     while (Date.now() - startTime < maxWait) {
       await new Promise((resolve) => setTimeout(resolve, 500));
 
-      // Check for stop button
+      // Check for stop button (indicates still generating)
       const isGenerating = await page.evaluate(() => {
         const stopBtn = document.querySelector(
-          'button[aria-label="Stop generating"], [data-testid="stop-button"]'
+          'button[aria-label="Stop response"], [data-testid="stop-button"]'
         );
         return stopBtn !== null;
       });

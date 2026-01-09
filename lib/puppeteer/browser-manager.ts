@@ -149,13 +149,12 @@ class BrowserManager {
         return;
       }
 
-      // Block non-essential resources aggressively
+      // Block non-essential resources (but keep stylesheets for proper UI)
       const shouldBlock =
-        // Block heavy resources
+        // Block heavy resources (but NOT stylesheets - needed for UI)
         resourceType === "image" ||
         resourceType === "font" ||
         resourceType === "media" ||
-        resourceType === "stylesheet" ||
         // Block analytics and tracking
         url.includes("analytics") ||
         url.includes("tracking") ||
