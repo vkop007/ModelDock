@@ -1,6 +1,7 @@
 import { connect } from "puppeteer-real-browser";
 import { Browser, Page } from "puppeteer";
 import { LLMProvider, CookieEntry } from "@/types";
+import { exec } from "child_process";
 
 // Global state to persist across Next.js hot reloads
 declare global {
@@ -15,6 +16,7 @@ class BrowserManager {
   private page: Page | null = null;
   private pages: Map<LLMProvider, Page> = new Map();
   private cookiesInjected: Map<LLMProvider, boolean> = new Map();
+  private pagesWarmed: Set<LLMProvider> = new Set(); // Track pre-warmed pages
   private initializing: Promise<{ browser: Browser; page: Page }> | null = null;
 
   async getBrowser(): Promise<Browser> {
@@ -58,16 +60,55 @@ class BrowserManager {
     console.log("[BrowserManager] Initializing puppeteer-real-browser...");
 
     const response = await connect({
-      headless: false, // Keep visible for now
+      headless: false, // Use visible browser for reliability (hidden via AppleScript)
       turnstile: true, // Auto-solve Cloudflare Turnstile
       disableXvfb: true, // Disable virtual display on macOS
       args: [
         "--no-sandbox",
         "--disable-setuid-sandbox",
         "--disable-dev-shm-usage",
-        "--window-size=1280,800",
+        "--window-size=390,844", // Mobile viewport size (iPhone 14)
+        "--disable-blink-features=AutomationControlled",
       ],
+      connectOption: {
+        defaultViewport: {
+          width: 390,
+          height: 844,
+          isMobile: true,
+          hasTouch: true,
+        },
+        slowMo: 20,
+      },
     });
+
+    // Hide Chrome window on macOS using AppleScript
+    // Run immediately (not in setTimeout) to minimize focus disruption
+    if (process.platform === "darwin") {
+      // First, get the current frontmost app before Chrome steals focus
+      exec(
+        `osascript -e '
+          tell application "System Events"
+            set frontApp to name of first process whose frontmost is true
+          end tell
+          delay 0.5
+          tell application "System Events"
+            set visible of process "Google Chrome" to false
+          end tell
+          delay 0.1
+          tell application frontApp to activate
+        '`,
+        (error) => {
+          if (error) {
+            console.log(
+              "[BrowserManager] Could not hide Chrome:",
+              error.message
+            );
+          } else {
+            console.log("[BrowserManager] Chrome hidden, focus restored");
+          }
+        }
+      );
+    }
 
     console.log(
       "[BrowserManager] Browser launched with Cloudflare bypass enabled"
@@ -106,12 +147,55 @@ class BrowserManager {
       console.log(`[BrowserManager] Created new page for ${provider}`);
     }
 
-    // Set viewport
-    await page.setViewport({ width: 1280, height: 800 });
+    // Set mobile viewport and user agent for faster loading
+    await page.setViewport({
+      width: 390,
+      height: 844,
+      isMobile: true,
+      hasTouch: true,
+    });
+    await page.setUserAgent(
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+    );
+
+    // Block unnecessary resources for faster loading
+    await page.setRequestInterception(true);
+    page.on("request", (request) => {
+      const resourceType = request.resourceType();
+      const url = request.url();
+
+      // Block images, fonts, media, and tracking scripts
+      if (
+        resourceType === "image" ||
+        resourceType === "font" ||
+        resourceType === "media" ||
+        url.includes("analytics") ||
+        url.includes("tracking") ||
+        url.includes("ads") ||
+        url.includes("gtag") ||
+        url.includes("facebook") ||
+        url.includes("hotjar")
+      ) {
+        request.abort();
+      } else {
+        request.continue();
+      }
+    });
 
     this.pages.set(provider, page);
 
     return page;
+  }
+
+  // Check if page is already warmed up
+  isPageWarmed(provider: LLMProvider): boolean {
+    return this.pagesWarmed.has(provider);
+  }
+
+  // Mark page as warmed
+  setPageWarmed(provider: LLMProvider): void {
+    this.pagesWarmed.add(provider);
+    console.log(`[BrowserManager] Page warmed for ${provider}`);
   }
 
   async injectCookies(

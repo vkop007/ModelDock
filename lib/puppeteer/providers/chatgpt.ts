@@ -41,23 +41,30 @@ export class ChatGPTProvider extends BaseProvider {
         // First time - navigate to ChatGPT
         console.log("[ChatGPT] First time - navigating to ChatGPT");
         await this.navigate();
-        await new Promise((resolve) => setTimeout(resolve, 3000));
+        // Reduced wait time since we block images/fonts
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        // Quick network idle check
+        try {
+          await page.waitForNetworkIdle({ timeout: 3000 });
+        } catch {
+          // Continue anyway - resources are blocked
+        }
       } else if (this.hasActiveConversation && isInConversation) {
-        // Already in a conversation - just wait for page to be ready
+        // Already in a conversation - minimal wait
         console.log(
           "[ChatGPT] Continuing existing conversation at:",
           currentUrl
         );
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        await new Promise((resolve) => setTimeout(resolve, 300));
       } else {
-        // On ChatGPT but not in a conversation yet - wait for page
+        // On ChatGPT but not in a conversation - quick wait
         console.log("[ChatGPT] On ChatGPT, waiting for chat interface...");
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+        await new Promise((resolve) => setTimeout(resolve, 500));
       }
 
-      // Wait for the input field
+      // Wait for the input field - reduced timeouts since page is lighter
       try {
-        await page.waitForSelector("#prompt-textarea", { timeout: 30000 });
+        await page.waitForSelector("#prompt-textarea", { timeout: 20000 });
         console.log("[ChatGPT] Found #prompt-textarea");
       } catch {
         console.log(
@@ -79,14 +86,14 @@ export class ChatGPTProvider extends BaseProvider {
       }
 
       await inputEl.click();
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      await new Promise((resolve) => setTimeout(resolve, 100)); // Reduced from 300ms
 
-      // Type the message
-      await page.keyboard.type(message, { delay: 50 });
-      console.log(`[ChatGPT] Typed message: ${message}`);
+      // Type the message faster
+      await page.keyboard.type(message, { delay: 10 }); // Reduced from 50ms
+      console.log(`[ChatGPT] Typed message: ${message.substring(0, 50)}...`);
 
-      // Wait for text to be registered
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      // Quick wait for text to register
+      await new Promise((resolve) => setTimeout(resolve, 200)); // Reduced from 500ms
 
       // Find and click the send button
       const sendButtonClicked = await page.evaluate(() => {
@@ -266,14 +273,20 @@ export class ChatGPTProvider extends BaseProvider {
       if (!isOnChatGPT) {
         console.log("[ChatGPT] First time - navigating to ChatGPT");
         await this.navigate();
-        await new Promise((resolve) => setTimeout(resolve, 3000));
+        // Reduced wait time since we block images/fonts
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        try {
+          await page.waitForNetworkIdle({ timeout: 3000 });
+        } catch {
+          // Continue anyway
+        }
       } else {
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        await new Promise((resolve) => setTimeout(resolve, 300));
       }
 
-      // Wait for input
+      // Wait for input - reduced timeouts
       try {
-        await page.waitForSelector("#prompt-textarea", { timeout: 30000 });
+        await page.waitForSelector("#prompt-textarea", { timeout: 20000 });
       } catch {
         await page.waitForSelector('div[contenteditable="true"], textarea', {
           timeout: 15000,
@@ -291,9 +304,9 @@ export class ChatGPTProvider extends BaseProvider {
       }
 
       await inputEl.click();
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      await page.keyboard.type(message, { delay: 50 });
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      await page.keyboard.type(message, { delay: 10 });
+      await new Promise((resolve) => setTimeout(resolve, 200));
 
       // Click send button
       const sendButtonClicked = await page.evaluate(() => {
