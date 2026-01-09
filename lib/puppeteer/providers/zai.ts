@@ -122,19 +122,39 @@ export class ZaiProvider extends BaseProvider {
           if (responseContainers.length === 0) return "";
 
           // Get the last one
-          const container = responseContainers[responseContainers.length - 1];
+          const assistantMessage =
+            responseContainers[responseContainers.length - 1];
+          if (!assistantMessage) return "";
+
+          const container = assistantMessage.querySelector(
+            "#response-content-container"
+          );
           if (!container) return "";
 
-          // Clone to manipulate
-          const clone = container.cloneNode(true) as HTMLElement;
+          // Extract text while preserving structure and ignoring thinking chain
+          let text = "";
+          container.childNodes.forEach((node) => {
+            if (node.nodeType === Node.ELEMENT_NODE) {
+              const el = node as HTMLElement;
+              if (el.classList.contains("thinking-chain-container")) return;
 
-          // Remove thinking chain if present (optional, but cleaner)
-          const thinking = clone.querySelector(".thinking-chain-container");
-          if (thinking) {
-            thinking.remove();
-          }
+              text += el.innerText;
 
-          return clone.textContent || "";
+              const style = window.getComputedStyle(el);
+              if (
+                style.display === "block" ||
+                style.display === "flex" ||
+                el.tagName === "P" ||
+                el.tagName === "DIV"
+              ) {
+                text += "\n\n";
+              }
+            } else if (node.nodeType === Node.TEXT_NODE) {
+              text += node.textContent;
+            }
+          });
+
+          return text || "";
         });
 
         if (currentResponse && currentResponse.length > lastContent.length) {
@@ -192,14 +212,38 @@ export class ZaiProvider extends BaseProvider {
       const currentResponse = await page.evaluate(() => {
         const responseContainers = document.querySelectorAll(".chat-assistant");
         if (responseContainers.length === 0) return "";
-        const container = responseContainers[responseContainers.length - 1];
+        const assistantMessage =
+          responseContainers[responseContainers.length - 1];
+        if (!assistantMessage) return "";
+
+        const container = assistantMessage.querySelector(
+          "#response-content-container"
+        );
         if (!container) return "";
 
-        const clone = container.cloneNode(true) as HTMLElement;
-        const thinking = clone.querySelector(".thinking-chain-container");
-        if (thinking) thinking.remove();
+        let text = "";
+        container.childNodes.forEach((node) => {
+          if (node.nodeType === Node.ELEMENT_NODE) {
+            const el = node as HTMLElement;
+            if (el.classList.contains("thinking-chain-container")) return;
 
-        return clone.textContent || "";
+            text += el.innerText;
+
+            const style = window.getComputedStyle(el);
+            if (
+              style.display === "block" ||
+              style.display === "flex" ||
+              el.tagName === "P" ||
+              el.tagName === "DIV"
+            ) {
+              text += "\n\n";
+            }
+          } else if (node.nodeType === Node.TEXT_NODE) {
+            text += node.textContent;
+          }
+        });
+
+        return text || "";
       });
 
       if (currentResponse && currentResponse.length > 0) {
