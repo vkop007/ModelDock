@@ -45,7 +45,29 @@ export class ZaiProvider extends BaseProvider {
 
     try {
       const page = await this.getPage();
-      await this.navigate();
+
+      // Navigation logic
+      const currentUrl = page.url();
+      const targetUrl = conversationId
+        ? `https://chat.z.ai/c/${conversationId}`
+        : "https://chat.z.ai";
+
+      if (conversationId && !currentUrl.includes(conversationId)) {
+        console.log(`[Z.ai] Navigating to conversation: ${conversationId}`);
+        await page.goto(targetUrl, {
+          waitUntil: "domcontentloaded",
+          timeout: 30000,
+        });
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      } else if (!conversationId && currentUrl.includes("/c/")) {
+        // If no ID but we are in a chat, go to root for new chat
+        console.log("[Z.ai] Navigating to new chat");
+        await page.goto("https://chat.z.ai", { waitUntil: "domcontentloaded" });
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      } else if (!currentUrl.includes("chat.z.ai")) {
+        await this.navigate();
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
 
       // Wait for input
       const inputSelector = "#chat-input";
@@ -157,16 +179,42 @@ export class ZaiProvider extends BaseProvider {
           return text || "";
         });
 
+        const isGenerating = await page.evaluate(() => {
+          const stopBtn = document.querySelector(
+            'button[aria-label="Stop generating"], button[aria-label="Stop response"], [class*="stop-button"]'
+          );
+          if (stopBtn) return true;
+
+          const allButtons = Array.from(document.querySelectorAll("button"));
+          const zaiStopBtn = allButtons.find((btn) => {
+            const span = btn.querySelector("span");
+            if (!span) return false;
+            const cls = span.className || "";
+            return cls.includes("size-3") && cls.includes("rounded-xs");
+          });
+          if (zaiStopBtn) return true;
+
+          if (document.querySelector(".loading-container")) return true;
+          return false;
+        });
+
         if (currentResponse && currentResponse.length > lastContent.length) {
           const chunk = currentResponse.substring(lastContent.length);
           onChunk(chunk);
           lastContent = currentResponse;
           stableCount = 0;
-        } else if (currentResponse && currentResponse.length > 0) {
+        }
+
+        if (isGenerating) {
+          stableCount = 0;
+          continue;
+        }
+
+        if (currentResponse && currentResponse.length > 0) {
           // Content didn't change
           stableCount++;
-          if (stableCount >= 4) {
-            // 2 seconds of stability
+          if (stableCount >= 10) {
+            // 5 seconds of stability
             finalResponse = currentResponse;
             break;
           }
@@ -177,7 +225,33 @@ export class ZaiProvider extends BaseProvider {
         return { success: false, error: "No response text detected" };
       }
 
-      return { success: true, content: finalResponse || lastContent };
+      // Extract Conversation ID from URL
+      // Sometimes the URL update is delayed. Wait for it if we are at root.
+      if (!page.url().includes("/c/")) {
+        try {
+          await page.waitForFunction(
+            () => window.location.href.includes("/c/"),
+            {
+              timeout: 5000,
+            }
+          );
+        } catch {
+          console.log("[Z.ai] Timeout waiting for URL to update to /c/");
+        }
+      }
+
+      const finalUrl = page.url();
+      // URL pattern: https://chat.z.ai/c/<UUID>
+      const match = finalUrl.match(/\/c\/([a-zA-Z0-9-]+)/);
+      const newConversationId = match ? match[1] : undefined;
+
+      console.log(`[Z.ai] Finished. ID: ${newConversationId}`);
+
+      return {
+        success: true,
+        content: finalResponse || lastContent,
+        conversationId: newConversationId,
+      };
     } catch (error) {
       console.error("[Z.ai] Error:", error);
       return { success: false, error: String(error) };
@@ -189,25 +263,56 @@ export class ZaiProvider extends BaseProvider {
     console.log("[Z.ai] Waiting for response to stream...");
 
     try {
-      // Wait for any likely message container
       await page.waitForSelector("#response-content-container", {
         timeout: 15000,
       });
     } catch {
-      console.log(
-        "[Z.ai] Warning: Standard message selectors not found immediately."
-      );
+      // Continue
     }
 
-    // Stability check loop
     let lastContentLength = 0;
     let stableCount = 0;
-    const maxWait = 60000;
+    const maxWait = 180000;
     const startTime = Date.now();
     let finalResponse = "";
 
     while (Date.now() - startTime < maxWait) {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Check for stop button
+      const isGenerating = await page.evaluate(() => {
+        // Standard checks
+        const stopBtn = document.querySelector(
+          'button[aria-label="Stop generating"], button[aria-label="Stop response"], [class*="stop-button"]'
+        );
+        if (stopBtn) return true;
+
+        // Specific Z.ai structure check (button with a square span inside)
+        // <button><span class="block bg-white size-3 ..."></span></button>
+        const allButtons = Array.from(document.querySelectorAll("button"));
+        const zaiStopBtn = allButtons.find((btn) => {
+          const span = btn.querySelector("span");
+          if (!span) return false;
+
+          // Check for the "square" icon classes typically found in Tailwind-like stop buttons
+          // "size-3" and "rounded-xs" are highly specific from the user snippet
+          const cls = span.className || "";
+          return cls.includes("size-3") && cls.includes("rounded-xs");
+        });
+
+        if (zaiStopBtn) return true;
+
+        // NEW: Check for loading container (3 dots animation)
+        const loadingContainer = document.querySelector(".loading-container");
+        if (loadingContainer) return true;
+
+        return false;
+      });
+
+      if (isGenerating) {
+        stableCount = 0;
+        continue;
+      }
 
       const currentResponse = await page.evaluate(() => {
         const responseContainers = document.querySelectorAll(".chat-assistant");
@@ -226,9 +331,7 @@ export class ZaiProvider extends BaseProvider {
           if (node.nodeType === Node.ELEMENT_NODE) {
             const el = node as HTMLElement;
             if (el.classList.contains("thinking-chain-container")) return;
-
             text += el.innerText;
-
             const style = window.getComputedStyle(el);
             if (
               style.display === "block" ||
@@ -242,14 +345,14 @@ export class ZaiProvider extends BaseProvider {
             text += node.textContent;
           }
         });
-
         return text || "";
       });
 
       if (currentResponse && currentResponse.length > 0) {
         if (currentResponse.length === lastContentLength) {
           stableCount++;
-          if (stableCount >= 3) {
+          if (stableCount >= 4) {
+            // 2 seconds stable
             finalResponse = currentResponse;
             break;
           }
@@ -264,11 +367,48 @@ export class ZaiProvider extends BaseProvider {
   }
 
   async deleteConversation(conversationId: string): Promise<boolean> {
-    // TODO: Implement deletion logic when specific UI elements are known
-    // For now return true to assume it "worked" or just log
-    console.log(
-      "[Z.ai] Delete conversation not yet fully implemented for this provider."
-    );
-    return false;
+    const page = await this.getPage();
+    console.log(`[Z.ai] Deleting conversation ${conversationId}...`);
+
+    try {
+      return await page.evaluate(async (cId) => {
+        const getCookie = (name: string) => {
+          const value = `; ${document.cookie}`;
+          const parts = value.split(`; ${name}=`);
+          if (parts.length === 2) return parts.pop()?.split(";").shift();
+        };
+
+        const token =
+          getCookie("token") ||
+          localStorage.getItem("token") ||
+          localStorage.getItem("access_token");
+
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        };
+
+        if (token) {
+          headers["Authorization"] = `Bearer ${token}`;
+        }
+
+        const response = await fetch(`https://chat.z.ai/api/v1/chats/${cId}`, {
+          method: "DELETE",
+          headers,
+        });
+
+        if (response.ok) {
+          return true;
+        }
+
+        console.error(
+          `[Z.ai] Delete failed: ${response.status} ${response.statusText}`
+        );
+        return false;
+      }, conversationId);
+    } catch (e) {
+      console.error("[Z.ai] Error deleting conversation:", e);
+      return false;
+    }
   }
 }
