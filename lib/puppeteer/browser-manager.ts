@@ -134,18 +134,54 @@ class BrowserManager {
       const resourceType = request.resourceType();
       const url = request.url();
 
-      // Block images, fonts, media, and tracking scripts
+      // Always allow essential requests (API calls, documents)
       if (
+        resourceType === "document" ||
+        resourceType === "xhr" ||
+        resourceType === "fetch" ||
+        resourceType === "websocket" ||
+        url.includes("/api/") ||
+        url.includes("completion") ||
+        url.includes("chat") ||
+        url.includes("conversation")
+      ) {
+        request.continue();
+        return;
+      }
+
+      // Block non-essential resources aggressively
+      const shouldBlock =
+        // Block heavy resources
         resourceType === "image" ||
         resourceType === "font" ||
         resourceType === "media" ||
+        resourceType === "stylesheet" ||
+        // Block analytics and tracking
         url.includes("analytics") ||
         url.includes("tracking") ||
-        url.includes("ads") ||
         url.includes("gtag") ||
+        url.includes("gtm.js") ||
         url.includes("facebook") ||
-        url.includes("hotjar")
-      ) {
+        url.includes("hotjar") ||
+        url.includes("sentry") ||
+        url.includes("datadog") ||
+        url.includes("segment") ||
+        url.includes("mixpanel") ||
+        url.includes("amplitude") ||
+        url.includes("intercom") ||
+        url.includes("crisp") ||
+        url.includes("zendesk") ||
+        url.includes("googletagmanager") ||
+        url.includes("googlesyndication") ||
+        url.includes("doubleclick") ||
+        // Block ads
+        url.includes("/ads") ||
+        url.includes("adservice") ||
+        // Block prefetch/preload that slows things down
+        resourceType === "prefetch" ||
+        resourceType === "preflight";
+
+      if (shouldBlock) {
         request.abort();
       } else {
         request.continue();
