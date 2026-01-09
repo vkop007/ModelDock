@@ -3,7 +3,7 @@ import { BaseProvider, SendMessageResult } from "./base";
 
 export class ClaudeProvider extends BaseProvider {
   constructor() {
-    super("claude", "https://claude.ai");
+    super("claude", "https://claude.ai/new");
   }
 
   async checkAuthentication(page: Page): Promise<boolean> {
@@ -41,30 +41,23 @@ export class ClaudeProvider extends BaseProvider {
     try {
       const page = await this.getPage();
 
-      // Navigation logic
+      // Navigation logic - simplified
       const currentUrl = page.url();
-      const targetUrl = conversationId
-        ? `https://claude.ai/chat/${conversationId}`
-        : "https://claude.ai/new";
 
       if (conversationId && !currentUrl.includes(conversationId)) {
+        // Navigate to specific conversation
         console.log(`[Claude] Navigating to conversation: ${conversationId}`);
-        await page.goto(targetUrl, {
+        await page.goto(`https://claude.ai/chat/${conversationId}`, {
           waitUntil: "domcontentloaded",
           timeout: 30000,
         });
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-      } else if (!conversationId && currentUrl.includes("/chat/")) {
-        // If no ID but we are in a chat, go to new chat
-        console.log("[Claude] Navigating to new chat");
-        await page.goto("https://claude.ai/new", {
-          waitUntil: "domcontentloaded",
-        });
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+        await new Promise((resolve) => setTimeout(resolve, 500));
       } else if (!currentUrl.includes("claude.ai")) {
+        // Not on Claude at all, navigate to new chat
         await this.navigate();
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+        await new Promise((resolve) => setTimeout(resolve, 500));
       }
+      // If already on claude.ai and no specific conversation needed, stay on current page
 
       // Wait for the input field
       const inputSelector =
@@ -78,7 +71,7 @@ export class ClaudeProvider extends BaseProvider {
       }
 
       await input.click();
-      await page.keyboard.type(message, { delay: 30 });
+      await page.keyboard.type(message, { delay: 10 });
 
       // Click send button or press Enter
       const sendButton = await page.$(
@@ -110,17 +103,19 @@ export class ClaudeProvider extends BaseProvider {
         });
 
         const currentResponse = await page.evaluate(() => {
+          // Primary selector: Claude's response container with standard/progressive markdown
+          const responses = document.querySelectorAll(
+            ".font-claude-response .standard-markdown, .font-claude-response .progressive-markdown"
+          );
+          if (responses.length > 0) {
+            return responses[responses.length - 1].textContent || "";
+          }
+          // Fallback: data-testid based selectors
           const messages = document.querySelectorAll(
             '[data-testid="assistant-message"], .assistant-message'
           );
           if (messages.length > 0) {
             return messages[messages.length - 1].textContent || "";
-          }
-          const allMessages = document.querySelectorAll(
-            ".prose, .message-content"
-          );
-          if (allMessages.length > 0) {
-            return allMessages[allMessages.length - 1].textContent || "";
           }
           return "";
         });
@@ -177,7 +172,7 @@ export class ClaudeProvider extends BaseProvider {
     // Wait for initial response
     try {
       await page.waitForSelector(
-        '[data-testid="assistant-message"], .assistant-message',
+        '.font-claude-response .standard-markdown, .font-claude-response .progressive-markdown, [data-testid="assistant-message"]',
         { timeout: 15000 }
       );
     } catch {
@@ -209,6 +204,12 @@ export class ClaudeProvider extends BaseProvider {
 
       // Check content stability
       const currentResponse = await page.evaluate(() => {
+        const responses = document.querySelectorAll(
+          ".font-claude-response .standard-markdown, .font-claude-response .progressive-markdown"
+        );
+        if (responses.length > 0) {
+          return responses[responses.length - 1].textContent || "";
+        }
         const messages = document.querySelectorAll(
           '[data-testid="assistant-message"], .assistant-message'
         );
@@ -233,15 +234,17 @@ export class ClaudeProvider extends BaseProvider {
     await new Promise((resolve) => setTimeout(resolve, 500));
 
     const response = await page.evaluate(() => {
+      const responses = document.querySelectorAll(
+        ".font-claude-response .standard-markdown, .font-claude-response .progressive-markdown"
+      );
+      if (responses.length > 0) {
+        return responses[responses.length - 1].textContent || "";
+      }
       const messages = document.querySelectorAll(
         '[data-testid="assistant-message"], .assistant-message'
       );
       if (messages.length > 0) {
         return messages[messages.length - 1].textContent || "";
-      }
-      const allMessages = document.querySelectorAll(".prose, .message-content");
-      if (allMessages.length > 0) {
-        return allMessages[allMessages.length - 1].textContent || "";
       }
       return "";
     });

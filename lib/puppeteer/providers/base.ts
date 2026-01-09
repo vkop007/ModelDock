@@ -34,7 +34,11 @@ export abstract class BaseProvider {
 
     if (!currentUrl.includes(new URL(this.url).hostname)) {
       console.log(`[${this.provider}] Navigating to ${this.url}`);
-      await page.goto(this.url, { waitUntil: "networkidle2", timeout: 60000 });
+      // Use domcontentloaded for faster loading - we block heavy resources anyway
+      await page.goto(this.url, {
+        waitUntil: "domcontentloaded",
+        timeout: 30000,
+      });
     }
   }
 
