@@ -480,6 +480,108 @@ body {
   background: linear-gradient(to top, var(--bg-primary) 80%, transparent);
   position: relative;
   z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.model-selector-container {
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+
+.model-selector-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--bg-secondary);
+  border: 1px solid transparent;
+  border-radius: 20px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.model-selector-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.model-menu {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 8px;
+  width: 220px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  z-index: 20;
+}
+
+.model-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+}
+
+.model-menu-item:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.model-menu-item.active {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.model-icon-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+}
+
+.model-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.model-name {
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.model-status {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.check-icon {
+  color: var(--accent-green);
 }
 
 .message-input-wrapper {

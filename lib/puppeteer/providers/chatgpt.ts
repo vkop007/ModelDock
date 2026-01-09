@@ -185,31 +185,31 @@ export class ChatGPTProvider extends BaseProvider {
       }
     }
 
-    // Wait for streaming to complete by checking if response stops changing
+    // Wait for streaming to complete
     console.log("[ChatGPT] Waiting for streaming to complete...");
 
     let lastLength = 0;
     let stableCount = 0;
-    const maxWait = 60000; // 60 seconds max
+    const maxWait = 180000; // 3 minutes max for long responses
     const startTime = Date.now();
 
     while (Date.now() - startTime < maxWait) {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 500)); // Standard poll 500ms
 
-      // Check if stop button is still visible
-      const stopButtonVisible = await page.evaluate(() => {
+      // Check if stop button is still visible - this is the best indicator of activity
+      const isGenerating = await page.evaluate(() => {
         const btn = document.querySelector(
           'button[aria-label="Stop generating"]'
         );
         return btn !== null;
       });
 
-      if (stopButtonVisible) {
+      if (isGenerating) {
         stableCount = 0;
         continue;
       }
 
-      // Get current response text - get the LAST message only
+      // If stop button is gone, verify text stability
       const currentResponse = await page.evaluate(() => {
         const messages = document.querySelectorAll(
           '[data-message-author-role="assistant"]'
@@ -222,8 +222,9 @@ export class ChatGPTProvider extends BaseProvider {
 
       if (currentResponse.length === lastLength && currentResponse.length > 0) {
         stableCount++;
-        if (stableCount >= 2) {
-          console.log("[ChatGPT] Response stable, extracting...");
+        // Require 2 seconds of stability after stop button disappears
+        if (stableCount >= 4) {
+          console.log("[ChatGPT] Response stable and generation stopped.");
           break;
         }
       } else {
@@ -235,7 +236,7 @@ export class ChatGPTProvider extends BaseProvider {
     // Small delay to ensure content is fully rendered
     await new Promise((resolve) => setTimeout(resolve, 500));
 
-    // Get the LAST assistant message text content (for Streamdown markdown rendering)
+    // Get the LAST assistant message text content
     const response = await page.evaluate(() => {
       const messages = document.querySelectorAll(
         '[data-message-author-role="assistant"]'
@@ -248,7 +249,7 @@ export class ChatGPTProvider extends BaseProvider {
     });
 
     console.log(
-      `[ChatGPT] Response extracted: ${response.substring(0, 100)}...`
+      `[ChatGPT] Response extracted. Length: ${response.length} chars`
     );
     return response;
   }
@@ -366,11 +367,11 @@ export class ChatGPTProvider extends BaseProvider {
       // Stream the response
       let lastContent = "";
       let stableCount = 0;
-      const maxWait = 120000;
+      const maxWait = 180000;
       const startTime = Date.now();
 
       while (Date.now() - startTime < maxWait) {
-        await new Promise((resolve) => setTimeout(resolve, 100)); // Poll every 100ms
+        await new Promise((resolve) => setTimeout(resolve, 200)); // Poll every 200ms
 
         // Get current response content (text for length comparison)
         const currentContent = await page.evaluate(() => {
@@ -395,15 +396,26 @@ export class ChatGPTProvider extends BaseProvider {
         }
 
         // Check if streaming is complete
-        const isStreaming = await page.evaluate(() => {
+        const isGenerating = await page.evaluate(() => {
           return (
             document.querySelector('button[aria-label="Stop generating"]') !==
             null
           );
         });
 
-        if (!isStreaming && stableCount >= 3) {
-          break;
+        // Only stop if NOT generating, AND we have significant stability
+        if (!isGenerating) {
+          // If we detect the "stop" button is gone, we still want to make sure
+          // we got the very last bits of text.
+          if (stableCount >= 5) {
+            // ~1 second of stability after stop button gone
+            break;
+          }
+        } else {
+          // If generating, reset stability if we got content, or just keep waiting
+          if (currentContent.length > lastContent.length) {
+            stableCount = 0;
+          }
         }
       }
 

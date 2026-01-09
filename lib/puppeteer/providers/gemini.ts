@@ -67,38 +67,93 @@ export class GeminiProvider extends BaseProvider {
   async waitForResponse(): Promise<string> {
     const page = await this.getPage();
 
-    // Wait for loading indicator to disappear
-    await page.waitForFunction(
-      () => {
+    console.log("[Gemini] Waiting for response to start streaming...");
+
+    // Wait for any likely response container or loading indicator
+    try {
+      await page.waitForSelector(
+        ".response-content, .model-response-text, message-content, .loading-indicator",
+        { timeout: 15000 }
+      );
+    } catch {
+      // Continue, might be already there
+    }
+
+    console.log("[Gemini] Waiting for streaming to complete...");
+
+    let lastLength = 0;
+    let stableCount = 0;
+    const maxWait = 180000; // 3 minutes
+    const startTime = Date.now();
+
+    while (Date.now() - startTime < maxWait) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Check for stop button
+      const isGenerating = await page.evaluate(() => {
+        const stopBtn = document.querySelector(
+          'button[aria-label="Stop response"], button[aria-label="Stop generating"], [data-testid="stop-button"]'
+        );
+        // Also check for loading indicators
         const loading = document.querySelector(
           '.loading-indicator, [aria-label="Loading"], .thinking-indicator'
         );
-        return !loading;
-      },
-      { timeout: 120000, polling: 500 }
-    );
+        return stopBtn !== null || loading !== null;
+      });
 
-    // Additional wait for content to fully render
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+      if (isGenerating) {
+        stableCount = 0;
+        continue;
+      }
 
-    // Get the last response
+      // Check content stability
+      const currentResponse = await page.evaluate(() => {
+        const responses = document.querySelectorAll(
+          ".response-content, .model-response-text, message-content"
+        );
+        if (responses.length > 0) {
+          return responses[responses.length - 1].textContent || "";
+        }
+        // Fallback
+        const markdown = document.querySelectorAll(
+          ".markdown-content, .response-text"
+        );
+        if (markdown.length > 0) {
+          return markdown[markdown.length - 1].textContent || "";
+        }
+        return "";
+      });
+
+      if (currentResponse.length === lastLength && currentResponse.length > 0) {
+        stableCount++;
+        if (stableCount >= 4) {
+          // 2 seconds stable
+          console.log("[Gemini] Response stable and generation stopped.");
+          break;
+        }
+      } else {
+        stableCount = 0;
+        lastLength = currentResponse.length;
+      }
+    }
+
+    // Small delay
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    // Get final response
     const response = await page.evaluate(() => {
       const responses = document.querySelectorAll(
         ".response-content, .model-response-text, message-content"
       );
       if (responses.length > 0) {
-        const lastResponse = responses[responses.length - 1];
-        return lastResponse.textContent || "";
+        return responses[responses.length - 1].textContent || "";
       }
-
-      // Fallback: look for formatted markdown content
       const markdown = document.querySelectorAll(
         ".markdown-content, .response-text"
       );
       if (markdown.length > 0) {
         return markdown[markdown.length - 1].textContent || "";
       }
-
       return "";
     });
 

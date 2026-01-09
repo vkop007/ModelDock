@@ -165,8 +165,8 @@ export class ZaiProvider extends BaseProvider {
         } else if (currentResponse && currentResponse.length > 0) {
           // Content didn't change
           stableCount++;
-          if (stableCount >= 4) {
-            // 2 seconds of stability
+          if (stableCount >= 10) {
+            // 5 seconds of stability
             finalResponse = currentResponse;
             break;
           }
@@ -189,25 +189,34 @@ export class ZaiProvider extends BaseProvider {
     console.log("[Z.ai] Waiting for response to stream...");
 
     try {
-      // Wait for any likely message container
       await page.waitForSelector("#response-content-container", {
         timeout: 15000,
       });
     } catch {
-      console.log(
-        "[Z.ai] Warning: Standard message selectors not found immediately."
-      );
+      // Continue
     }
 
-    // Stability check loop
     let lastContentLength = 0;
     let stableCount = 0;
-    const maxWait = 60000;
+    const maxWait = 180000;
     const startTime = Date.now();
     let finalResponse = "";
 
     while (Date.now() - startTime < maxWait) {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Check for stop button
+      const isGenerating = await page.evaluate(() => {
+        const stopBtn = document.querySelector(
+          'button[aria-label="Stop generating"], button[aria-label="Stop response"], [class*="stop-button"]'
+        );
+        return stopBtn !== null;
+      });
+
+      if (isGenerating) {
+        stableCount = 0;
+        continue;
+      }
 
       const currentResponse = await page.evaluate(() => {
         const responseContainers = document.querySelectorAll(".chat-assistant");
@@ -226,9 +235,7 @@ export class ZaiProvider extends BaseProvider {
           if (node.nodeType === Node.ELEMENT_NODE) {
             const el = node as HTMLElement;
             if (el.classList.contains("thinking-chain-container")) return;
-
             text += el.innerText;
-
             const style = window.getComputedStyle(el);
             if (
               style.display === "block" ||
@@ -242,14 +249,14 @@ export class ZaiProvider extends BaseProvider {
             text += node.textContent;
           }
         });
-
         return text || "";
       });
 
       if (currentResponse && currentResponse.length > 0) {
         if (currentResponse.length === lastContentLength) {
           stableCount++;
-          if (stableCount >= 3) {
+          if (stableCount >= 4) {
+            // 2 seconds stable
             finalResponse = currentResponse;
             break;
           }
@@ -264,11 +271,48 @@ export class ZaiProvider extends BaseProvider {
   }
 
   async deleteConversation(conversationId: string): Promise<boolean> {
-    // TODO: Implement deletion logic when specific UI elements are known
-    // For now return true to assume it "worked" or just log
-    console.log(
-      "[Z.ai] Delete conversation not yet fully implemented for this provider."
-    );
-    return false;
+    const page = await this.getPage();
+    console.log(`[Z.ai] Deleting conversation ${conversationId}...`);
+
+    try {
+      return await page.evaluate(async (cId) => {
+        const getCookie = (name: string) => {
+          const value = `; ${document.cookie}`;
+          const parts = value.split(`; ${name}=`);
+          if (parts.length === 2) return parts.pop()?.split(";").shift();
+        };
+
+        const token =
+          getCookie("token") ||
+          localStorage.getItem("token") ||
+          localStorage.getItem("access_token");
+
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        };
+
+        if (token) {
+          headers["Authorization"] = `Bearer ${token}`;
+        }
+
+        const response = await fetch(`https://chat.z.ai/api/v1/chats/${cId}`, {
+          method: "DELETE",
+          headers,
+        });
+
+        if (response.ok) {
+          return true;
+        }
+
+        console.error(
+          `[Z.ai] Delete failed: ${response.status} ${response.statusText}`
+        );
+        return false;
+      }, conversationId);
+    } catch (e) {
+      console.error("[Z.ai] Error deleting conversation:", e);
+      return false;
+    }
   }
 }

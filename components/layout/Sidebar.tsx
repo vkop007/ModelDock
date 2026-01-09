@@ -66,44 +66,6 @@ export default function Sidebar() {
           <span>New Chat</span>
         </button>
 
-        {/* Provider Selector */}
-        <div className="provider-selector">
-          <label className="provider-label">Model</label>
-          <div className="provider-options">
-            {(Object.keys(PROVIDERS) as LLMProvider[]).map((provider) => {
-              const config = PROVIDERS[provider];
-              const session = sessions[provider];
-              const hasCookies =
-                (cookieConfigs[provider]?.cookies?.length ?? 0) > 0;
-
-              return (
-                <button
-                  key={provider}
-                  className={`provider-option ${
-                    activeProvider === provider ? "active" : ""
-                  }`}
-                  onClick={() => setProvider(provider)}
-                  style={
-                    { "--provider-color": config.color } as React.CSSProperties
-                  }
-                >
-                  <ProviderIcon provider={provider} size={18} />
-                  <span>{config.name}</span>
-                  {hasCookies && (
-                    <span className="status-indicator">
-                      {session.isConnected ? (
-                        <FiCheck size={12} className="connected" />
-                      ) : (
-                        <FiAlertCircle size={12} className="disconnected" />
-                      )}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
         {/* Conversation List */}
         <div className="conversation-list">
           <label className="conversation-label">Recent Chats</label>

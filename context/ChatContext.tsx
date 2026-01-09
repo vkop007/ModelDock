@@ -58,8 +58,20 @@ const initialState: ChatState = {
 // Reducer
 function chatReducer(state: ChatState, action: ChatAction): ChatState {
   switch (action.type) {
-    case "SET_PROVIDER":
-      return { ...state, activeProvider: action.provider };
+    case "SET_PROVIDER": {
+      // Find the most recent conversation for the new provider
+      const providerConvos = state.conversations.filter(
+        (c) => c.provider === action.provider
+      );
+      const mostRecent =
+        providerConvos.length > 0 ? providerConvos[0].id : null;
+
+      return {
+        ...state,
+        activeProvider: action.provider,
+        currentConversationId: mostRecent,
+      };
+    }
 
     case "NEW_CONVERSATION": {
       const newConversation: Conversation = {
