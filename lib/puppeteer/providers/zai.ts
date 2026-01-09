@@ -45,7 +45,29 @@ export class ZaiProvider extends BaseProvider {
 
     try {
       const page = await this.getPage();
-      await this.navigate();
+
+      // Navigation logic
+      const currentUrl = page.url();
+      const targetUrl = conversationId
+        ? `https://chat.z.ai/c/${conversationId}`
+        : "https://chat.z.ai";
+
+      if (conversationId && !currentUrl.includes(conversationId)) {
+        console.log(`[Z.ai] Navigating to conversation: ${conversationId}`);
+        await page.goto(targetUrl, {
+          waitUntil: "domcontentloaded",
+          timeout: 30000,
+        });
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      } else if (!conversationId && currentUrl.includes("/c/")) {
+        // If no ID but we are in a chat, go to root for new chat
+        console.log("[Z.ai] Navigating to new chat");
+        await page.goto("https://chat.z.ai", { waitUntil: "domcontentloaded" });
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      } else if (!currentUrl.includes("chat.z.ai")) {
+        await this.navigate();
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
 
       // Wait for input
       const inputSelector = "#chat-input";
@@ -177,7 +199,33 @@ export class ZaiProvider extends BaseProvider {
         return { success: false, error: "No response text detected" };
       }
 
-      return { success: true, content: finalResponse || lastContent };
+      // Extract Conversation ID from URL
+      // Sometimes the URL update is delayed. Wait for it if we are at root.
+      if (!page.url().includes("/c/")) {
+        try {
+          await page.waitForFunction(
+            () => window.location.href.includes("/c/"),
+            {
+              timeout: 5000,
+            }
+          );
+        } catch {
+          console.log("[Z.ai] Timeout waiting for URL to update to /c/");
+        }
+      }
+
+      const finalUrl = page.url();
+      // URL pattern: https://chat.z.ai/c/<UUID>
+      const match = finalUrl.match(/\/c\/([a-zA-Z0-9-]+)/);
+      const newConversationId = match ? match[1] : undefined;
+
+      console.log(`[Z.ai] Finished. ID: ${newConversationId}`);
+
+      return {
+        success: true,
+        content: finalResponse || lastContent,
+        conversationId: newConversationId,
+      };
     } catch (error) {
       console.error("[Z.ai] Error:", error);
       return { success: false, error: String(error) };
@@ -207,10 +255,26 @@ export class ZaiProvider extends BaseProvider {
 
       // Check for stop button
       const isGenerating = await page.evaluate(() => {
+        // Standard checks
         const stopBtn = document.querySelector(
           'button[aria-label="Stop generating"], button[aria-label="Stop response"], [class*="stop-button"]'
         );
-        return stopBtn !== null;
+        if (stopBtn) return true;
+
+        // Specific Z.ai structure check (button with a square span inside)
+        // <button><span class="block bg-white size-3 ..."></span></button>
+        const allButtons = Array.from(document.querySelectorAll("button"));
+        const zaiStopBtn = allButtons.find((btn) => {
+          const span = btn.querySelector("span");
+          if (!span) return false;
+
+          // Check for the "square" icon classes typically found in Tailwind-like stop buttons
+          // "size-3" and "rounded-xs" are highly specific from the user snippet
+          const cls = span.className || "";
+          return cls.includes("size-3") && cls.includes("rounded-xs");
+        });
+
+        return zaiStopBtn !== undefined;
       });
 
       if (isGenerating) {
