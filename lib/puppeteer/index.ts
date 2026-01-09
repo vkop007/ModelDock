@@ -4,6 +4,7 @@ import { ChatGPTProvider } from "./providers/chatgpt";
 import { ClaudeProvider } from "./providers/claude";
 import { GeminiProvider } from "./providers/gemini";
 import { ZaiProvider } from "./providers/zai";
+import { GrokProvider } from "./providers/grok";
 export { browserManager } from "./browser-manager";
 
 // Provider factory
@@ -24,6 +25,9 @@ export function getProvider(provider: LLMProvider): BaseProvider {
       case "zai":
         providers.set(provider, new ZaiProvider());
         break;
+      case "grok":
+        providers.set(provider, new GrokProvider());
+        break;
       default:
         throw new Error(`Unknown provider: ${provider}`);
     }
@@ -33,7 +37,7 @@ export function getProvider(provider: LLMProvider): BaseProvider {
 }
 
 export function getAllProviders(): BaseProvider[] {
-  return ["chatgpt", "claude", "gemini", "zai"].map((p) =>
+  return ["chatgpt", "claude", "gemini", "zai", "grok"].map((p) =>
     getProvider(p as LLMProvider)
   );
 }

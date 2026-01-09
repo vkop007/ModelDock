@@ -52,6 +52,7 @@ export function loadCookieConfigs(): Record<LLMProvider, CookieConfig | null> {
     claude: null,
     gemini: null,
     zai: null,
+    grok: null,
   };
 
   if (!isBrowser) return defaults;

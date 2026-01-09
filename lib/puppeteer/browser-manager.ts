@@ -64,7 +64,6 @@ class BrowserManager {
       disableXvfb: true, // Disable virtual display on macOS
       args: [
         "--no-sandbox",
-        "--disable-setuid-sandbox",
         "--disable-dev-shm-usage",
         "--window-size=390,844", // Mobile viewport size (iPhone 14)
         "--disable-blink-features=AutomationControlled",
@@ -258,6 +257,12 @@ class BrowserManager {
       });
 
     if (puppeteerCookies.length > 0) {
+      // Debug: log cookie names and domains
+      console.log(`[BrowserManager] Cookie details for ${provider}:`);
+      puppeteerCookies.forEach((c) => {
+        console.log(`  - ${c.name}: domain=${c.domain}, path=${c.path}`);
+      });
+
       await page.setCookie(...puppeteerCookies);
       this.cookiesInjected.set(provider, true);
       console.log(
