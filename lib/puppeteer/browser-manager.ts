@@ -81,35 +81,6 @@ class BrowserManager {
       },
     });
 
-    // Hide Chrome window on macOS using AppleScript
-    // Run immediately (not in setTimeout) to minimize focus disruption
-    if (process.platform === "darwin") {
-      // First, get the current frontmost app before Chrome steals focus
-      exec(
-        `osascript -e '
-          tell application "System Events"
-            set frontApp to name of first process whose frontmost is true
-          end tell
-          delay 0.5
-          tell application "System Events"
-            set visible of process "Google Chrome" to false
-          end tell
-          delay 0.1
-          tell application frontApp to activate
-        '`,
-        (error) => {
-          if (error) {
-            console.log(
-              "[BrowserManager] Could not hide Chrome:",
-              error.message
-            );
-          } else {
-            console.log("[BrowserManager] Chrome hidden, focus restored");
-          }
-        }
-      );
-    }
-
     console.log(
       "[BrowserManager] Browser launched with Cloudflare bypass enabled"
     );

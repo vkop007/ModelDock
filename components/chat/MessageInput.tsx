@@ -61,9 +61,9 @@ export default function MessageInput() {
           disabled={!input.trim() || isSending || isDisabled}
         >
           {isSending ? (
-            <FiLoader size={18} className="spin" />
+            <FiLoader size={20} className="spin" />
           ) : (
-            <FiSend size={18} />
+            <FiSend size={20} />
           )}
         </button>
       </div>

@@ -72,7 +72,10 @@ export default function ChatArea() {
         <span>{providerConfig.name}</span>
         {isSending && <span className="typing-indicator">typing...</span>}
       </div>
-      <MessageList messages={currentConversation.messages} />
+      <MessageList
+        messages={currentConversation.messages}
+        isSending={isSending}
+      />
       <MessageInput />
     </main>
   );

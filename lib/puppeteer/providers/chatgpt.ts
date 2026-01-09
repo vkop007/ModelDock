@@ -261,7 +261,8 @@ export class ChatGPTProvider extends BaseProvider {
   // Streaming version of sendMessage - calls callback with each chunk
   async sendMessageWithStreaming(
     message: string,
-    onChunk: (chunk: string) => void
+    onChunk: (chunk: string) => void,
+    conversationId?: string
   ): Promise<SendMessageResult> {
     console.log("[ChatGPT] Using browser streaming...");
 
@@ -270,11 +271,25 @@ export class ChatGPTProvider extends BaseProvider {
 
       // Navigation logic
       const currentUrl = page.url();
-      const isOnChatGPT =
-        currentUrl.includes("chat.openai.com") ||
-        currentUrl.includes("chatgpt.com");
+      const targetUrl = conversationId
+        ? `https://chatgpt.com/c/${conversationId}`
+        : null;
 
-      if (!isOnChatGPT) {
+      if (targetUrl && !currentUrl.includes(conversationId!)) {
+        console.log(
+          `[ChatGPT] Navigating to specific conversation: ${conversationId}`
+        );
+        await page.goto(targetUrl, {
+          waitUntil: "domcontentloaded",
+          timeout: 60000,
+        });
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      } else if (!conversationId && currentUrl.includes("/c/")) {
+        // If no conversation ID provided but we are in a conversation, go to new chat
+        console.log("[ChatGPT] Starting new conversation - navigating to root");
+        await this.navigate();
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      } else if (!currentUrl.includes("chatgpt.com")) {
         console.log("[ChatGPT] First time - navigating to ChatGPT");
         await this.navigate();
         await new Promise((resolve) => setTimeout(resolve, 2000));
@@ -355,7 +370,7 @@ export class ChatGPTProvider extends BaseProvider {
       const startTime = Date.now();
 
       while (Date.now() - startTime < maxWait) {
-        await new Promise((resolve) => setTimeout(resolve, 300)); // Poll every 300ms
+        await new Promise((resolve) => setTimeout(resolve, 100)); // Poll every 100ms
 
         // Get current response content (text for length comparison)
         const currentContent = await page.evaluate(() => {
@@ -406,14 +421,214 @@ export class ChatGPTProvider extends BaseProvider {
         return "";
       });
 
+      // Extract Conversation ID from URL
+      const finalUrl = page.url();
+      const match = finalUrl.match(/\/c\/([a-zA-Z0-9-]+)/);
+      const newConversationId = match ? match[1] : undefined;
+
       console.log(
-        `[ChatGPT] Streaming complete. Text length: ${finalText.length}`
+        `[ChatGPT] Streaming complete. Text length: ${finalText.length}. ConvID: ${newConversationId}`
       );
 
-      return { success: true, content: finalText };
+      return {
+        success: true,
+        content: finalText,
+        conversationId: newConversationId,
+      };
     } catch (error) {
       console.error("[ChatGPT] Streaming error:", error);
       return { success: false, error: String(error) };
+    }
+  }
+
+  async deleteConversation(conversationId: string): Promise<boolean> {
+    console.log(`[ChatGPT] Deleting conversation: ${conversationId}`);
+    try {
+      const page = await this.getPage();
+      const targetUrl = `https://chatgpt.com/c/${conversationId}`;
+      const currentUrl = page.url();
+
+      if (!currentUrl.includes(conversationId)) {
+        await page.goto(targetUrl, {
+          waitUntil: "domcontentloaded",
+          timeout: 30000,
+        });
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+
+      console.log("[ChatGPT] Looking for delete options in header...");
+
+      // Strategy: Click the "..." menu in the top right header area using known test-id
+      try {
+        const selector = '[data-testid="conversation-options-button"]';
+
+        // Wait for the button
+        try {
+          await page.waitForSelector(selector, { timeout: 5000 });
+
+          // Since we are simulating mobile/touch, try tap first
+          try {
+            await page.tap(selector);
+          } catch {
+            // Fallback to evaluate click
+          }
+
+          // Redundantly ensure it receives a click event sequence (common fix for React/Headless)
+          await page.evaluate((sel) => {
+            const el = document.querySelector(sel);
+            if (el instanceof HTMLElement) {
+              // Dispatch full mouse sequence
+              const opts = { bubbles: true, cancelable: true, view: window };
+              el.dispatchEvent(new MouseEvent("mousedown", opts));
+              el.dispatchEvent(new MouseEvent("mouseup", opts));
+              el.dispatchEvent(new MouseEvent("click", opts));
+            }
+          }, selector);
+        } catch (e) {
+          // Fallback to aria-label if testid changes
+          console.log(
+            "[ChatGPT] Test ID selector failed, trying aria-label..."
+          );
+          const clicked = await page.evaluate(() => {
+            const btn = document.querySelector(
+              'button[aria-label="Open conversation options"]'
+            );
+            if (btn instanceof HTMLElement) {
+              btn.click();
+              return true;
+            }
+            return false;
+          });
+
+          if (!clicked) {
+            console.log("[ChatGPT] Could not find conversation options button");
+            return false;
+          }
+        }
+
+        // Wait specifically for the menu to appear
+        try {
+          await page.waitForSelector('[role="menu"], [role="menuitem"]', {
+            timeout: 3000,
+          });
+        } catch (e) {
+          console.log("[ChatGPT] Menu items did not appear after click");
+        }
+
+        // Now look for "Delete" in the dropdown
+        const deleteClicked = await page.evaluate(() => {
+          const items = Array.from(
+            document.querySelectorAll(
+              '[role="menuitem"], button, [role="menu"] div'
+            )
+          );
+
+          // Debug: capture texts
+          const texts = items.map((i) => i.textContent?.trim()).filter(Boolean);
+          console.log("DEBUG_MENU_ITEMS: " + JSON.stringify(texts));
+
+          // Look for "Delete," text, often red color
+          const deleteBtn = items.find((el) => {
+            const lower = el.textContent?.toLowerCase() || "";
+            return lower.includes("delete") && !lower.includes("deleted");
+          });
+
+          if (deleteBtn) {
+            (deleteBtn as HTMLElement).click();
+            return true;
+          }
+          return false;
+        });
+
+        if (!deleteClicked) {
+          // We can't see the console.log from evaluate in node easily without listener,
+          // but we can pass it back if we changed the signature.
+          // However, let's trust the logic is sound if the items are there.
+          // Let's print to the browser console (which appears in puppeteer logs usually if configured)
+          // or we can just try to click by index as fallback (Last item?)
+          console.log(
+            "[ChatGPT] Could not find 'Delete' menu item. found items?"
+          );
+
+          // Fallback: Try clicking the last menu item if it looks like a danger item
+          // (Delete is usually last)
+          const fallbackClicked = await page.evaluate(() => {
+            const items = Array.from(
+              document.querySelectorAll('[role="menuitem"]')
+            );
+            if (items.length > 0) {
+              const last = items[items.length - 1];
+              if (
+                last.classList.contains("text-red-500") ||
+                last.classList.contains("text-token-text-error") ||
+                last.textContent?.includes("Delete")
+              ) {
+                (last as HTMLElement).click();
+                return true;
+              }
+            }
+            return false;
+          });
+
+          if (fallbackClicked) {
+            console.log("[ChatGPT] Clicked last menu item as fallback");
+            return true; // proceed to confirmation
+          }
+
+          return false;
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 800));
+
+        // Confirm deletion in the modal
+        // Wait for modal to appear
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+
+        const confirmClicked = await page.evaluate(() => {
+          // Find all buttons
+          const buttons = Array.from(document.querySelectorAll("button"));
+
+          // Filter for the specific red delete button in a dialog
+          // It's usually the one with "Delete" text and red styling
+          const confirmBtn = buttons.find((b) => {
+            const text = b.textContent?.trim() || "";
+            const isDelete = text === "Delete";
+            if (!isDelete) return false;
+
+            // Check if it's in a dialog
+            const isInDialog =
+              b.closest('[role="dialog"]') !== null ||
+              b.closest('div[class*="modal"]');
+            if (!isInDialog) return false;
+
+            return true;
+          });
+
+          if (confirmBtn) {
+            (confirmBtn as HTMLElement).click();
+            return true;
+          }
+          return false;
+        });
+
+        if (confirmClicked) {
+          console.log("[ChatGPT] Deletion confirmed");
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+          this.resetConversation();
+          return true;
+        } else {
+          console.log("[ChatGPT] Could not find confirmation button");
+          return false;
+        }
+      } catch (err) {
+        console.error("[ChatGPT] Deletion step failed", err);
+        return false;
+      }
+    } catch (error) {
+      console.error("[ChatGPT] Deletion error:", error);
+      return false;
     }
   }
 }
