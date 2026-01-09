@@ -47,15 +47,25 @@ export function saveCookieConfigs(
 }
 
 export function loadCookieConfigs(): Record<LLMProvider, CookieConfig | null> {
-  if (!isBrowser) return { chatgpt: null, claude: null, gemini: null };
+  const defaults: Record<LLMProvider, CookieConfig | null> = {
+    chatgpt: null,
+    claude: null,
+    gemini: null,
+    zai: null,
+  };
+
+  if (!isBrowser) return defaults;
+
   try {
     const data = localStorage.getItem(STORAGE_KEYS.COOKIES);
-    return data
-      ? JSON.parse(data)
-      : { chatgpt: null, claude: null, gemini: null };
+    if (!data) return defaults;
+
+    const parsed = JSON.parse(data);
+    // Merge parsed data with defaults to ensure all keys exist
+    return { ...defaults, ...parsed };
   } catch (error) {
     console.error("Failed to load cookie configs:", error);
-    return { chatgpt: null, claude: null, gemini: null };
+    return defaults;
   }
 }
 

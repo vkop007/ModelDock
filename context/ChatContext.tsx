@@ -43,11 +43,13 @@ const initialState: ChatState = {
     chatgpt: { ...initialSessionState, provider: "chatgpt" },
     claude: { ...initialSessionState, provider: "claude" },
     gemini: { ...initialSessionState, provider: "gemini" },
+    zai: { ...initialSessionState, provider: "zai" },
   },
   cookieConfigs: {
     chatgpt: null,
     claude: null,
     gemini: null,
+    zai: null,
   },
   isLoading: false,
   isSending: false,
