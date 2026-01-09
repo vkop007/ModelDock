@@ -99,4 +99,8 @@ export class ClaudeProvider extends BaseProvider {
 
     return response;
   }
+  async deleteConversation(conversationId: string): Promise<boolean> {
+    console.log(`[${this.provider}] Delete conversation not implemented.`);
+    return false;
+  }
 }

@@ -3,12 +3,8 @@ import { BaseProvider } from "./providers/base";
 import { ChatGPTProvider } from "./providers/chatgpt";
 import { ClaudeProvider } from "./providers/claude";
 import { GeminiProvider } from "./providers/gemini";
-
+import { ZaiProvider } from "./providers/zai";
 export { browserManager } from "./browser-manager";
-export { BaseProvider } from "./providers/base";
-export { ChatGPTProvider } from "./providers/chatgpt";
-export { ClaudeProvider } from "./providers/claude";
-export { GeminiProvider } from "./providers/gemini";
 
 // Provider factory
 const providers: Map<LLMProvider, BaseProvider> = new Map();
@@ -25,6 +21,9 @@ export function getProvider(provider: LLMProvider): BaseProvider {
       case "gemini":
         providers.set(provider, new GeminiProvider());
         break;
+      case "zai":
+        providers.set(provider, new ZaiProvider());
+        break;
       default:
         throw new Error(`Unknown provider: ${provider}`);
     }
@@ -34,7 +33,7 @@ export function getProvider(provider: LLMProvider): BaseProvider {
 }
 
 export function getAllProviders(): BaseProvider[] {
-  return ["chatgpt", "claude", "gemini"].map((p) =>
+  return ["chatgpt", "claude", "gemini", "zai"].map((p) =>
     getProvider(p as LLMProvider)
   );
 }

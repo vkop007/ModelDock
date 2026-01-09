@@ -1,7 +1,6 @@
 import { connect } from "puppeteer-real-browser";
 import { Browser, Page } from "puppeteer";
 import { LLMProvider, CookieEntry } from "@/types";
-import { exec } from "child_process";
 
 // Global state to persist across Next.js hot reloads
 declare global {
@@ -60,7 +59,7 @@ class BrowserManager {
     console.log("[BrowserManager] Initializing puppeteer-real-browser...");
 
     const response = await connect({
-      headless: true, // Use visible browser for reliability (hidden via AppleScript)
+      headless: false, // Use visible browser for reliability (hidden via AppleScript)
       turnstile: true, // Auto-solve Cloudflare Turnstile
       disableXvfb: true, // Disable virtual display on macOS
       args: [
