@@ -254,6 +254,33 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     saveCurrentConversation(state.currentConversationId);
   }, [state.currentConversationId]);
 
+  // Warmup browser page for active provider
+  useEffect(() => {
+    const warmupProvider = async () => {
+      const cookies = state.cookieConfigs[state.activeProvider]?.cookies || [];
+      try {
+        console.log(
+          `[ChatContext] Warming up browser for ${state.activeProvider}`
+        );
+        await fetch("/api/session/warmup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            provider: state.activeProvider,
+            cookies,
+          }),
+        });
+      } catch (error) {
+        console.error("[ChatContext] Warmup failed:", error);
+      }
+    };
+
+    // Only warmup if we have loaded cookies (not on very first render)
+    if (state.cookieConfigs[state.activeProvider]) {
+      warmupProvider();
+    }
+  }, [state.activeProvider, state.cookieConfigs]);
+
   // Get current conversation
   const currentConversation =
     state.conversations.find((c) => c.id === state.currentConversationId) ||
