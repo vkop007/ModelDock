@@ -143,7 +143,7 @@ export class ZaiProvider extends BaseProvider {
             document.querySelectorAll(".chat-assistant");
           if (responseContainers.length === 0) return "";
 
-          // Get the last one
+          // Get the last assistant message
           const assistantMessage =
             responseContainers[responseContainers.length - 1];
           if (!assistantMessage) return "";
@@ -153,30 +153,15 @@ export class ZaiProvider extends BaseProvider {
           );
           if (!container) return "";
 
-          // Extract text while preserving structure and ignoring thinking chain
-          let text = "";
-          container.childNodes.forEach((node) => {
-            if (node.nodeType === Node.ELEMENT_NODE) {
-              const el = node as HTMLElement;
-              if (el.classList.contains("thinking-chain-container")) return;
+          // Get the first child div that contains the actual content
+          const contentDiv = container.querySelector("div");
+          if (!contentDiv) {
+            // Fallback to container's innerText
+            return (container as HTMLElement).innerText || "";
+          }
 
-              text += el.innerText;
-
-              const style = window.getComputedStyle(el);
-              if (
-                style.display === "block" ||
-                style.display === "flex" ||
-                el.tagName === "P" ||
-                el.tagName === "DIV"
-              ) {
-                text += "\n\n";
-              }
-            } else if (node.nodeType === Node.TEXT_NODE) {
-              text += node.textContent;
-            }
-          });
-
-          return text || "";
+          // Use innerText which preserves formatting naturally
+          return contentDiv.innerText || "";
         });
 
         const isGenerating = await page.evaluate(() => {
@@ -326,26 +311,13 @@ export class ZaiProvider extends BaseProvider {
         );
         if (!container) return "";
 
-        let text = "";
-        container.childNodes.forEach((node) => {
-          if (node.nodeType === Node.ELEMENT_NODE) {
-            const el = node as HTMLElement;
-            if (el.classList.contains("thinking-chain-container")) return;
-            text += el.innerText;
-            const style = window.getComputedStyle(el);
-            if (
-              style.display === "block" ||
-              style.display === "flex" ||
-              el.tagName === "P" ||
-              el.tagName === "DIV"
-            ) {
-              text += "\n\n";
-            }
-          } else if (node.nodeType === Node.TEXT_NODE) {
-            text += node.textContent;
-          }
-        });
-        return text || "";
+        // Get the first child div that contains the actual content
+        const contentDiv = container.querySelector("div");
+        if (!contentDiv) {
+          return (container as HTMLElement).innerText || "";
+        }
+
+        return contentDiv.innerText || "";
       });
 
       if (currentResponse && currentResponse.length > 0) {
