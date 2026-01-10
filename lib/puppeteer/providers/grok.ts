@@ -38,32 +38,37 @@ export class GrokProvider extends BaseProvider {
 
       // Navigation logic
       const currentUrl = page.url();
+      const isInConversation =
+        currentUrl.includes("/c/") || currentUrl.includes("/chat/");
 
       if (conversationId) {
-        // Navigate to existing conversation if not already there
-        if (!currentUrl.includes(`/c/${conversationId}`)) {
+        // Check if we're already in this conversation
+        const alreadyInConversation = currentUrl.includes(conversationId);
+        if (!alreadyInConversation) {
           console.log(`[Grok] Navigating to conversation: ${conversationId}`);
-          await page.goto(`https://grok.com/c/${conversationId}`, {
+          // Try both possible URL patterns
+          await page.goto(`https://grok.com/chat/${conversationId}`, {
             waitUntil: "domcontentloaded",
             timeout: 30000,
           });
           await new Promise((resolve) => setTimeout(resolve, 1000));
+        } else {
+          console.log(`[Grok] Already in conversation ${conversationId}`);
         }
-      } else {
-        // New chat - navigate to base URL for fresh conversation
-        if (currentUrl.includes("/c/")) {
-          console.log("[Grok] Starting new chat...");
-          await page.goto("https://grok.com/", {
-            waitUntil: "domcontentloaded",
-            timeout: 30000,
-          });
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-        } else if (!currentUrl.includes("grok.com")) {
-          console.log("[Grok] Navigating to Grok...");
-          await this.navigate();
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-        }
+      } else if (isInConversation) {
+        // No conversationId but we're in a chat - start new conversation
+        console.log("[Grok] Starting new chat...");
+        await page.goto("https://grok.com/", {
+          waitUntil: "domcontentloaded",
+          timeout: 30000,
+        });
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      } else if (!currentUrl.includes("grok.com")) {
+        console.log("[Grok] Navigating to Grok...");
+        await this.navigate();
+        await new Promise((resolve) => setTimeout(resolve, 1000));
       }
+      // If already on grok.com homepage with no conversation, stay there
 
       console.log("[Grok] Checking page state...");
       await new Promise((resolve) => setTimeout(resolve, 500));
@@ -247,7 +252,52 @@ export class GrokProvider extends BaseProvider {
   }
 
   async deleteConversation(conversationId: string): Promise<boolean> {
-    console.log(`[${this.provider}] Delete conversation not implemented.`);
-    return false;
+    console.log(`[Grok] Deleting conversation via API: ${conversationId}`);
+    try {
+      const page = await this.getPage();
+
+      // Make sure we're on Grok to have valid cookies/auth
+      const currentUrl = page.url();
+      if (!currentUrl.includes("grok.com")) {
+        await this.navigate();
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
+
+      // Use the Grok API directly from the browser context
+      const result = await page.evaluate(async (convId: string) => {
+        try {
+          const response = await fetch(
+            `https://grok.com/rest/app-chat/conversations/soft/${convId}`,
+            {
+              method: "DELETE",
+              credentials: "include",
+            }
+          );
+
+          if (response.ok || response.status === 204) {
+            return { success: true };
+          } else {
+            const text = await response.text();
+            return {
+              success: false,
+              error: `HTTP ${response.status}: ${text}`,
+            };
+          }
+        } catch (err) {
+          return { success: false, error: String(err) };
+        }
+      }, conversationId);
+
+      if (result.success) {
+        console.log(`[Grok] Conversation deleted successfully`);
+        return true;
+      } else {
+        console.error(`[Grok] API delete failed:`, result.error);
+        return false;
+      }
+    } catch (error) {
+      console.error("[Grok] Deletion error:", error);
+      return false;
+    }
   }
 }
