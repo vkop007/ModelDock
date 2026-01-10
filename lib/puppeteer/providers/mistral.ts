@@ -134,10 +134,11 @@ export class MistralProvider extends BaseProvider {
           );
           if (responses.length > prevCount) {
             const lastResponse = responses[responses.length - 1];
-            const markdown = lastResponse.querySelector(
-              ".markdown-container-style"
+            // Target only the answer part to avoid time text
+            const answerPart = lastResponse.querySelector(
+              '[data-message-part-type="answer"]'
             );
-            return markdown?.textContent || lastResponse?.textContent || "";
+            return answerPart?.textContent || "";
           }
           return "";
         }, previousResponseCount);
@@ -212,10 +213,11 @@ export class MistralProvider extends BaseProvider {
         );
         if (responses.length > 0) {
           const lastResponse = responses[responses.length - 1];
-          const markdown = lastResponse.querySelector(
-            ".markdown-container-style"
+          // Target only the answer part to avoid time text
+          const answerPart = lastResponse.querySelector(
+            '[data-message-part-type="answer"]'
           );
-          return markdown?.textContent || lastResponse?.textContent || "";
+          return answerPart?.textContent || "";
         }
         return "";
       });
@@ -237,10 +239,11 @@ export class MistralProvider extends BaseProvider {
       );
       if (responses.length > 0) {
         const lastResponse = responses[responses.length - 1];
-        const markdown = lastResponse.querySelector(
-          ".markdown-container-style"
+        // Target only the answer part to avoid time text
+        const answerPart = lastResponse.querySelector(
+          '[data-message-part-type="answer"]'
         );
-        return markdown?.textContent || lastResponse?.textContent || "";
+        return answerPart?.textContent || "";
       }
       return "";
     });
