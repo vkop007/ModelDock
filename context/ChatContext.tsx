@@ -6,6 +6,7 @@ import React, {
   useReducer,
   useEffect,
   useCallback,
+  useRef,
 } from "react";
 import { v4 as uuidv4 } from "uuid";
 import {
@@ -228,6 +229,7 @@ const ChatContext = createContext<ChatContextValue | null>(null);
 
 export function ChatProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(chatReducer, initialState);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Load saved state on mount
   useEffect(() => {
@@ -306,6 +308,12 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const setProvider = useCallback((provider: LLMProvider) => {
+    // Cancel any ongoing stream when switching providers
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    dispatch({ type: "SET_SENDING", isSending: false });
     dispatch({ type: "SET_PROVIDER", provider });
   }, []);
 
@@ -421,6 +429,10 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       dispatch({ type: "ADD_MESSAGE", message: assistantMessage });
 
       try {
+        // Create AbortController for this request
+        abortControllerRef.current = new AbortController();
+        const signal = abortControllerRef.current.signal;
+
         const cookies =
           state.cookieConfigs[state.activeProvider]?.cookies || [];
 
@@ -439,6 +451,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
             cookies,
             conversationId: externalId,
           }),
+          signal,
         });
 
         if (!response.ok) {
@@ -507,12 +520,18 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           }
         }
       } catch (error) {
+        // Don't show error if the request was intentionally aborted (e.g., when switching providers)
+        if (error instanceof Error && error.name === "AbortError") {
+          console.log("[ChatContext] Stream aborted");
+          return;
+        }
         dispatch({
           type: "UPDATE_MESSAGE",
           id: assistantMessage.id,
           content: `Error: ${String(error)}`,
         });
       } finally {
+        abortControllerRef.current = null;
         dispatch({ type: "SET_SENDING", isSending: false });
       }
     },
