@@ -1,5 +1,11 @@
 // Supported LLM Providers
-export type LLMProvider = "chatgpt" | "claude" | "gemini" | "zai" | "grok";
+export type LLMProvider =
+  | "chatgpt"
+  | "claude"
+  | "gemini"
+  | "zai"
+  | "grok"
+  | "qwen";
 
 // LLM Provider configuration
 export interface ProviderConfig {
@@ -46,6 +52,13 @@ export const PROVIDERS: Record<LLMProvider, ProviderConfig> = {
     url: "https://x.com/i/grok",
     icon: "SiX",
     color: "#000000",
+  },
+  qwen: {
+    id: "qwen",
+    name: "Qwen",
+    url: "https://chat.qwenlm.ai",
+    icon: "SiAlibaba",
+    color: "#6366f1",
   },
 };
 

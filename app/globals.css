@@ -476,13 +476,13 @@ body {
 
 /* Message Input */
 .message-input-container {
-  padding: 24px 10%;
-  background: linear-gradient(to top, var(--bg-primary) 80%, transparent);
+  padding: 12px 10% 16px;
+  background: linear-gradient(to top, var(--bg-primary) 85%, transparent);
   position: relative;
   z-index: 10;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
 }
 
 .model-selector-container {
@@ -587,20 +587,21 @@ body {
 .message-input-wrapper {
   display: flex;
   align-items: flex-end;
-  gap: 12px;
+  gap: 8px;
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
-  border-radius: 26px;
-  padding: 10px 10px 10px 20px;
+  border-radius: 22px;
+  padding: 6px 6px 6px 16px;
   max-width: 768px;
+  width: 100%;
   margin: 0 auto;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .message-input-wrapper:focus-within {
   border-color: var(--text-muted);
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.2);
 }
 
 .message-input {
@@ -608,13 +609,13 @@ body {
   background: transparent;
   border: none;
   color: var(--text-primary);
-  font-size: 16px;
-  line-height: 1.5;
+  font-size: 15px;
+  line-height: 1.4;
   resize: none;
   outline: none;
-  max-height: 200px;
-  padding: 8px 0;
-  min-height: 24px;
+  max-height: 120px;
+  padding: 6px 0;
+  min-height: 22px;
 }
 
 .message-input::placeholder {
@@ -627,15 +628,15 @@ body {
 
 .send-btn {
   flex-shrink: 0;
-  width: 40px;
-  height: 40px;
+  width: 34px;
+  height: 34px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--text-primary);
+  background: var(--bg-tertiary);
   border: none;
   border-radius: 50%;
-  color: var(--bg-primary);
+  color: var(--text-muted);
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -666,11 +667,7 @@ body {
 }
 
 .input-hint {
-  text-align: center;
-  font-size: 12px;
-  color: var(--text-secondary);
-  margin-top: 12px;
-  opacity: 0.7;
+  display: none;
 }
 
 /* Modal */

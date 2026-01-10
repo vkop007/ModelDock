@@ -45,6 +45,7 @@ const initialState: ChatState = {
     gemini: { ...initialSessionState, provider: "gemini" },
     zai: { ...initialSessionState, provider: "zai" },
     grok: { ...initialSessionState, provider: "grok" },
+    qwen: { ...initialSessionState, provider: "qwen" },
   },
   cookieConfigs: {
     chatgpt: null,
@@ -52,6 +53,7 @@ const initialState: ChatState = {
     gemini: null,
     zai: null,
     grok: null,
+    qwen: null,
   },
   isLoading: false,
   isSending: false,
