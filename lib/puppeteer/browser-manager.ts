@@ -229,7 +229,7 @@ class BrowserManager {
         claude: "https://claude.ai",
         gemini: "https://gemini.google.com",
         zai: "https://chat.z.ai",
-        grok: "https://x.com/i/grok",
+        grok: "https://grok.com",
         qwen: "https://chat.qwenlm.ai",
         mistral: "https://chat.mistral.ai",
       };
