@@ -3,30 +3,31 @@
 import { useChatContext } from "@/context/ChatContext";
 import { useState, useRef, useEffect, KeyboardEvent } from "react";
 import { FiSend, FiLoader, FiChevronDown, FiCheck } from "react-icons/fi";
-import { SiOpenai, SiGoogle } from "react-icons/si";
-import { TbSparkles, TbBrandX, TbWind } from "react-icons/tb";
+import Image from "next/image";
 import { PROVIDERS, LLMProvider } from "@/types";
 
-// Helper function to get proper icon for each provider
-const getProviderIcon = (provider: LLMProvider, size: number) => {
-  switch (provider) {
-    case "chatgpt":
-      return <SiOpenai size={size} />;
-    case "gemini":
-      return <SiGoogle size={size} />;
-    case "claude":
-      return <TbSparkles size={size} />;
-    case "zai":
-      return <span style={{ fontWeight: "bold", fontSize: size - 2 }}>Z</span>;
-    case "grok":
-      return <TbBrandX size={size} />;
-    case "qwen":
-      return <span style={{ fontWeight: "bold", fontSize: size - 2 }}>Q</span>;
-    case "mistral":
-      return <TbWind size={size} />;
-    default:
-      return <span style={{ fontWeight: "bold", fontSize: size - 2 }}>AI</span>;
-  }
+// Logo paths for each provider
+const PROVIDER_LOGOS: Record<LLMProvider, string> = {
+  chatgpt: "/providers/chatgpt_logo.jpeg",
+  claude: "/providers/claude_logo.jpeg",
+  gemini: "/providers/gemini.jpeg",
+  zai: "/providers/zdotai_logo.jpeg",
+  grok: "/providers/grok.jpg",
+  qwen: "/providers/qwen_logo.jpeg",
+  mistral: "/providers/mistralai_logo.jpeg",
+};
+
+// Helper function to get proper logo for each provider
+const getProviderLogo = (provider: LLMProvider, size: number) => {
+  return (
+    <Image
+      src={PROVIDER_LOGOS[provider]}
+      alt={`${PROVIDERS[provider].name} logo`}
+      width={size}
+      height={size}
+      style={{ borderRadius: "4px", objectFit: "cover" }}
+    />
+  );
 };
 
 export default function MessageInput() {
@@ -107,7 +108,7 @@ export default function MessageInput() {
               color: activeConfig.color,
             }}
           >
-            {getProviderIcon(activeProvider, 14)}
+            {getProviderLogo(activeProvider, 14)}
             <span>{activeConfig.name}</span>
             <FiChevronDown
               size={14}
@@ -139,7 +140,7 @@ export default function MessageInput() {
                       className="model-icon-wrapper"
                       style={{ color: config.color }}
                     >
-                      {getProviderIcon(provider, 16)}
+                      {getProviderLogo(provider, 16)}
                     </div>
                     <div className="model-info">
                       <span className="model-name">{config.name}</span>

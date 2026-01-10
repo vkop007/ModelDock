@@ -1,21 +1,34 @@
 "use client";
 
-import { Message } from "@/types";
+import { Message, PROVIDERS, LLMProvider } from "@/types";
 import { useState } from "react";
 import { FiUser, FiCopy, FiCheck } from "react-icons/fi";
-import { SiOpenai, SiGoogle } from "react-icons/si";
+import Image from "next/image";
 import { StreamdownRenderer } from "./StreamdownRenderer";
+
+// Logo paths for each provider
+const PROVIDER_LOGOS: Record<LLMProvider, string> = {
+  chatgpt: "/providers/chatgpt_logo.jpeg",
+  claude: "/providers/claude_logo.jpeg",
+  gemini: "/providers/gemini.jpeg",
+  zai: "/providers/zdotai_logo.jpeg",
+  grok: "/providers/grok.jpg",
+  qwen: "/providers/qwen_logo.jpeg",
+  mistral: "/providers/mistralai_logo.jpeg",
+};
 
 interface MessageBubbleProps {
   message: Message;
   isLast: boolean;
   isSending?: boolean;
+  conversationProvider: LLMProvider;
 }
 
 export default function MessageBubble({
   message,
   isLast,
   isSending,
+  conversationProvider,
 }: MessageBubbleProps) {
   const [copied, setCopied] = useState(false);
   const isUser = message.role === "user";
@@ -28,23 +41,24 @@ export default function MessageBubble({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const getProviderIcon = () => {
-    switch (message.provider) {
-      case "chatgpt":
-        return <SiOpenai size={18} />;
-      case "gemini":
-        return <SiGoogle size={18} />;
-      case "claude":
-        return <span style={{ fontWeight: "bold", fontSize: 16 }}>A</span>;
-      default:
-        return <SiOpenai size={18} />;
-    }
+  const getProviderLogo = () => {
+    // Use message's provider, falling back to the conversation's provider
+    const provider = message.provider || conversationProvider;
+    return (
+      <Image
+        src={PROVIDER_LOGOS[provider]}
+        alt={`${PROVIDERS[provider].name} logo`}
+        width={28}
+        height={28}
+        style={{ borderRadius: "6px", objectFit: "cover" }}
+      />
+    );
   };
 
   return (
     <div className={`message ${isUser ? "user" : "assistant"}`}>
       <div className="message-avatar">
-        {isUser ? <FiUser size={18} /> : getProviderIcon()}
+        {isUser ? <FiUser size={18} /> : getProviderLogo()}
       </div>
       <div className="message-content">
         {isLoading ? (

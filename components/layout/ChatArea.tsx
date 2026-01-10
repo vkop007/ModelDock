@@ -4,7 +4,7 @@ import { useChatContext } from "@/context/ChatContext";
 import { PROVIDERS } from "@/types";
 import MessageList from "../chat/MessageList";
 import MessageInput from "../chat/MessageInput";
-import { SiOpenai, SiGoogle } from "react-icons/si";
+import Image from "next/image";
 import { FiMessageCircle } from "react-icons/fi";
 
 export default function ChatArea() {
@@ -19,15 +19,28 @@ export default function ChatArea() {
       <main className="chat-area">
         <div className="empty-chat">
           <div className="empty-chat-content">
-            <div
-              className="provider-badge"
-              style={{ backgroundColor: providerConfig.color }}
-            >
-              {activeProvider === "chatgpt" && <SiOpenai size={32} />}
-              {activeProvider === "gemini" && <SiGoogle size={32} />}
-              {activeProvider === "claude" && (
-                <span className="claude-icon">A</span>
-              )}
+            <div className="provider-badge">
+              <Image
+                src={`/providers/${
+                  activeProvider === "chatgpt"
+                    ? "chatgpt_logo.jpeg"
+                    : activeProvider === "gemini"
+                    ? "gemini.jpeg"
+                    : activeProvider === "claude"
+                    ? "claude_logo.jpeg"
+                    : activeProvider === "grok"
+                    ? "grok.jpg"
+                    : activeProvider === "zai"
+                    ? "zdotai_logo.jpeg"
+                    : activeProvider === "qwen"
+                    ? "qwen_logo.jpeg"
+                    : "mistralai_logo.jpeg"
+                }`}
+                alt={`${providerConfig.name} logo`}
+                width={32}
+                height={32}
+                style={{ borderRadius: "8px", objectFit: "cover" }}
+              />
             </div>
             <h1>Chat with {providerConfig.name}</h1>
             <p className="subtitle">
@@ -59,15 +72,28 @@ export default function ChatArea() {
   return (
     <main className="chat-area">
       <div className="chat-header">
-        <div
-          className="provider-indicator"
-          style={{ backgroundColor: providerConfig.color }}
-        >
-          {activeProvider === "chatgpt" && <SiOpenai size={14} />}
-          {activeProvider === "gemini" && <SiGoogle size={14} />}
-          {activeProvider === "claude" && (
-            <span style={{ fontWeight: "bold", fontSize: 12 }}>A</span>
-          )}
+        <div className="provider-indicator">
+          <Image
+            src={`/providers/${
+              activeProvider === "chatgpt"
+                ? "chatgpt_logo.jpeg"
+                : activeProvider === "gemini"
+                ? "gemini.jpeg"
+                : activeProvider === "claude"
+                ? "claude_logo.jpeg"
+                : activeProvider === "grok"
+                ? "grok.jpg"
+                : activeProvider === "zai"
+                ? "zdotai_logo.jpeg"
+                : activeProvider === "qwen"
+                ? "qwen_logo.jpeg"
+                : "mistralai_logo.jpeg"
+            }`}
+            alt={`${providerConfig.name} logo`}
+            width={20}
+            height={20}
+            style={{ borderRadius: "4px", objectFit: "cover" }}
+          />
         </div>
         <span>{providerConfig.name}</span>
         {isSending && <span className="typing-indicator">typing...</span>}
@@ -75,6 +101,7 @@ export default function ChatArea() {
       <MessageList
         messages={currentConversation.messages}
         isSending={isSending}
+        conversationProvider={currentConversation.provider}
       />
       <MessageInput />
     </main>
