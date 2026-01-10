@@ -251,7 +251,54 @@ export class QwenProvider extends BaseProvider {
   }
 
   async deleteConversation(conversationId: string): Promise<boolean> {
-    console.log(`[${this.provider}] Delete conversation not implemented.`);
-    return false;
+    try {
+      const page = await this.getPage();
+
+      console.log(`[Qwen] Deleting conversation: ${conversationId}`);
+
+      // Ensure we're on Qwen domain so cookies are sent
+      const currentUrl = page.url();
+      if (!currentUrl.includes("chat.qwen.ai")) {
+        await page.goto("https://chat.qwen.ai/", {
+          waitUntil: "domcontentloaded",
+          timeout: 10000,
+        });
+      }
+
+      // Make the DELETE request from the browser context (cookies auto-included with credentials)
+      const result = await page.evaluate(async (chatId: string) => {
+        try {
+          const response = await fetch(
+            `https://chat.qwen.ai/api/v2/chats/${chatId}`,
+            {
+              method: "DELETE",
+              credentials: "include",
+              headers: {
+                accept: "application/json, text/plain, */*",
+                source: "web",
+              },
+            }
+          );
+          return { success: response.ok, status: response.status };
+        } catch (error) {
+          return { success: false, error: String(error) };
+        }
+      }, conversationId);
+
+      if (result.success) {
+        console.log(
+          `[Qwen] Successfully deleted conversation: ${conversationId}`
+        );
+        return true;
+      } else {
+        console.log(
+          `[Qwen] Failed to delete conversation: ${JSON.stringify(result)}`
+        );
+        return false;
+      }
+    } catch (error) {
+      console.error(`[Qwen] Error deleting conversation:`, error);
+      return false;
+    }
   }
 }

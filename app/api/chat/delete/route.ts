@@ -19,12 +19,17 @@ export async function POST(request: NextRequest) {
 
     const provider = getProvider(providerName);
 
+    console.log(
+      `[Delete API] Provider: ${providerName}, ConversationId: ${conversationId}`
+    );
+
     // Inject cookies if provided (needed for authentication to delete)
     if (cookies && cookies.length > 0) {
       await provider.injectCookies(cookies as CookieEntry[]);
     }
 
     const s = await provider.deleteConversation(conversationId);
+    console.log(`[Delete API] Result: ${s}`);
 
     return NextResponse.json({ success: s });
   } catch (error) {
