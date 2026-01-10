@@ -202,6 +202,82 @@ class BrowserManager {
     console.log(`[BrowserManager] Page warmed for ${provider}`);
   }
 
+  // Pre-warm a page by navigating to the provider URL
+  async warmPage(
+    provider: LLMProvider,
+    cookies?: CookieEntry[]
+  ): Promise<void> {
+    console.log(`[BrowserManager] Warming page for ${provider}...`);
+
+    // Skip if already warmed
+    if (this.isPageWarmed(provider)) {
+      console.log(`[BrowserManager] Page already warmed for ${provider}`);
+      return;
+    }
+
+    try {
+      // Inject cookies first if provided
+      if (cookies && cookies.length > 0) {
+        await this.injectCookies(provider, cookies);
+      }
+
+      const page = await this.getPage(provider);
+
+      // Provider URL mapping
+      const providerUrls: Record<LLMProvider, string> = {
+        chatgpt: "https://chatgpt.com",
+        claude: "https://claude.ai",
+        gemini: "https://gemini.google.com",
+        zai: "https://chat.z.ai",
+        grok: "https://x.com/i/grok",
+        qwen: "https://chat.qwenlm.ai",
+        mistral: "https://chat.mistral.ai",
+      };
+
+      const targetUrl = providerUrls[provider];
+      const currentUrl = page.url();
+
+      // Only navigate if not already on the provider's site
+      if (!currentUrl.includes(new URL(targetUrl).hostname)) {
+        console.log(`[BrowserManager] Navigating to ${targetUrl} for warmup`);
+        await page.goto(targetUrl, {
+          waitUntil: "domcontentloaded",
+          timeout: 30000,
+        });
+      }
+
+      this.setPageWarmed(provider);
+      console.log(`[BrowserManager] Successfully warmed page for ${provider}`);
+
+      // Bring the page to front after warming
+      await this.switchToPage(provider);
+    } catch (error) {
+      console.error(
+        `[BrowserManager] Failed to warm page for ${provider}:`,
+        error
+      );
+      // Don't throw - warming is best-effort
+    }
+  }
+
+  // Switch to a provider's tab (bring to front)
+  async switchToPage(provider: LLMProvider): Promise<boolean> {
+    const page = this.pages.get(provider);
+    if (!page || page.isClosed()) {
+      console.log(`[BrowserManager] No page to switch to for ${provider}`);
+      return false;
+    }
+
+    try {
+      await page.bringToFront();
+      console.log(`[BrowserManager] Switched to ${provider} tab`);
+      return true;
+    } catch (error) {
+      console.error(`[BrowserManager] Failed to switch to ${provider}:`, error);
+      return false;
+    }
+  }
+
   async injectCookies(
     provider: LLMProvider,
     cookies: CookieEntry[]
