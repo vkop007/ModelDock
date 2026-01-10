@@ -38,31 +38,33 @@ export class QwenProvider extends BaseProvider {
 
       // Navigation logic
       const currentUrl = page.url();
+      const isInConversation = currentUrl.includes("/c/");
 
       if (conversationId) {
-        // Navigate to existing conversation if not already there
-        if (!currentUrl.includes(`/c/${conversationId}`)) {
+        // Check if already in this conversation
+        const alreadyInConversation = currentUrl.includes(conversationId);
+        if (!alreadyInConversation) {
           console.log(`[Qwen] Navigating to conversation: ${conversationId}`);
           await page.goto(`https://chat.qwen.ai/c/${conversationId}`, {
             waitUntil: "domcontentloaded",
             timeout: 30000,
           });
-          await new Promise((resolve) => setTimeout(resolve, 1000));
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        } else {
+          console.log(`[Qwen] Already in conversation ${conversationId}`);
         }
-      } else {
-        // New chat - navigate to base URL for fresh conversation
-        if (currentUrl.includes("/c/")) {
-          console.log("[Qwen] Starting new chat...");
-          await page.goto("https://chat.qwen.ai/", {
-            waitUntil: "domcontentloaded",
-            timeout: 30000,
-          });
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-        } else if (!currentUrl.includes("chat.qwenlm.ai")) {
-          console.log("[Qwen] Navigating to Qwen...");
-          await this.navigate();
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-        }
+      } else if (isInConversation) {
+        // No conversationId but we're in a chat - start new conversation
+        console.log("[Qwen] Starting new chat...");
+        await page.goto("https://chat.qwen.ai/", {
+          waitUntil: "domcontentloaded",
+          timeout: 30000,
+        });
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      } else if (!currentUrl.includes("chat.qwen.ai")) {
+        console.log("[Qwen] Navigating to Qwen...");
+        await this.navigate();
+        await new Promise((resolve) => setTimeout(resolve, 1000));
       }
 
       console.log("[Qwen] Checking page state...");
@@ -140,8 +142,11 @@ export class QwenProvider extends BaseProvider {
           if (responses.length > prevCount) {
             // Get the last (newest) response
             const lastResponse = responses[responses.length - 1];
-            const markdown = lastResponse.querySelector(".qwen-markdown");
-            return markdown?.textContent || lastResponse?.textContent || "";
+            // Target only the markdown inside response-message-content to avoid model name/time
+            const markdown = lastResponse.querySelector(
+              ".response-message-content .qwen-markdown"
+            );
+            return markdown?.textContent || "";
           }
           return "";
         }, previousResponseCount);
@@ -218,8 +223,11 @@ export class QwenProvider extends BaseProvider {
         );
         if (responses.length > 0) {
           const lastResponse = responses[responses.length - 1];
-          const markdown = lastResponse.querySelector(".qwen-markdown");
-          return markdown?.textContent || lastResponse?.textContent || "";
+          // Target only the markdown inside response-message-content to avoid model name/time
+          const markdown = lastResponse.querySelector(
+            ".response-message-content .qwen-markdown"
+          );
+          return markdown?.textContent || "";
         }
         return "";
       });
@@ -241,8 +249,11 @@ export class QwenProvider extends BaseProvider {
       );
       if (responses.length > 0) {
         const lastResponse = responses[responses.length - 1];
-        const markdown = lastResponse.querySelector(".qwen-markdown");
-        return markdown?.textContent || lastResponse?.textContent || "";
+        // Target only the markdown inside response-message-content to avoid model name/time
+        const markdown = lastResponse.querySelector(
+          ".response-message-content .qwen-markdown"
+        );
+        return markdown?.textContent || "";
       }
       return "";
     });
