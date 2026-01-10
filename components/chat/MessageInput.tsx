@@ -4,7 +4,30 @@ import { useChatContext } from "@/context/ChatContext";
 import { useState, useRef, useEffect, KeyboardEvent } from "react";
 import { FiSend, FiLoader, FiChevronDown, FiCheck } from "react-icons/fi";
 import { SiOpenai, SiGoogle } from "react-icons/si";
+import { TbSparkles, TbBrandX, TbWind } from "react-icons/tb";
 import { PROVIDERS, LLMProvider } from "@/types";
+
+// Helper function to get proper icon for each provider
+const getProviderIcon = (provider: LLMProvider, size: number) => {
+  switch (provider) {
+    case "chatgpt":
+      return <SiOpenai size={size} />;
+    case "gemini":
+      return <SiGoogle size={size} />;
+    case "claude":
+      return <TbSparkles size={size} />;
+    case "zai":
+      return <span style={{ fontWeight: "bold", fontSize: size - 2 }}>Z</span>;
+    case "grok":
+      return <TbBrandX size={size} />;
+    case "qwen":
+      return <span style={{ fontWeight: "bold", fontSize: size - 2 }}>Q</span>;
+    case "mistral":
+      return <TbWind size={size} />;
+    default:
+      return <span style={{ fontWeight: "bold", fontSize: size - 2 }}>AI</span>;
+  }
+};
 
 export default function MessageInput() {
   const {
@@ -33,6 +56,13 @@ export default function MessageInput() {
         Math.min(textareaRef.current.scrollHeight, 200) + "px";
     }
   }, [input]);
+
+  // Auto-focus on mount
+  useEffect(() => {
+    if (textareaRef.current && !isDisabled) {
+      textareaRef.current.focus();
+    }
+  }, [isDisabled]);
 
   // Click outside to close menu
   useEffect(() => {
@@ -77,14 +107,7 @@ export default function MessageInput() {
               color: activeConfig.color,
             }}
           >
-            {activeProvider === "chatgpt" && <SiOpenai size={14} />}
-            {activeProvider === "gemini" && <SiGoogle size={14} />}
-            {activeProvider === "claude" && (
-              <span style={{ fontWeight: "bold", fontSize: 12 }}>A</span>
-            )}
-            {activeProvider === "zai" && (
-              <span style={{ fontWeight: "bold", fontSize: 12 }}>Z</span>
-            )}
+            {getProviderIcon(activeProvider, 14)}
             <span>{activeConfig.name}</span>
             <FiChevronDown
               size={14}
@@ -116,18 +139,7 @@ export default function MessageInput() {
                       className="model-icon-wrapper"
                       style={{ color: config.color }}
                     >
-                      {provider === "chatgpt" && <SiOpenai size={16} />}
-                      {provider === "gemini" && <SiGoogle size={16} />}
-                      {provider === "claude" && (
-                        <span style={{ fontWeight: "bold", fontSize: 14 }}>
-                          A
-                        </span>
-                      )}
-                      {provider === "zai" && (
-                        <span style={{ fontWeight: "bold", fontSize: 14 }}>
-                          Z
-                        </span>
-                      )}
+                      {getProviderIcon(provider, 16)}
                     </div>
                     <div className="model-info">
                       <span className="model-name">{config.name}</span>

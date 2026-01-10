@@ -498,8 +498,8 @@ body {
   align-items: center;
   gap: 6px;
   padding: 6px 10px;
-  background: var(--bg-tertiary);
-  border: 1px solid transparent;
+  background: transparent;
+  border: 1px solid var(--border-color);
   border-radius: 16px;
   color: var(--text-secondary);
   font-size: 12px;
@@ -510,7 +510,7 @@ body {
 }
 
 .model-selector-btn-inline:hover {
-  background: var(--bg-hover);
+  background: rgba(255, 255, 255, 0.05);
   color: var(--text-primary);
 }
 
@@ -590,20 +590,20 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: var(--bg-secondary);
+  background: transparent;
   border: 1px solid var(--border-color);
   border-radius: 22px;
   padding: 6px 6px 6px 6px;
   max-width: 850px;
   width: 100%;
   margin: 0 auto;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.1);
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .message-input-wrapper:focus-within {
   border-color: var(--text-muted);
-  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
 }
 
 .message-input {
