@@ -5,7 +5,8 @@ export type LLMProvider =
   | "gemini"
   | "zai"
   | "grok"
-  | "qwen";
+  | "qwen"
+  | "mistral";
 
 // LLM Provider configuration
 export interface ProviderConfig {
@@ -59,6 +60,13 @@ export const PROVIDERS: Record<LLMProvider, ProviderConfig> = {
     url: "https://chat.qwenlm.ai",
     icon: "SiAlibaba",
     color: "#6366f1",
+  },
+  mistral: {
+    id: "mistral",
+    name: "Mistral",
+    url: "https://chat.mistral.ai",
+    icon: "SiMistral",
+    color: "#ff7000",
   },
 };
 
