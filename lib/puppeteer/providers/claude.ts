@@ -41,8 +41,10 @@ export class ClaudeProvider extends BaseProvider {
     try {
       const page = await this.getPage();
 
-      // Navigation logic - simplified
+      // Navigation logic
       const currentUrl = page.url();
+      const isInConversation =
+        currentUrl.includes("/chat/") && !currentUrl.includes("/new");
 
       if (conversationId && !currentUrl.includes(conversationId)) {
         // Navigate to specific conversation
@@ -52,12 +54,20 @@ export class ClaudeProvider extends BaseProvider {
           timeout: 30000,
         });
         await new Promise((resolve) => setTimeout(resolve, 500));
+      } else if (!conversationId && isInConversation) {
+        // No conversation ID but we're in an existing chat - start new conversation
+        console.log("[Claude] Starting new conversation - navigating to /new");
+        await page.goto("https://claude.ai/new", {
+          waitUntil: "domcontentloaded",
+          timeout: 30000,
+        });
+        await new Promise((resolve) => setTimeout(resolve, 500));
       } else if (!currentUrl.includes("claude.ai")) {
         // Not on Claude at all, navigate to new chat
         await this.navigate();
         await new Promise((resolve) => setTimeout(resolve, 500));
       }
-      // If already on claude.ai and no specific conversation needed, stay on current page
+      // If already on claude.ai/new or homepage, stay on current page
 
       // Wait for the input field
       const inputSelector =
@@ -270,7 +280,77 @@ export class ClaudeProvider extends BaseProvider {
     return response;
   }
   async deleteConversation(conversationId: string): Promise<boolean> {
-    console.log(`[${this.provider}] Delete conversation not implemented.`);
-    return false;
+    console.log(`[Claude] Deleting conversation via API: ${conversationId}`);
+    try {
+      const page = await this.getPage();
+
+      // Make sure we're on Claude to have valid cookies/auth
+      const currentUrl = page.url();
+      if (!currentUrl.includes("claude.ai")) {
+        await this.navigate();
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
+
+      // Use the Claude API directly from the browser context
+      const result = await page.evaluate(async (convId: string) => {
+        try {
+          // Get the organization ID from the cookie
+          const cookies = document.cookie.split(";");
+          let orgId = "";
+          let deviceId = "";
+
+          for (const cookie of cookies) {
+            const [name, value] = cookie.trim().split("=");
+            if (name === "lastActiveOrg") {
+              orgId = value;
+            }
+            if (name === "anthropic-device-id") {
+              deviceId = value;
+            }
+          }
+
+          if (!orgId) {
+            return { success: false, error: "Could not find organization ID" };
+          }
+
+          // Delete the conversation
+          const response = await fetch(
+            `https://claude.ai/api/organizations/${orgId}/chat_conversations/${convId}`,
+            {
+              method: "DELETE",
+              headers: {
+                "Content-Type": "application/json",
+                "anthropic-client-platform": "web_claude_ai",
+                ...(deviceId && { "anthropic-device-id": deviceId }),
+              },
+              credentials: "include",
+            }
+          );
+
+          if (response.ok || response.status === 204) {
+            return { success: true };
+          } else {
+            const text = await response.text();
+            return {
+              success: false,
+              error: `HTTP ${response.status}: ${text}`,
+            };
+          }
+        } catch (err) {
+          return { success: false, error: String(err) };
+        }
+      }, conversationId);
+
+      if (result.success) {
+        console.log(`[Claude] Conversation deleted successfully`);
+        return true;
+      } else {
+        console.error(`[Claude] API delete failed:`, result.error);
+        return false;
+      }
+    } catch (error) {
+      console.error("[Claude] Deletion error:", error);
+      return false;
+    }
   }
 }
