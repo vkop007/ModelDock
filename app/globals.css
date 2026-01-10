@@ -272,7 +272,6 @@ body {
   width: 24px;
   height: 24px;
   border-radius: 6px;
-  color: white;
 }
 
 .typing-indicator {
@@ -316,7 +315,6 @@ body {
   width: 64px;
   height: 64px;
   border-radius: 16px;
-  color: white;
   margin-bottom: 24px;
 }
 
@@ -400,8 +398,7 @@ body {
 }
 
 .message.assistant .message-avatar {
-  background: var(--accent-green);
-  color: white;
+  background: transparent;
 }
 
 .message-content {
