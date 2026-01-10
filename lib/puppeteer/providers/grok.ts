@@ -252,7 +252,52 @@ export class GrokProvider extends BaseProvider {
   }
 
   async deleteConversation(conversationId: string): Promise<boolean> {
-    console.log(`[${this.provider}] Delete conversation not implemented.`);
-    return false;
+    console.log(`[Grok] Deleting conversation via API: ${conversationId}`);
+    try {
+      const page = await this.getPage();
+
+      // Make sure we're on Grok to have valid cookies/auth
+      const currentUrl = page.url();
+      if (!currentUrl.includes("grok.com")) {
+        await this.navigate();
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
+
+      // Use the Grok API directly from the browser context
+      const result = await page.evaluate(async (convId: string) => {
+        try {
+          const response = await fetch(
+            `https://grok.com/rest/app-chat/conversations/soft/${convId}`,
+            {
+              method: "DELETE",
+              credentials: "include",
+            }
+          );
+
+          if (response.ok || response.status === 204) {
+            return { success: true };
+          } else {
+            const text = await response.text();
+            return {
+              success: false,
+              error: `HTTP ${response.status}: ${text}`,
+            };
+          }
+        } catch (err) {
+          return { success: false, error: String(err) };
+        }
+      }, conversationId);
+
+      if (result.success) {
+        console.log(`[Grok] Conversation deleted successfully`);
+        return true;
+      } else {
+        console.error(`[Grok] API delete failed:`, result.error);
+        return false;
+      }
+    } catch (error) {
+      console.error("[Grok] Deletion error:", error);
+      return false;
+    }
   }
 }
