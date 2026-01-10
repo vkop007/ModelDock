@@ -454,188 +454,66 @@ export class ChatGPTProvider extends BaseProvider {
   }
 
   async deleteConversation(conversationId: string): Promise<boolean> {
-    console.log(`[ChatGPT] Deleting conversation: ${conversationId}`);
+    console.log(`[ChatGPT] Deleting conversation via API: ${conversationId}`);
     try {
       const page = await this.getPage();
-      const targetUrl = `https://chatgpt.com/c/${conversationId}`;
-      const currentUrl = page.url();
 
-      if (!currentUrl.includes(conversationId)) {
-        await page.goto(targetUrl, {
-          waitUntil: "domcontentloaded",
-          timeout: 30000,
-        });
-        await new Promise((resolve) => setTimeout(resolve, 3000));
-      } else {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Make sure we're on ChatGPT to have valid cookies/auth
+      const currentUrl = page.url();
+      if (!currentUrl.includes("chatgpt.com")) {
+        await this.navigate();
+        await new Promise((resolve) => setTimeout(resolve, 2000));
       }
 
-      console.log("[ChatGPT] Looking for delete options in header...");
-
-      // Strategy: Click the "..." menu in the top right header area using known test-id
-      try {
-        const selector = '[data-testid="conversation-options-button"]';
-
-        // Wait for the button
+      // Use the ChatGPT API directly from the browser context
+      // The access token is stored in the session and can be retrieved via the __NEXT_DATA__ or session API
+      const result = await page.evaluate(async (convId: string) => {
         try {
-          await page.waitForSelector(selector, { timeout: 5000 });
+          // First, get the access token from ChatGPT's session endpoint
+          const sessionRes = await fetch("/api/auth/session", {
+            credentials: "include",
+          });
+          const sessionData = await sessionRes.json();
+          const accessToken = sessionData?.accessToken;
 
-          // Since we are simulating mobile/touch, try tap first
-          try {
-            await page.tap(selector);
-          } catch {
-            // Fallback to evaluate click
+          if (!accessToken) {
+            return { success: false, error: "Could not retrieve access token" };
           }
 
-          // Redundantly ensure it receives a click event sequence (common fix for React/Headless)
-          await page.evaluate((sel) => {
-            const el = document.querySelector(sel);
-            if (el instanceof HTMLElement) {
-              // Dispatch full mouse sequence
-              const opts = { bubbles: true, cancelable: true, view: window };
-              el.dispatchEvent(new MouseEvent("mousedown", opts));
-              el.dispatchEvent(new MouseEvent("mouseup", opts));
-              el.dispatchEvent(new MouseEvent("click", opts));
+          // Now call the delete API with the token
+          const response = await fetch(
+            `https://chatgpt.com/backend-api/conversation/${convId}`,
+            {
+              method: "PATCH",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${accessToken}`,
+              },
+              body: JSON.stringify({ is_visible: false }),
+              credentials: "include",
             }
-          }, selector);
-        } catch (e) {
-          // Fallback to aria-label if testid changes
-          console.log(
-            "[ChatGPT] Test ID selector failed, trying aria-label..."
-          );
-          const clicked = await page.evaluate(() => {
-            const btn = document.querySelector(
-              'button[aria-label="Open conversation options"]'
-            );
-            if (btn instanceof HTMLElement) {
-              btn.click();
-              return true;
-            }
-            return false;
-          });
-
-          if (!clicked) {
-            console.log("[ChatGPT] Could not find conversation options button");
-            return false;
-          }
-        }
-
-        // Wait specifically for the menu to appear
-        try {
-          await page.waitForSelector('[role="menu"], [role="menuitem"]', {
-            timeout: 3000,
-          });
-        } catch (e) {
-          console.log("[ChatGPT] Menu items did not appear after click");
-        }
-
-        // Now look for "Delete" in the dropdown
-        const deleteClicked = await page.evaluate(() => {
-          const items = Array.from(
-            document.querySelectorAll(
-              '[role="menuitem"], button, [role="menu"] div'
-            )
           );
 
-          // Debug: capture texts
-          const texts = items.map((i) => i.textContent?.trim()).filter(Boolean);
-          console.log("DEBUG_MENU_ITEMS: " + JSON.stringify(texts));
-
-          // Look for "Delete," text, often red color
-          const deleteBtn = items.find((el) => {
-            const lower = el.textContent?.toLowerCase() || "";
-            return lower.includes("delete") && !lower.includes("deleted");
-          });
-
-          if (deleteBtn) {
-            (deleteBtn as HTMLElement).click();
-            return true;
+          if (response.ok) {
+            return { success: true };
+          } else {
+            const text = await response.text();
+            return {
+              success: false,
+              error: `HTTP ${response.status}: ${text}`,
+            };
           }
-          return false;
-        });
-
-        if (!deleteClicked) {
-          // We can't see the console.log from evaluate in node easily without listener,
-          // but we can pass it back if we changed the signature.
-          // However, let's trust the logic is sound if the items are there.
-          // Let's print to the browser console (which appears in puppeteer logs usually if configured)
-          // or we can just try to click by index as fallback (Last item?)
-          console.log(
-            "[ChatGPT] Could not find 'Delete' menu item. found items?"
-          );
-
-          // Fallback: Try clicking the last menu item if it looks like a danger item
-          // (Delete is usually last)
-          const fallbackClicked = await page.evaluate(() => {
-            const items = Array.from(
-              document.querySelectorAll('[role="menuitem"]')
-            );
-            if (items.length > 0) {
-              const last = items[items.length - 1];
-              if (
-                last.classList.contains("text-red-500") ||
-                last.classList.contains("text-token-text-error") ||
-                last.textContent?.includes("Delete")
-              ) {
-                (last as HTMLElement).click();
-                return true;
-              }
-            }
-            return false;
-          });
-
-          if (fallbackClicked) {
-            console.log("[ChatGPT] Clicked last menu item as fallback");
-            return true; // proceed to confirmation
-          }
-
-          return false;
+        } catch (err) {
+          return { success: false, error: String(err) };
         }
+      }, conversationId);
 
-        await new Promise((resolve) => setTimeout(resolve, 800));
-
-        // Confirm deletion in the modal
-        // Wait for modal to appear
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-
-        const confirmClicked = await page.evaluate(() => {
-          // Find all buttons
-          const buttons = Array.from(document.querySelectorAll("button"));
-
-          // Filter for the specific red delete button in a dialog
-          // It's usually the one with "Delete" text and red styling
-          const confirmBtn = buttons.find((b) => {
-            const text = b.textContent?.trim() || "";
-            const isDelete = text === "Delete";
-            if (!isDelete) return false;
-
-            // Check if it's in a dialog
-            const isInDialog =
-              b.closest('[role="dialog"]') !== null ||
-              b.closest('div[class*="modal"]');
-            if (!isInDialog) return false;
-
-            return true;
-          });
-
-          if (confirmBtn) {
-            (confirmBtn as HTMLElement).click();
-            return true;
-          }
-          return false;
-        });
-
-        if (confirmClicked) {
-          console.log("[ChatGPT] Deletion confirmed");
-          await new Promise((resolve) => setTimeout(resolve, 2000));
-          this.resetConversation();
-          return true;
-        } else {
-          console.log("[ChatGPT] Could not find confirmation button");
-          return false;
-        }
-      } catch (err) {
-        console.error("[ChatGPT] Deletion step failed", err);
+      if (result.success) {
+        console.log(`[ChatGPT] Conversation deleted successfully`);
+        this.resetConversation();
+        return true;
+      } else {
+        console.error(`[ChatGPT] API delete failed:`, result.error);
         return false;
       }
     } catch (error) {
