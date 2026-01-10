@@ -13,8 +13,12 @@ export default function ChatArea() {
   const providerConfig = PROVIDERS[activeProvider];
   const session = sessions[activeProvider];
 
-  // Empty state when no conversation
-  if (!currentConversation || currentConversation.messages.length === 0) {
+  // Empty state when no conversation or conversation is from different provider
+  if (
+    !currentConversation ||
+    currentConversation.messages.length === 0 ||
+    currentConversation.provider !== activeProvider
+  ) {
     return (
       <main className="chat-area">
         <div className="empty-chat">

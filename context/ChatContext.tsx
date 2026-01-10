@@ -6,6 +6,7 @@ import React, {
   useReducer,
   useEffect,
   useCallback,
+  useRef,
 } from "react";
 import { v4 as uuidv4 } from "uuid";
 import {
@@ -168,15 +169,25 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
       return { ...state, ...action.state };
 
     case "DELETE_CONVERSATION": {
+      const deletedConversation = state.conversations.find(
+        (c) => c.id === action.id
+      );
       const conversations = state.conversations.filter(
         (c) => c.id !== action.id
       );
-      const currentConversationId =
-        state.currentConversationId === action.id
-          ? conversations.length > 0
-            ? conversations[0].id
-            : null
-          : state.currentConversationId;
+
+      // If we're deleting the current conversation, select a new one from the SAME provider
+      let currentConversationId = state.currentConversationId;
+      if (state.currentConversationId === action.id) {
+        const providerToFilter =
+          deletedConversation?.provider || state.activeProvider;
+        const sameProviderConvos = conversations.filter(
+          (c) => c.provider === providerToFilter
+        );
+        currentConversationId =
+          sameProviderConvos.length > 0 ? sameProviderConvos[0].id : null;
+      }
+
       return { ...state, conversations, currentConversationId };
     }
 
@@ -218,6 +229,7 @@ const ChatContext = createContext<ChatContextValue | null>(null);
 
 export function ChatProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(chatReducer, initialState);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Load saved state on mount
   useEffect(() => {
@@ -296,6 +308,12 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const setProvider = useCallback((provider: LLMProvider) => {
+    // Cancel any ongoing stream when switching providers
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    dispatch({ type: "SET_SENDING", isSending: false });
     dispatch({ type: "SET_PROVIDER", provider });
   }, []);
 
@@ -411,6 +429,10 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       dispatch({ type: "ADD_MESSAGE", message: assistantMessage });
 
       try {
+        // Create AbortController for this request
+        abortControllerRef.current = new AbortController();
+        const signal = abortControllerRef.current.signal;
+
         const cookies =
           state.cookieConfigs[state.activeProvider]?.cookies || [];
 
@@ -429,6 +451,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
             cookies,
             conversationId: externalId,
           }),
+          signal,
         });
 
         if (!response.ok) {
@@ -497,12 +520,18 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           }
         }
       } catch (error) {
+        // Don't show error if the request was intentionally aborted (e.g., when switching providers)
+        if (error instanceof Error && error.name === "AbortError") {
+          console.log("[ChatContext] Stream aborted");
+          return;
+        }
         dispatch({
           type: "UPDATE_MESSAGE",
           id: assistantMessage.id,
           content: `Error: ${String(error)}`,
         });
       } finally {
+        abortControllerRef.current = null;
         dispatch({ type: "SET_SENDING", isSending: false });
       }
     },

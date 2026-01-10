@@ -2,7 +2,7 @@
 
 import { Message, PROVIDERS, LLMProvider } from "@/types";
 import { useState } from "react";
-import { FiUser, FiCopy, FiCheck } from "react-icons/fi";
+import { FiCopy, FiCheck } from "react-icons/fi";
 import Image from "next/image";
 import { StreamdownRenderer } from "./StreamdownRenderer";
 
@@ -57,9 +57,7 @@ export default function MessageBubble({
 
   return (
     <div className={`message ${isUser ? "user" : "assistant"}`}>
-      <div className="message-avatar">
-        {isUser ? <FiUser size={18} /> : getProviderLogo()}
-      </div>
+      {!isUser && <div className="message-avatar">{getProviderLogo()}</div>}
       <div className="message-content">
         {isLoading ? (
           <div className="loading-dots">
@@ -70,7 +68,7 @@ export default function MessageBubble({
         ) : (
           <>
             {isUser ? (
-              <div className="message-text">{message.content}</div>
+              <div className="user-bubble">{message.content}</div>
             ) : (
               <div className="message-text">
                 <StreamdownRenderer
