@@ -46,6 +46,7 @@ const initialState: ChatState = {
     zai: { ...initialSessionState, provider: "zai" },
     grok: { ...initialSessionState, provider: "grok" },
     qwen: { ...initialSessionState, provider: "qwen" },
+    mistral: { ...initialSessionState, provider: "mistral" },
   },
   cookieConfigs: {
     chatgpt: null,
@@ -54,6 +55,7 @@ const initialState: ChatState = {
     zai: null,
     grok: null,
     qwen: null,
+    mistral: null,
   },
   isLoading: false,
   isSending: false,
