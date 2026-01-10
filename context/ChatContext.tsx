@@ -168,15 +168,25 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
       return { ...state, ...action.state };
 
     case "DELETE_CONVERSATION": {
+      const deletedConversation = state.conversations.find(
+        (c) => c.id === action.id
+      );
       const conversations = state.conversations.filter(
         (c) => c.id !== action.id
       );
-      const currentConversationId =
-        state.currentConversationId === action.id
-          ? conversations.length > 0
-            ? conversations[0].id
-            : null
-          : state.currentConversationId;
+
+      // If we're deleting the current conversation, select a new one from the SAME provider
+      let currentConversationId = state.currentConversationId;
+      if (state.currentConversationId === action.id) {
+        const providerToFilter =
+          deletedConversation?.provider || state.activeProvider;
+        const sameProviderConvos = conversations.filter(
+          (c) => c.provider === providerToFilter
+        );
+        currentConversationId =
+          sameProviderConvos.length > 0 ? sameProviderConvos[0].id : null;
+      }
+
       return { ...state, conversations, currentConversationId };
     }
 
