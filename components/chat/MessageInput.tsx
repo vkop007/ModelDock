@@ -66,83 +66,83 @@ export default function MessageInput() {
 
   return (
     <div className="message-input-container">
-      <div className="model-selector-container">
-        <button
-          ref={modelButtonRef}
-          className="model-selector-btn"
-          onClick={() => setShowModelMenu(!showModelMenu)}
-          style={{
-            borderColor: showModelMenu ? activeConfig.color : "transparent",
-            color: activeConfig.color,
-          }}
-        >
-          {activeProvider === "chatgpt" && <SiOpenai size={14} />}
-          {activeProvider === "gemini" && <SiGoogle size={14} />}
-          {activeProvider === "claude" && (
-            <span style={{ fontWeight: "bold", fontSize: 12 }}>A</span>
-          )}
-          {activeProvider === "zai" && (
-            <span style={{ fontWeight: "bold", fontSize: 12 }}>Z</span>
-          )}
-          <span>{activeConfig.name}</span>
-          <FiChevronDown
-            size={14}
-            style={{
-              transform: showModelMenu ? "rotate(180deg)" : "rotate(0deg)",
-              transition: "transform 0.2s",
-            }}
-          />
-        </button>
-
-        {showModelMenu && (
-          <div id="model-menu" className="model-menu">
-            {(Object.keys(PROVIDERS) as LLMProvider[]).map((provider) => {
-              const config = PROVIDERS[provider];
-              const isActive = activeProvider === provider;
-              const hasCookies =
-                (cookieConfigs[provider]?.cookies?.length ?? 0) > 0;
-
-              return (
-                <button
-                  key={provider}
-                  className={`model-menu-item ${isActive ? "active" : ""}`}
-                  onClick={() => {
-                    setProvider(provider);
-                    setShowModelMenu(false);
-                  }}
-                >
-                  <div
-                    className="model-icon-wrapper"
-                    style={{ color: config.color }}
-                  >
-                    {provider === "chatgpt" && <SiOpenai size={16} />}
-                    {provider === "gemini" && <SiGoogle size={16} />}
-                    {provider === "claude" && (
-                      <span style={{ fontWeight: "bold", fontSize: 14 }}>
-                        A
-                      </span>
-                    )}
-                    {provider === "zai" && (
-                      <span style={{ fontWeight: "bold", fontSize: 14 }}>
-                        Z
-                      </span>
-                    )}
-                  </div>
-                  <div className="model-info">
-                    <span className="model-name">{config.name}</span>
-                    <span className="model-status">
-                      {hasCookies ? "Ready" : "Not Configured"}
-                    </span>
-                  </div>
-                  {isActive && <FiCheck size={16} className="check-icon" />}
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
       <div className="message-input-wrapper">
+        <div className="model-selector-inline">
+          <button
+            ref={modelButtonRef}
+            className="model-selector-btn-inline"
+            onClick={() => setShowModelMenu(!showModelMenu)}
+            style={{
+              borderColor: showModelMenu ? activeConfig.color : "transparent",
+              color: activeConfig.color,
+            }}
+          >
+            {activeProvider === "chatgpt" && <SiOpenai size={14} />}
+            {activeProvider === "gemini" && <SiGoogle size={14} />}
+            {activeProvider === "claude" && (
+              <span style={{ fontWeight: "bold", fontSize: 12 }}>A</span>
+            )}
+            {activeProvider === "zai" && (
+              <span style={{ fontWeight: "bold", fontSize: 12 }}>Z</span>
+            )}
+            <span>{activeConfig.name}</span>
+            <FiChevronDown
+              size={14}
+              style={{
+                transform: showModelMenu ? "rotate(180deg)" : "rotate(0deg)",
+                transition: "transform 0.2s",
+              }}
+            />
+          </button>
+
+          {showModelMenu && (
+            <div id="model-menu" className="model-menu">
+              {(Object.keys(PROVIDERS) as LLMProvider[]).map((provider) => {
+                const config = PROVIDERS[provider];
+                const isActive = activeProvider === provider;
+                const hasCookies =
+                  (cookieConfigs[provider]?.cookies?.length ?? 0) > 0;
+
+                return (
+                  <button
+                    key={provider}
+                    className={`model-menu-item ${isActive ? "active" : ""}`}
+                    onClick={() => {
+                      setProvider(provider);
+                      setShowModelMenu(false);
+                    }}
+                  >
+                    <div
+                      className="model-icon-wrapper"
+                      style={{ color: config.color }}
+                    >
+                      {provider === "chatgpt" && <SiOpenai size={16} />}
+                      {provider === "gemini" && <SiGoogle size={16} />}
+                      {provider === "claude" && (
+                        <span style={{ fontWeight: "bold", fontSize: 14 }}>
+                          A
+                        </span>
+                      )}
+                      {provider === "zai" && (
+                        <span style={{ fontWeight: "bold", fontSize: 14 }}>
+                          Z
+                        </span>
+                      )}
+                    </div>
+                    <div className="model-info">
+                      <span className="model-name">{config.name}</span>
+                      <span className="model-status">
+                        {hasCookies ? "Ready" : "Not Configured"}
+                      </span>
+                    </div>
+                    {isActive && <FiCheck size={16} className="check-icon" />}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
         <textarea
           ref={textareaRef}
           className="message-input"
@@ -174,9 +174,6 @@ export default function MessageInput() {
           )}
         </button>
       </div>
-      <p className="input-hint">
-        Press Enter to send, Shift+Enter for new line
-      </p>
     </div>
   );
 }
