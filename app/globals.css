@@ -485,39 +485,39 @@ body {
   gap: 8px;
 }
 
-.model-selector-container {
+/* Inline Model Selector */
+.model-selector-inline {
   position: relative;
   display: flex;
-  justify-content: center;
+  align-items: center;
+  flex-shrink: 0;
 }
 
-.model-selector-btn {
+.model-selector-btn-inline {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
-  background: var(--bg-secondary);
-  border: 1px solid transparent;
-  border-radius: 20px;
+  gap: 6px;
+  padding: 6px 10px;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  white-space: nowrap;
 }
 
-.model-selector-btn:hover {
-  background: var(--bg-hover);
+.model-selector-btn-inline:hover {
+  background: rgba(255, 255, 255, 0.05);
   color: var(--text-primary);
 }
 
-.model-menu {
+.model-selector-inline .model-menu {
   position: absolute;
-  bottom: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  margin-bottom: 8px;
+  bottom: calc(100% + 8px);
+  left: 0;
   width: 220px;
   max-height: 320px;
   overflow-y: auto;
@@ -588,22 +588,22 @@ body {
 
 .message-input-wrapper {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   gap: 8px;
-  background: var(--bg-secondary);
+  background: transparent;
   border: 1px solid var(--border-color);
   border-radius: 22px;
-  padding: 6px 6px 6px 16px;
-  max-width: 768px;
+  padding: 6px 6px 6px 6px;
+  max-width: 850px;
   width: 100%;
   margin: 0 auto;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.1);
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .message-input-wrapper:focus-within {
   border-color: var(--text-muted);
-  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
 }
 
 .message-input {
