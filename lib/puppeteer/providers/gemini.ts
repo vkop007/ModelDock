@@ -311,7 +311,86 @@ export class GeminiProvider extends BaseProvider {
     return response;
   }
   async deleteConversation(conversationId: string): Promise<boolean> {
-    console.log(`[${this.provider}] Delete conversation not implemented.`);
-    return false;
+    console.log(`[Gemini] Deleting conversation via UI: ${conversationId}`);
+    try {
+      const page = await this.getPage();
+
+      // Navigate to the conversation if not already there
+      const currentUrl = page.url();
+      if (!currentUrl.includes(conversationId)) {
+        await page.goto(`https://gemini.google.com/app/${conversationId}`, {
+          waitUntil: "domcontentloaded",
+          timeout: 30000,
+        });
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
+
+      // Step 1: Click the conversation actions button (three dots menu)
+      const optionsButtonSelector =
+        '[data-test-id="conversation-actions-button"]';
+      try {
+        await page.waitForSelector(optionsButtonSelector, { timeout: 5000 });
+        await page.click(optionsButtonSelector);
+        console.log("[Gemini] Clicked options button");
+      } catch {
+        console.error("[Gemini] Could not find options button");
+        return false;
+      }
+
+      // Wait for menu to appear
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Step 2: Click the delete button in the menu
+      const deleteButtonSelector = '[data-test-id="delete-button"]';
+      try {
+        await page.waitForSelector(deleteButtonSelector, { timeout: 3000 });
+        await page.click(deleteButtonSelector);
+        console.log("[Gemini] Clicked delete button");
+      } catch {
+        console.error("[Gemini] Could not find delete button");
+        return false;
+      }
+
+      // Wait for confirmation dialog to appear
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Step 3: Click the confirmation "Delete" button in the dialog
+      try {
+        // Look for the confirmation button - it's a button with "Delete" text in a dialog
+        const confirmed = await page.evaluate(() => {
+          // Find all buttons with "Delete" text
+          const buttons = Array.from(document.querySelectorAll("button"));
+          const confirmBtn = buttons.find((btn) => {
+            const text = btn.textContent?.trim();
+            // The confirmation button has exactly "Delete" text (not "Delete chat?" etc)
+            return text === "Delete";
+          });
+          if (confirmBtn) {
+            (confirmBtn as HTMLElement).click();
+            return true;
+          }
+          return false;
+        });
+
+        if (confirmed) {
+          console.log("[Gemini] Clicked confirmation Delete button");
+        } else {
+          console.error("[Gemini] Could not find confirmation button");
+          return false;
+        }
+      } catch {
+        console.error("[Gemini] Error clicking confirmation button");
+        return false;
+      }
+
+      // Wait for deletion to complete
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      console.log("[Gemini] Conversation deleted successfully");
+      return true;
+    } catch (error) {
+      console.error("[Gemini] Deletion error:", error);
+      return false;
+    }
   }
 }
