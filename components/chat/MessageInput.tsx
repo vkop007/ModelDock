@@ -2,7 +2,13 @@
 
 import { useChatContext } from "@/context/ChatContext";
 import { useState, useRef, useEffect, KeyboardEvent } from "react";
-import { FiSend, FiLoader, FiChevronDown, FiCheck } from "react-icons/fi";
+import {
+  FiSend,
+  FiLoader,
+  FiChevronDown,
+  FiCheck,
+  FiImage,
+} from "react-icons/fi";
 import Image from "next/image";
 import { PROVIDERS, LLMProvider } from "@/types";
 
@@ -38,6 +44,7 @@ export default function MessageInput() {
     sessions,
     cookieConfigs,
     setProvider,
+    generateImage,
   } = useChatContext();
   const [input, setInput] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -86,6 +93,14 @@ export default function MessageInput() {
     const message = input;
     setInput("");
     await sendMessage(message);
+  };
+
+  const handleImageGeneration = async () => {
+    if (!input.trim() || isSending || isDisabled) return;
+
+    const prompt = input;
+    setInput("");
+    await generateImage(prompt);
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -170,6 +185,33 @@ export default function MessageInput() {
           disabled={isSending || isDisabled}
           rows={1}
         />
+        <button
+          className="send-btn"
+          onClick={handleImageGeneration}
+          disabled={
+            !input.trim() ||
+            isSending ||
+            isDisabled ||
+            activeProvider !== "chatgpt"
+          }
+          title="Generate Image (ChatGPT only)"
+          // Use a different color or style to distinguish
+          style={{
+            marginRight: "8px",
+            backgroundColor: "transparent",
+            color:
+              input.trim() && activeProvider === "chatgpt"
+                ? activeConfig.color
+                : "inherit",
+            border: "1px solid",
+            borderColor:
+              input.trim() && activeProvider === "chatgpt"
+                ? activeConfig.color
+                : "#404040",
+          }}
+        >
+          <FiImage size={20} />
+        </button>
         <button
           className="send-btn"
           onClick={handleSubmit}

@@ -41,6 +41,15 @@ export default function MessageBubble({
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const isGeneratedImage = message.content.startsWith("![Generated Image](");
+  const imageUrl = isGeneratedImage
+    ? message.content.slice(19, -1) // Remove ![Generated Image]( and )
+    : null;
+
+  if (isGeneratedImage) {
+    // console.log("Rendering Generated Image:", imageUrl ? imageUrl : "null");
+  }
+
   const getProviderLogo = () => {
     // Use message's provider, falling back to the conversation's provider
     const provider = message.provider || conversationProvider;
@@ -69,6 +78,18 @@ export default function MessageBubble({
           <>
             {isUser ? (
               <div className="user-bubble">{message.content}</div>
+            ) : isGeneratedImage && imageUrl ? (
+              <div className="message-image">
+                <img
+                  src={imageUrl}
+                  alt="Generated Image"
+                  style={{
+                    maxWidth: "300px",
+                    width: "100%",
+                    borderRadius: "8px",
+                  }}
+                />
+              </div>
             ) : (
               <div className="message-text">
                 <StreamdownRenderer
