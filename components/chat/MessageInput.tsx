@@ -192,20 +192,22 @@ export default function MessageInput() {
             !input.trim() ||
             isSending ||
             isDisabled ||
-            activeProvider !== "chatgpt"
+            (activeProvider !== "chatgpt" && activeProvider !== "gemini")
           }
-          title="Generate Image (ChatGPT only)"
+          title="Generate Image (ChatGPT & Gemini)"
           // Use a different color or style to distinguish
           style={{
             marginRight: "8px",
             backgroundColor: "transparent",
             color:
-              input.trim() && activeProvider === "chatgpt"
+              input.trim() &&
+              (activeProvider === "chatgpt" || activeProvider === "gemini")
                 ? activeConfig.color
                 : "inherit",
             border: "1px solid",
             borderColor:
-              input.trim() && activeProvider === "chatgpt"
+              input.trim() &&
+              (activeProvider === "chatgpt" || activeProvider === "gemini")
                 ? activeConfig.color
                 : "#404040",
           }}

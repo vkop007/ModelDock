@@ -8,14 +8,12 @@ export class GeminiProvider extends BaseProvider {
 
   async checkAuthentication(page: Page): Promise<boolean> {
     try {
-      // Check for presence of chat interface elements
       await page.waitForSelector(
         "rich-textarea, .ql-editor, [data-placeholder]",
         { timeout: 10000 }
       );
       return true;
     } catch {
-      // Check for sign-in button
       const signInButton = await page.$(
         'a[href*="accounts.google.com"], button:has-text("Sign in")'
       );
@@ -391,6 +389,184 @@ export class GeminiProvider extends BaseProvider {
     } catch (error) {
       console.error("[Gemini] Deletion error:", error);
       return false;
+    }
+  }
+  async generateImage(
+    prompt: string,
+    onStatusUpdate?: (status: string) => void
+  ): Promise<{ success: boolean; imageUrl?: string; error?: string }> {
+    console.log("[Gemini] Generating image...");
+    if (onStatusUpdate) onStatusUpdate("Initializing...");
+
+    try {
+      const page = await this.getPage();
+
+      // Ensure we are on Gemini
+      if (!page.url().includes("gemini.google.com")) {
+        if (onStatusUpdate) onStatusUpdate("Navigating to Gemini...");
+        await this.navigate();
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
+
+      // 1. Open Toolbox if not already open (or just find the button)
+      if (onStatusUpdate) onStatusUpdate("Opening tools menu...");
+
+      // Try to clicking the Tools button
+      try {
+        const toolsBtn = await page.$('button[aria-label="Tools"]');
+        if (toolsBtn) {
+          await toolsBtn.click();
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
+      } catch (e) {
+        console.log(
+          "[Gemini] Tools button interaction failed or not needed",
+          e
+        );
+      }
+
+      // 2. Select "Create images"
+      if (onStatusUpdate) onStatusUpdate("Selecting Image Generation...");
+
+      const createImgClicked = await page.evaluate(() => {
+        const buttons = Array.from(document.querySelectorAll("button"));
+        const createImgBtn = buttons.find((btn) =>
+          btn.textContent?.includes("Create images")
+        );
+
+        if (createImgBtn) {
+          createImgBtn.click();
+          return true;
+        }
+        return false;
+      });
+
+      if (!createImgClicked) {
+        // It might be that we don't need to select a mode in Gemini sometimes?
+        // But user provided the steps, so we assume it defines the mode.
+        // However, if we fail, we might try to just type the prompt "Generate an image of..."
+        console.log(
+          "[Gemini] 'Create images' option not found, trying direct prompt..."
+        );
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+
+      // 3. Type prompt
+      if (onStatusUpdate) onStatusUpdate("Typing prompt...");
+      const inputSelector =
+        'rich-textarea .ql-editor, .text-input-field, [contenteditable="true"]';
+      await page.waitForSelector(inputSelector, { timeout: 10000 });
+
+      const input = await page.$(inputSelector);
+      if (!input) throw new Error("Input not found");
+
+      await input.click();
+      await page.keyboard.type(prompt, { delay: 10 });
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // 4. Send
+      if (onStatusUpdate) onStatusUpdate("Sending request...");
+      const sendButton = await page.$(
+        'button[aria-label="Send message"], .send-button, mat-icon[data-mat-icon-name="send"]'
+      );
+      if (sendButton) {
+        await sendButton.click();
+      } else {
+        await page.keyboard.press("Enter");
+      }
+
+      // 5. Wait for image
+      if (onStatusUpdate) onStatusUpdate("Generating image...");
+
+      const maxWait = 120000; // 2 minutes
+      const startTime = Date.now();
+      let imageUrl = "";
+
+      while (Date.now() - startTime < maxWait) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+
+        // Wait for generation to stop
+        // Gemini often has loading indicators
+
+        // Check for generated images
+        imageUrl = await page.evaluate(async () => {
+          const images = Array.from(document.querySelectorAll("img"));
+          // Iterate backwards to find the newest image
+          for (let i = images.length - 1; i >= 0; i--) {
+            const img = images[i];
+            const src = img.src;
+            const alt = img.alt || "";
+            const className = img.className || "";
+
+            const isGeminiImage =
+              className.includes("image") &&
+              className.includes("animate") &&
+              (src.includes("lh3.googleusercontent.com") ||
+                src.includes("lh3.google.com"));
+
+            if (isGeminiImage) {
+              const src = img.src;
+
+              // FOUND IT!
+              // Just return the src. We will fetch it in Node.js to avoid CORS/CORP blocks.
+              return src;
+            }
+          }
+          return "";
+        });
+
+        if (imageUrl) {
+          // Wait a bit for stability
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+          break;
+        }
+      }
+
+      if (!imageUrl) {
+        throw new Error("Timeout waiting for image");
+      }
+
+      // Fetch the image in Node.js context to bypass Browser CORS/CORP
+      console.log(`[Gemini] Fetching image from: ${imageUrl}`);
+
+      try {
+        // Get cookies from the page to authenticate the request
+        const cookies = await page.cookies();
+        const cookieHeader = cookies
+          .map((c) => `${c.name}=${c.value}`)
+          .join("; ");
+
+        const response = await fetch(imageUrl, {
+          headers: {
+            Cookie: cookieHeader,
+            "User-Agent":
+              "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error(
+            `Failed to fetch image: ${response.status} ${response.statusText}`
+          );
+        }
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        const base64 = buffer.toString("base64");
+        const mimeType = response.headers.get("content-type") || "image/png";
+
+        const dataUri = `data:${mimeType};base64,${base64}`;
+
+        if (onStatusUpdate) onStatusUpdate("Image generated!");
+        return { success: true, imageUrl: dataUri };
+      } catch (fetchError) {
+        console.error("[Gemini] Node fetch error:", fetchError);
+        // Fallback to the raw URL if server fetch fails
+        return { success: true, imageUrl: imageUrl };
+      }
+    } catch (error) {
+      console.error("[Gemini] Image generation error:", error);
+      return { success: false, error: String(error) };
     }
   }
 }
