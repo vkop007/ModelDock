@@ -8,9 +8,12 @@ export class MistralProvider extends BaseProvider {
 
   async checkAuthentication(page: Page): Promise<boolean> {
     try {
-      await page.waitForSelector('textarea, [contenteditable="true"]', {
-        timeout: 10000,
-      });
+      await page.waitForSelector(
+        'textarea, [contenteditable="true"], .ProseMirror',
+        {
+          timeout: 10000,
+        }
+      );
       return true;
     } catch {
       return false;
@@ -65,7 +68,7 @@ export class MistralProvider extends BaseProvider {
       console.log("[Mistral] Checking page state...");
       await new Promise((resolve) => setTimeout(resolve, 500));
 
-      const inputSelector = "textarea";
+      const inputSelector = '.ProseMirror, div[contenteditable="true"]';
       await page.waitForSelector(inputSelector, { timeout: 30000 });
 
       const input = await page.$(inputSelector);
@@ -73,8 +76,20 @@ export class MistralProvider extends BaseProvider {
         return { success: false, error: "Could not find input field" };
       }
 
-      await input.click();
-      await page.keyboard.type(message, { delay: 10 });
+      // Use direct value setting for speed (ProseMirror / contenteditable)
+      await page.evaluate(
+        (selector, text) => {
+          const el = document.querySelector(selector) as HTMLElement;
+          if (el) {
+            // Mistral uses ProseMirror, similar to Claude
+            el.innerHTML = `<p>${text}</p>`;
+            el.dispatchEvent(new Event("input", { bubbles: true }));
+          }
+        },
+        inputSelector,
+        message
+      );
+      await new Promise((resolve) => setTimeout(resolve, 300));
 
       // Count existing assistant messages
       const previousResponseCount = await page.evaluate(() => {

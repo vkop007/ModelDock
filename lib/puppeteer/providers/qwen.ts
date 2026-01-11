@@ -81,7 +81,20 @@ export class QwenProvider extends BaseProvider {
       }
 
       await input.click();
-      await page.keyboard.type(message, { delay: 10 });
+      // Use direct value setting for speed
+      await page.evaluate(
+        (selector, text) => {
+          const el = document.querySelector(selector) as HTMLTextAreaElement;
+          if (el) {
+            el.value = text;
+            el.dispatchEvent(new Event("input", { bubbles: true }));
+            el.dispatchEvent(new Event("change", { bubbles: true }));
+          }
+        },
+        inputSelector,
+        message
+      );
+      await new Promise((resolve) => setTimeout(resolve, 300));
 
       // Count existing responses BEFORE clicking send
       // Qwen uses .qwen-chat-message-assistant for AI responses

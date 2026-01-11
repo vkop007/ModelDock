@@ -103,7 +103,20 @@ export class ZaiProvider extends BaseProvider {
         console.log("[Z.ai] Error checking Deep Think button:", e);
       }
 
-      await page.keyboard.type(message, { delay: 10 });
+      // Use direct value setting for speed
+      await page.evaluate(
+        (selector, text) => {
+          const el = document.querySelector(selector) as HTMLTextAreaElement;
+          if (el) {
+            el.value = text;
+            el.dispatchEvent(new Event("input", { bubbles: true }));
+            el.dispatchEvent(new Event("change", { bubbles: true }));
+          }
+        },
+        inputSelector,
+        message
+      );
+      await new Promise((resolve) => setTimeout(resolve, 300));
       await new Promise((resolve) => setTimeout(resolve, 200));
 
       // Click send button

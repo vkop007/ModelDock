@@ -8,8 +8,6 @@ declare global {
   var __browserManager: BrowserManager | undefined;
 }
 
-// Singleton browser manager using puppeteer-real-browser
-// This library bypasses Cloudflare Turnstile and other bot detection
 class BrowserManager {
   private browser: Browser | null = null;
   private page: Page | null = null;

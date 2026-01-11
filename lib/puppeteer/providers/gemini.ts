@@ -81,7 +81,31 @@ export class GeminiProvider extends BaseProvider {
       }
 
       await input.click();
-      await page.keyboard.type(message, { delay: 10 });
+      // Use direct value setting for speed
+      await page.evaluate(
+        (selector, text) => {
+          const el = document.querySelector(selector) as HTMLElement;
+          if (el) {
+            // Gemini uses rich-textarea which often means contenteditable
+            // Clearing it first is safer
+            el.innerHTML = "";
+
+            // Insert text as simple paragraph
+            const p = document.createElement("p");
+            p.textContent = text;
+            el.appendChild(p);
+
+            // Trigger events
+            el.dispatchEvent(new Event("input", { bubbles: true }));
+
+            // Sometimes it needs a specific 'textInput' event or similar but input usually works for Angular/Lit
+          }
+        },
+        inputSelector,
+        message
+      );
+      // Small delay
+      await new Promise((resolve) => setTimeout(resolve, 500));
 
       // Small delay before sending
       await new Promise((resolve) => setTimeout(resolve, 100));
