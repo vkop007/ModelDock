@@ -81,7 +81,28 @@ export class ClaudeProvider extends BaseProvider {
       }
 
       await input.click();
-      await page.keyboard.type(message, { delay: 10 });
+      // Use direct value setting for speed
+      await page.evaluate(
+        (selector, text) => {
+          const el = document.querySelector(selector) as HTMLElement;
+          if (el) {
+            // Claude uses ProseMirror, which is a contenteditable div
+            // Setting innerText/textContent directly might break the editor state
+            // But usually a simple input event triggers a resync
+            el.innerHTML = `<p>${text}</p>`; // Basic paragraph structure often helps ProseMirror
+            // If that fails, simple textContent:
+            // el.textContent = text;
+            el.dispatchEvent(new Event("input", { bubbles: true }));
+
+            // Dispatch a comparison event just in case
+            const event = new Event("input", { bubbles: true });
+            el.dispatchEvent(event);
+          }
+        },
+        inputSelector,
+        message
+      );
+      await new Promise((resolve) => setTimeout(resolve, 500));
 
       // Count existing responses BEFORE clicking send
       const previousResponseCount = await page.evaluate(() => {

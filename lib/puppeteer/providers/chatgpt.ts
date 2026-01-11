@@ -90,12 +90,31 @@ export class ChatGPTProvider extends BaseProvider {
       await inputEl.click();
       await new Promise((resolve) => setTimeout(resolve, 100)); // Reduced from 300ms
 
-      // Type the message faster
-      await page.keyboard.type(message, { delay: 10 }); // Reduced from 50ms
-      console.log(`[ChatGPT] Typed message: ${message.substring(0, 50)}...`);
+      // Use direct value setting for speed (like paste)
+      await page.evaluate((text) => {
+        const active = document.activeElement as HTMLElement;
+        if (!active) return;
 
-      // Quick wait for text to register
-      await new Promise((resolve) => setTimeout(resolve, 200)); // Reduced from 500ms
+        if (active.tagName === "TEXTAREA") {
+          const el = active as HTMLTextAreaElement;
+          el.value = text;
+          el.dispatchEvent(new Event("input", { bubbles: true }));
+          el.dispatchEvent(new Event("change", { bubbles: true }));
+        } else if (active.getAttribute("contenteditable") === "true") {
+          // For contenteditable, we often need to simulate text insertion more carefully
+          // But setting innerText/innerHTML + input event often works for React
+          active.innerHTML = text; // or textContent? ChatGPT handles HTML sometimes. Safest is text.
+          (active as HTMLElement).innerText = text; // Use innerText to be safe
+          active.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+      }, message);
+
+      console.log(
+        `[ChatGPT] Set message content: ${message.substring(0, 50)}...`
+      );
+
+      // Quick wait for text to register in UI state
+      await new Promise((resolve) => setTimeout(resolve, 500));
 
       // Find and click the send button
       const sendButtonClicked = await page.evaluate(() => {
