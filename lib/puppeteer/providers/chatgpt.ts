@@ -251,12 +251,195 @@ export class ChatGPTProvider extends BaseProvider {
     console.log(
       `[ChatGPT] Response extracted. Length: ${response.length} chars`
     );
+    console.log("[ChatGPT] Response content:", response);
     return response;
   }
 
   // Reset conversation state (for starting a new conversation)
   resetConversation(): void {
     this.hasActiveConversation = false;
+  }
+
+  async generateImage(
+    prompt: string,
+    onStatusUpdate?: (status: string) => void
+  ): Promise<{ success: boolean; imageUrl?: string; error?: string }> {
+    console.log("[ChatGPT] Generating image...");
+    if (onStatusUpdate) onStatusUpdate("Initializing...");
+
+    try {
+      const page = await this.getPage();
+
+      // Ensure we are on ChatGPT
+      if (!page.url().includes("chatgpt.com")) {
+        if (onStatusUpdate) onStatusUpdate("Navigating to ChatGPT...");
+        await this.navigate();
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
+
+      // 1. Click the "+" button
+      if (onStatusUpdate) onStatusUpdate("Opening tools menu...");
+      try {
+        await page.waitForSelector('[data-testid="composer-plus-btn"]', {
+          timeout: 5000,
+        });
+        await page.click('[data-testid="composer-plus-btn"]');
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      } catch (e) {
+        console.error("Plus button not found", e);
+        // Maybe it's already open or different UI?
+        // Continue and try to find the menu item anyway
+      }
+
+      // 2. Click "Create image"
+      if (onStatusUpdate) onStatusUpdate("Selecting Image Generation...");
+      const createImgClicked = await page.evaluate(() => {
+        const menuItems = Array.from(
+          document.querySelectorAll('div[role="menuitemradio"]')
+        );
+        const createImgItem = menuItems.find((item) =>
+          item.textContent?.includes("Create image")
+        );
+        if (createImgItem) {
+          (createImgItem as HTMLElement).click();
+          return true;
+        }
+        return false;
+      });
+
+      if (!createImgClicked) {
+        throw new Error("Could not find 'Create image' option");
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      // 3. Type prompt
+      if (onStatusUpdate) onStatusUpdate("Typing prompt...");
+      const inputEl =
+        (await page.$("#prompt-textarea")) ||
+        (await page.$('div[contenteditable="true"]')) ||
+        (await page.$("textarea"));
+
+      if (!inputEl) {
+        throw new Error("Could not find input element");
+      }
+
+      await inputEl.click();
+      await page.keyboard.type(prompt, { delay: 10 });
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // 4. Send
+      if (onStatusUpdate) onStatusUpdate("Sending request...");
+
+      const sendButtonClicked = await page.evaluate(() => {
+        const sendBtn = document.querySelector(
+          '[data-testid="send-button"]'
+        ) as HTMLButtonElement;
+        if (sendBtn && !sendBtn.disabled) {
+          sendBtn.click();
+          return true;
+        }
+        return false;
+      });
+
+      if (!sendButtonClicked) {
+        console.log("[ChatGPT] No send button found, pressing Enter");
+        await page.keyboard.press("Enter");
+      }
+
+      // Wait for the image to appear in the response
+      // Structure: <img alt="Generated image" src="...">
+      // We look for the LAST image with alt="Generated image"
+      const maxWait = 120000; // 2 minutes
+      const startTime = Date.now();
+      let imageUrl = "";
+
+      while (Date.now() - startTime < maxWait) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+
+        // Check for stop button
+        const isGenerating = await page.evaluate(() => {
+          return (
+            document.querySelector('button[aria-label="Stop generating"]') !==
+            null
+          );
+        });
+
+        if (isGenerating) {
+          // Still generating, wait
+          continue;
+        }
+
+        // Check for "Image created" text
+        const imageCreatedText = await page.evaluate(() => {
+          const spans = Array.from(document.querySelectorAll("span"));
+          return spans.some((s) => s.textContent?.includes("Image created"));
+        });
+
+        if (!imageCreatedText) {
+          // "Image created" text not found yet, wait
+          continue;
+        }
+
+        imageUrl = await page.evaluate(async () => {
+          const images = Array.from(
+            document.querySelectorAll('img[alt="Generated image"]')
+          );
+          if (images.length > 0) {
+            const imgParams = images[images.length - 1] as HTMLImageElement;
+            const src = imgParams.src;
+
+            // Fetch the image to bypass CORS/Auth issues
+            try {
+              const response = await fetch(src);
+              const blob = await response.blob();
+              return await new Promise<string>((resolve) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result as string);
+                reader.readAsDataURL(blob);
+              });
+            } catch (e) {
+              // Fallback to src if fetch fails (unlikely if we are on the page)
+              console.error("Failed to convert to base64", e);
+              return src;
+            }
+          }
+          return "";
+        });
+
+        if (imageUrl) {
+          // If we have an image and we are NOT generating, we are good.
+          // Wait one more sec for stability
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          break;
+        }
+
+        // Check for error messages
+        const errorMsg = await page.evaluate(() => {
+          const alerts = document.querySelectorAll(
+            'div[role="alert"], .text-red-500'
+          );
+          if (alerts.length > 0) {
+            return alerts[alerts.length - 1].textContent;
+          }
+          return null;
+        });
+
+        if (errorMsg) {
+          throw new Error(`Generation failed: ${errorMsg}`);
+        }
+      }
+
+      if (!imageUrl) {
+        throw new Error("Timeout waiting for image generation");
+      }
+
+      if (onStatusUpdate) onStatusUpdate("Image generated!");
+      return { success: true, imageUrl };
+    } catch (error) {
+      console.error("[ChatGPT] Image generation error:", error);
+      return { success: false, error: String(error) };
+    }
   }
 
   // Streaming version of sendMessage - calls callback with each chunk
@@ -441,6 +624,7 @@ export class ChatGPTProvider extends BaseProvider {
       console.log(
         `[ChatGPT] Streaming complete. Text length: ${finalText.length}. ConvID: ${newConversationId}`
       );
+      console.log("[ChatGPT] Response content:", finalText);
 
       return {
         success: true,

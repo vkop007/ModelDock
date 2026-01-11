@@ -222,6 +222,7 @@ interface ChatContextValue extends ChatState {
   setCookies: (provider: LLMProvider, cookies: CookieEntry[]) => void;
   testConnection: (provider: LLMProvider) => Promise<boolean>;
   deleteConversation: (id: string) => void;
+  generateImage: (prompt: string) => Promise<void>;
   currentConversation: Conversation | null;
 }
 
@@ -543,6 +544,90 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     ]
   );
 
+  const generateImage = useCallback(
+    async (prompt: string) => {
+      if (!prompt.trim() || state.isSending) return;
+
+      // Create new conversation if none exists
+      if (!state.currentConversationId) {
+        dispatch({ type: "NEW_CONVERSATION" });
+      }
+
+      // Add user message
+      const userMessage: Message = {
+        id: uuidv4(),
+        role: "user",
+        content: `Generate image: ${prompt}`,
+        timestamp: Date.now(),
+        provider: state.activeProvider,
+      };
+      dispatch({ type: "ADD_MESSAGE", message: userMessage });
+      dispatch({ type: "SET_SENDING", isSending: true });
+
+      // Create placeholder for assistant response with loading state
+      const assistantMessage: Message = {
+        id: uuidv4(),
+        role: "assistant",
+        content: "Generating image...",
+        timestamp: Date.now(),
+        provider: state.activeProvider,
+      };
+      dispatch({ type: "ADD_MESSAGE", message: assistantMessage });
+
+      try {
+        const cookies =
+          state.cookieConfigs[state.activeProvider]?.cookies || [];
+
+        const currentConv = state.conversations.find(
+          (c) => c.id === state.currentConversationId
+        );
+        const externalId = currentConv?.externalId;
+
+        const response = await fetch("/api/chat/image", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            provider: state.activeProvider,
+            prompt: prompt.trim(),
+            cookies,
+            conversationId: externalId,
+          }),
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success && data.imageUrl) {
+          dispatch({
+            type: "UPDATE_MESSAGE",
+            id: assistantMessage.id,
+            content: `![Generated Image](${data.imageUrl})`,
+          });
+        } else {
+          dispatch({
+            type: "UPDATE_MESSAGE",
+            id: assistantMessage.id,
+            content: `Error generating image: ${data.error || "Unknown error"}`,
+          });
+        }
+      } catch (error) {
+        dispatch({
+          type: "UPDATE_MESSAGE",
+          id: assistantMessage.id,
+          content: `Error: ${String(error)}`,
+        });
+      } finally {
+        dispatch({ type: "SET_SENDING", isSending: false });
+      }
+    },
+    [
+      state.currentConversationId,
+      state.activeProvider,
+      state.cookieConfigs,
+      state.isSending,
+      state.conversations,
+    ]
+  );
+
   const value: ChatContextValue = {
     ...state,
     dispatch,
@@ -553,6 +638,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     setCookies,
     testConnection,
     deleteConversation,
+    generateImage,
     currentConversation,
   };
 

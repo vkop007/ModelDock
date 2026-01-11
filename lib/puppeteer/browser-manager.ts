@@ -59,7 +59,7 @@ class BrowserManager {
     console.log("[BrowserManager] Initializing puppeteer-real-browser...");
 
     const response = await connect({
-      headless: true, // Use visible browser for reliability (hidden via AppleScript)
+      headless: false, // Use visible browser for reliability (hidden via AppleScript)
       turnstile: true, // Auto-solve Cloudflare Turnstile
       disableXvfb: true, // Disable virtual display on macOS
       args: [
@@ -144,7 +144,9 @@ class BrowserManager {
         url.includes("chat") ||
         url.includes("conversation")
       ) {
-        request.continue();
+        if (!request.isInterceptResolutionHandled()) {
+          request.continue();
+        }
         return;
       }
 
@@ -180,9 +182,13 @@ class BrowserManager {
         resourceType === "preflight";
 
       if (shouldBlock) {
-        request.abort();
+        if (!request.isInterceptResolutionHandled()) {
+          request.abort();
+        }
       } else {
-        request.continue();
+        if (!request.isInterceptResolutionHandled()) {
+          request.continue();
+        }
       }
     });
 
