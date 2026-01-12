@@ -6,7 +6,8 @@ export type LLMProvider =
   | "zai"
   | "grok"
   | "qwen"
-  | "mistral";
+  | "mistral"
+  | "ollama";
 
 // LLM Provider configuration
 export interface ProviderConfig {
@@ -67,6 +68,13 @@ export const PROVIDERS: Record<LLMProvider, ProviderConfig> = {
     url: "https://chat.mistral.ai",
     icon: "SiMistral",
     color: "#ff7000",
+  },
+  ollama: {
+    id: "ollama",
+    name: "Ollama",
+    url: "http://localhost:11434",
+    icon: "SiLinux",
+    color: "#FFFFFF",
   },
 };
 

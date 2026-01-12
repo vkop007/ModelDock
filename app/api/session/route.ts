@@ -19,7 +19,18 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate provider
-    if (!["chatgpt", "claude", "gemini"].includes(provider)) {
+    const supportedProviders: LLMProvider[] = [
+      "chatgpt",
+      "claude",
+      "gemini",
+      "zai",
+      "grok",
+      "qwen",
+      "mistral",
+      "ollama",
+    ];
+
+    if (!supportedProviders.includes(provider)) {
       return NextResponse.json(
         { success: false, error: "Invalid provider" },
         { status: 400 }
@@ -60,7 +71,18 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    if (!["chatgpt", "claude", "gemini"].includes(provider)) {
+    if (
+      ![
+        "chatgpt",
+        "claude",
+        "gemini",
+        "zai",
+        "grok",
+        "qwen",
+        "mistral",
+        "ollama",
+      ].includes(provider)
+    ) {
       return NextResponse.json(
         { success: false, error: "Invalid provider" },
         { status: 400 }
@@ -106,7 +128,18 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
-    if (!["chatgpt", "claude", "gemini"].includes(provider)) {
+    if (
+      ![
+        "chatgpt",
+        "claude",
+        "gemini",
+        "zai",
+        "grok",
+        "qwen",
+        "mistral",
+        "ollama",
+      ].includes(provider)
+    ) {
       return NextResponse.json(
         { success: false, error: "Invalid provider" },
         { status: 400 }

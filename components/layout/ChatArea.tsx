@@ -13,7 +13,6 @@ export default function ChatArea() {
   const providerConfig = PROVIDERS[activeProvider];
   const session = sessions[activeProvider];
 
-  // Empty state when no conversation or conversation is from different provider
   if (
     !currentConversation ||
     currentConversation.messages.length === 0 ||
@@ -38,6 +37,8 @@ export default function ChatArea() {
                     ? "zdotai_logo.jpeg"
                     : activeProvider === "qwen"
                     ? "qwen_logo.jpeg"
+                    : activeProvider === "ollama"
+                    ? "ollama.png"
                     : "mistralai_logo.jpeg"
                 }`}
                 alt={`${providerConfig.name} logo`}
@@ -91,6 +92,8 @@ export default function ChatArea() {
                 ? "zdotai_logo.jpeg"
                 : activeProvider === "qwen"
                 ? "qwen_logo.jpeg"
+                : activeProvider === "ollama"
+                ? "ollama.png"
                 : "mistralai_logo.jpeg"
             }`}
             alt={`${providerConfig.name} logo`}
