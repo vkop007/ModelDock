@@ -509,15 +509,21 @@ export class ChatGPTProvider extends BaseProvider {
             console.log("[ChatGPT] Files assigned to input");
 
             // 3. Wait for upload to complete
-            // Look for the preview image container
-            await page.waitForSelector(
-              'button[aria-label="Remove attachment"]',
-              { timeout: 20000 }
-            );
-            console.log("[ChatGPT] Upload previews detected");
+            // Look for the preview image container or file attachment
+            try {
+              await page.waitForSelector(
+                'button[aria-label="Remove attachment"], [data-testid="file-attachment"], img[alt="Uploaded image"], .group.relative img',
+                { timeout: 10000 }
+              );
+              console.log("[ChatGPT] Upload previews detected");
+            } catch (e) {
+              console.log(
+                "[ChatGPT] Warning: Could not detect upload preview, but continuing..."
+              );
+            }
 
-            // Wait a bit more for processing
-            await new Promise((resolve) => setTimeout(resolve, 2000));
+            // Wait a bit more for processing (important for image analysis)
+            await new Promise((resolve) => setTimeout(resolve, 3000));
           } else {
             console.error("[ChatGPT] Could not find file input for upload");
           }
@@ -624,12 +630,22 @@ export class ChatGPTProvider extends BaseProvider {
           );
         });
 
-        if (!isGenerating) {
-          if (stableCount >= 5) {
+        const isAnalyzing = currentContent
+          .toLowerCase()
+          .includes("analyzing image");
+
+        if (!isGenerating && !isAnalyzing) {
+          if (stableCount >= 10) {
+            // Increased from 5 to 10 (2 seconds)
             break;
           }
         } else {
+          // If generating OR analyzing, keep waiting
           if (currentContent.length > lastContent.length) {
+            stableCount = 0;
+          } else if (isAnalyzing) {
+            // If analyzing, we are "stable" in text but not done.
+            // Reset stable count to ensure we don't exit.
             stableCount = 0;
           }
         }
