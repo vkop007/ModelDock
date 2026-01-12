@@ -437,7 +437,8 @@ export class ChatGPTProvider extends BaseProvider {
   async sendMessageWithStreaming(
     message: string,
     onChunk: (chunk: string) => void,
-    conversationId?: string
+    conversationId?: string,
+    imagePaths?: string[]
   ): Promise<SendMessageResult> {
     console.log("[ChatGPT] Using browser streaming...");
 
@@ -475,6 +476,56 @@ export class ChatGPTProvider extends BaseProvider {
         }
       } else {
         await new Promise((resolve) => setTimeout(resolve, 300));
+      }
+
+      // Handle Image Uploads
+      if (imagePaths && imagePaths.length > 0) {
+        console.log(`[ChatGPT] Uploading ${imagePaths.length} images...`);
+
+        try {
+          // 1. Locate file input
+          // ChatGPT usually has a hidden file input. If not found, we might need to click the plus button to insert it into DOM.
+          let fileInput = await page.$('input[type="file"]');
+
+          if (!fileInput) {
+            console.log(
+              "[ChatGPT] File input not found, clicking plus button..."
+            );
+            try {
+              await page.waitForSelector('[data-testid="composer-plus-btn"]', {
+                timeout: 2000,
+              });
+              await page.click('[data-testid="composer-plus-btn"]');
+              await new Promise((resolve) => setTimeout(resolve, 500));
+              fileInput = await page.$('input[type="file"]');
+            } catch (e) {
+              console.log("[ChatGPT] Plus button interaction failed", e);
+            }
+          }
+
+          if (fileInput) {
+            // 2. Upload files
+            await fileInput.uploadFile(...imagePaths);
+            console.log("[ChatGPT] Files assigned to input");
+
+            // 3. Wait for upload to complete
+            // Look for the preview image container
+            await page.waitForSelector(
+              'button[aria-label="Remove attachment"]',
+              { timeout: 20000 }
+            );
+            console.log("[ChatGPT] Upload previews detected");
+
+            // Wait a bit more for processing
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+          } else {
+            console.error("[ChatGPT] Could not find file input for upload");
+          }
+        } catch (uploadError) {
+          console.error("[ChatGPT] Upload failed:", uploadError);
+          // Continue to send message anyway, or maybe throw?
+          // Prefer continuing but logging error
+        }
       }
 
       // Wait for input - reduced timeouts

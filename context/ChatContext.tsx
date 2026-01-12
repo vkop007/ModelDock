@@ -217,7 +217,7 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
 // Context
 interface ChatContextValue extends ChatState {
   dispatch: React.Dispatch<ChatAction>;
-  sendMessage: (content: string) => Promise<void>;
+  sendMessage: (content: string, images?: string[]) => Promise<void>;
   newChat: () => void;
   selectConversation: (id: string) => void;
   setProvider: (provider: LLMProvider) => void;
@@ -402,8 +402,12 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   );
 
   const sendMessage = useCallback(
-    async (content: string) => {
-      if (!content.trim() || state.isSending) return;
+    async (content: string, images?: string[]) => {
+      if (
+        (!content.trim() && (!images || images.length === 0)) ||
+        state.isSending
+      )
+        return;
 
       // Create new conversation if none exists
       if (!state.currentConversationId) {
@@ -415,6 +419,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         id: uuidv4(),
         role: "user",
         content: content.trim(),
+        images,
         timestamp: Date.now(),
         provider: state.activeProvider,
       };
@@ -451,6 +456,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           body: JSON.stringify({
             provider: state.activeProvider,
             message: content.trim(),
+            images,
             cookies,
             conversationId: externalId,
           }),
