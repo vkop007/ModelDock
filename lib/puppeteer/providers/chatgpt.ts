@@ -30,8 +30,6 @@ export class ChatGPTProvider extends BaseProvider {
 
     try {
       const page = await this.getPage();
-
-      // Only navigate to homepage if we don't have an active conversation
       const currentUrl = page.url();
       const isOnChatGPT =
         currentUrl.includes("chat.openai.com") ||
@@ -40,31 +38,23 @@ export class ChatGPTProvider extends BaseProvider {
         currentUrl.includes("/c/") || currentUrl.includes("/g/");
 
       if (!isOnChatGPT) {
-        // First time - navigate to ChatGPT
         console.log("[ChatGPT] First time - navigating to ChatGPT");
         await this.navigate();
-        // Reduced wait time since we block images/fonts
         await new Promise((resolve) => setTimeout(resolve, 2000));
-        // Quick network idle check
         try {
           await page.waitForNetworkIdle({ timeout: 3000 });
-        } catch {
-          // Continue anyway - resources are blocked
-        }
+        } catch {}
       } else if (this.hasActiveConversation && isInConversation) {
-        // Already in a conversation - minimal wait
         console.log(
           "[ChatGPT] Continuing existing conversation at:",
           currentUrl
         );
         await new Promise((resolve) => setTimeout(resolve, 300));
       } else {
-        // On ChatGPT but not in a conversation - quick wait
         console.log("[ChatGPT] On ChatGPT, waiting for chat interface...");
         await new Promise((resolve) => setTimeout(resolve, 500));
       }
 
-      // Wait for the input field - reduced timeouts since page is lighter
       try {
         await page.waitForSelector("#prompt-textarea", { timeout: 20000 });
         console.log("[ChatGPT] Found #prompt-textarea");
@@ -77,7 +67,6 @@ export class ChatGPTProvider extends BaseProvider {
         });
       }
 
-      // Click on the input to focus it
       const inputEl =
         (await page.$("#prompt-textarea")) ||
         (await page.$('div[contenteditable="true"]')) ||
@@ -101,8 +90,6 @@ export class ChatGPTProvider extends BaseProvider {
           el.dispatchEvent(new Event("input", { bubbles: true }));
           el.dispatchEvent(new Event("change", { bubbles: true }));
         } else if (active.getAttribute("contenteditable") === "true") {
-          // For contenteditable, we often need to simulate text insertion more carefully
-          // But setting innerText/innerHTML + input event often works for React
           active.innerHTML = text; // or textContent? ChatGPT handles HTML sometimes. Safest is text.
           (active as HTMLElement).innerText = text; // Use innerText to be safe
           active.dispatchEvent(new Event("input", { bubbles: true }));
@@ -215,7 +202,6 @@ export class ChatGPTProvider extends BaseProvider {
     while (Date.now() - startTime < maxWait) {
       await new Promise((resolve) => setTimeout(resolve, 500)); // Standard poll 500ms
 
-      // Check if stop button is still visible - this is the best indicator of activity
       const isGenerating = await page.evaluate(() => {
         const btn = document.querySelector(
           'button[aria-label="Stop generating"]'
@@ -274,7 +260,6 @@ export class ChatGPTProvider extends BaseProvider {
     return response;
   }
 
-  // Reset conversation state (for starting a new conversation)
   resetConversation(): void {
     this.hasActiveConversation = false;
   }
@@ -306,8 +291,6 @@ export class ChatGPTProvider extends BaseProvider {
         await new Promise((resolve) => setTimeout(resolve, 500));
       } catch (e) {
         console.error("Plus button not found", e);
-        // Maybe it's already open or different UI?
-        // Continue and try to find the menu item anyway
       }
 
       // 2. Click "Create image"
@@ -366,9 +349,6 @@ export class ChatGPTProvider extends BaseProvider {
         await page.keyboard.press("Enter");
       }
 
-      // Wait for the image to appear in the response
-      // Structure: <img alt="Generated image" src="...">
-      // We look for the LAST image with alt="Generated image"
       const maxWait = 120000; // 2 minutes
       const startTime = Date.now();
       let imageUrl = "";
@@ -385,18 +365,15 @@ export class ChatGPTProvider extends BaseProvider {
         });
 
         if (isGenerating) {
-          // Still generating, wait
           continue;
         }
 
-        // Check for "Image created" text
         const imageCreatedText = await page.evaluate(() => {
           const spans = Array.from(document.querySelectorAll("span"));
           return spans.some((s) => s.textContent?.includes("Image created"));
         });
 
         if (!imageCreatedText) {
-          // "Image created" text not found yet, wait
           continue;
         }
 
@@ -408,7 +385,6 @@ export class ChatGPTProvider extends BaseProvider {
             const imgParams = images[images.length - 1] as HTMLImageElement;
             const src = imgParams.src;
 
-            // Fetch the image to bypass CORS/Auth issues
             try {
               const response = await fetch(src);
               const blob = await response.blob();
@@ -418,7 +394,6 @@ export class ChatGPTProvider extends BaseProvider {
                 reader.readAsDataURL(blob);
               });
             } catch (e) {
-              // Fallback to src if fetch fails (unlikely if we are on the page)
               console.error("Failed to convert to base64", e);
               return src;
             }
@@ -427,13 +402,10 @@ export class ChatGPTProvider extends BaseProvider {
         });
 
         if (imageUrl) {
-          // If we have an image and we are NOT generating, we are good.
-          // Wait one more sec for stability
           await new Promise((resolve) => setTimeout(resolve, 1000));
           break;
         }
 
-        // Check for error messages
         const errorMsg = await page.evaluate(() => {
           const alerts = document.querySelectorAll(
             'div[role="alert"], .text-red-500'
@@ -557,7 +529,6 @@ export class ChatGPTProvider extends BaseProvider {
 
       console.log("[ChatGPT] Message sent, streaming response...");
 
-      // Wait for response element to appear
       try {
         await page.waitForSelector('[data-message-author-role="assistant"]', {
           timeout: 30000,
@@ -566,7 +537,6 @@ export class ChatGPTProvider extends BaseProvider {
         return { success: false, error: "No response received" };
       }
 
-      // Stream the response
       let lastContent = "";
       let stableCount = 0;
       const maxWait = 180000;
@@ -575,13 +545,11 @@ export class ChatGPTProvider extends BaseProvider {
       while (Date.now() - startTime < maxWait) {
         await new Promise((resolve) => setTimeout(resolve, 200)); // Poll every 200ms
 
-        // Get current response content (text for length comparison)
         const currentContent = await page.evaluate(() => {
           const messages = document.querySelectorAll(
             '[data-message-author-role="assistant"]'
           );
           if (messages.length > 0) {
-            // Use textContent for length comparison during streaming
             return messages[messages.length - 1].textContent || "";
           }
           return "";
@@ -605,16 +573,11 @@ export class ChatGPTProvider extends BaseProvider {
           );
         });
 
-        // Only stop if NOT generating, AND we have significant stability
         if (!isGenerating) {
-          // If we detect the "stop" button is gone, we still want to make sure
-          // we got the very last bits of text.
           if (stableCount >= 5) {
-            // ~1 second of stability after stop button gone
             break;
           }
         } else {
-          // If generating, reset stability if we got content, or just keep waiting
           if (currentContent.length > lastContent.length) {
             stableCount = 0;
           }
@@ -623,7 +586,6 @@ export class ChatGPTProvider extends BaseProvider {
 
       this.hasActiveConversation = true;
 
-      // Get final text content (for Streamdown markdown rendering)
       const finalText = await page.evaluate(() => {
         const messages = document.querySelectorAll(
           '[data-message-author-role="assistant"]'
@@ -635,7 +597,6 @@ export class ChatGPTProvider extends BaseProvider {
         return "";
       });
 
-      // Extract Conversation ID from URL
       const finalUrl = page.url();
       const match = finalUrl.match(/\/c\/([a-zA-Z0-9-]+)/);
       const newConversationId = match ? match[1] : undefined;
@@ -661,18 +622,14 @@ export class ChatGPTProvider extends BaseProvider {
     try {
       const page = await this.getPage();
 
-      // Make sure we're on ChatGPT to have valid cookies/auth
       const currentUrl = page.url();
       if (!currentUrl.includes("chatgpt.com")) {
         await this.navigate();
         await new Promise((resolve) => setTimeout(resolve, 2000));
       }
 
-      // Use the ChatGPT API directly from the browser context
-      // The access token is stored in the session and can be retrieved via the __NEXT_DATA__ or session API
       const result = await page.evaluate(async (convId: string) => {
         try {
-          // First, get the access token from ChatGPT's session endpoint
           const sessionRes = await fetch("/api/auth/session", {
             credentials: "include",
           });
@@ -683,7 +640,6 @@ export class ChatGPTProvider extends BaseProvider {
             return { success: false, error: "Could not retrieve access token" };
           }
 
-          // Now call the delete API with the token
           const response = await fetch(
             `https://chatgpt.com/backend-api/conversation/${convId}`,
             {
