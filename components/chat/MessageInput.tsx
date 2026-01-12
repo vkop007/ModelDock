@@ -186,35 +186,23 @@ export default function MessageInput() {
           disabled={isSending || isDisabled}
           rows={1}
         />
-        <button
-          className="send-btn"
-          onClick={handleImageGeneration}
-          disabled={
-            !input.trim() ||
-            isSending ||
-            isDisabled ||
-            (activeProvider !== "chatgpt" && activeProvider !== "gemini")
-          }
-          title="Generate Image (ChatGPT & Gemini)"
-          // Use a different color or style to distinguish
-          style={{
-            marginRight: "8px",
-            backgroundColor: "transparent",
-            color:
-              input.trim() &&
-              (activeProvider === "chatgpt" || activeProvider === "gemini")
-                ? activeConfig.color
-                : "inherit",
-            border: "1px solid",
-            borderColor:
-              input.trim() &&
-              (activeProvider === "chatgpt" || activeProvider === "gemini")
-                ? activeConfig.color
-                : "#404040",
-          }}
-        >
-          <FiImage size={20} />
-        </button>
+        {(activeProvider === "chatgpt" || activeProvider === "gemini") && (
+          <button
+            className="send-btn"
+            onClick={handleImageGeneration}
+            disabled={!input.trim() || isSending || isDisabled}
+            title="Generate Image"
+            style={{
+              marginRight: "8px",
+              backgroundColor: "transparent",
+              color: input.trim() ? activeConfig.color : "inherit",
+              border: "1px solid",
+              borderColor: input.trim() ? activeConfig.color : "#404040",
+            }}
+          >
+            <FiImage size={20} />
+          </button>
+        )}
         <button
           className="send-btn"
           onClick={handleSubmit}
