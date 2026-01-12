@@ -7,6 +7,7 @@ import { ZaiProvider } from "./providers/zai";
 import { GrokProvider } from "./providers/grok";
 import { QwenProvider } from "./providers/qwen";
 import { MistralProvider } from "./providers/mistral";
+import { OllamaProvider } from "./providers/ollama";
 export { browserManager } from "./browser-manager";
 
 // Provider factory
@@ -36,6 +37,9 @@ export function getProvider(provider: LLMProvider): BaseProvider {
       case "mistral":
         providers.set(provider, new MistralProvider());
         break;
+      case "ollama":
+        providers.set(provider, new OllamaProvider());
+        break;
       default:
         throw new Error(`Unknown provider: ${provider}`);
     }
@@ -45,7 +49,14 @@ export function getProvider(provider: LLMProvider): BaseProvider {
 }
 
 export function getAllProviders(): BaseProvider[] {
-  return ["chatgpt", "claude", "gemini", "zai", "grok", "qwen", "mistral"].map(
-    (p) => getProvider(p as LLMProvider)
-  );
+  return [
+    "chatgpt",
+    "claude",
+    "gemini",
+    "zai",
+    "grok",
+    "qwen",
+    "mistral",
+    "ollama",
+  ].map((p) => getProvider(p as LLMProvider));
 }

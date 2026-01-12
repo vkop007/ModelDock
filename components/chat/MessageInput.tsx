@@ -21,6 +21,7 @@ const PROVIDER_LOGOS: Record<LLMProvider, string> = {
   grok: "/providers/grok.jpg",
   qwen: "/providers/qwen_logo.jpeg",
   mistral: "/providers/mistralai_logo.jpeg",
+  ollama: "/providers/ollama.png",
 };
 
 // Helper function to get proper logo for each provider

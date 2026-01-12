@@ -57,7 +57,7 @@ class BrowserManager {
     console.log("[BrowserManager] Initializing puppeteer-real-browser...");
 
     const response = await connect({
-      headless: false, // Use visible browser for reliability (hidden via AppleScript)
+      headless: true, // Use visible browser for reliability (hidden via AppleScript)
       turnstile: true, // Auto-solve Cloudflare Turnstile
       disableXvfb: true, // Disable virtual display on macOS
       args: [
@@ -236,6 +236,7 @@ class BrowserManager {
         grok: "https://grok.com",
         qwen: "https://chat.qwenlm.ai",
         mistral: "https://chat.mistral.ai",
+        ollama: "http://localhost:11434",
       };
 
       const targetUrl = providerUrls[provider];

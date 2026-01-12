@@ -48,6 +48,7 @@ const initialState: ChatState = {
     grok: { ...initialSessionState, provider: "grok" },
     qwen: { ...initialSessionState, provider: "qwen" },
     mistral: { ...initialSessionState, provider: "mistral" },
+    ollama: { ...initialSessionState, provider: "ollama" },
   },
   cookieConfigs: {
     chatgpt: null,
@@ -57,6 +58,7 @@ const initialState: ChatState = {
     grok: null,
     qwen: null,
     mistral: null,
+    ollama: null,
   },
   isLoading: false,
   isSending: false,

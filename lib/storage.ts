@@ -55,6 +55,7 @@ export function loadCookieConfigs(): Record<LLMProvider, CookieConfig | null> {
     grok: null,
     qwen: null,
     mistral: null,
+    ollama: null,
   };
 
   if (!isBrowser) return defaults;
