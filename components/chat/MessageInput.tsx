@@ -8,6 +8,8 @@ import {
   FiChevronDown,
   FiCheck,
   FiImage,
+  FiX,
+  FiPaperclip,
 } from "react-icons/fi";
 import Image from "next/image";
 import { PROVIDERS, LLMProvider } from "@/types";
@@ -57,6 +59,9 @@ export default function MessageInput() {
   const activeConfig = PROVIDERS[activeProvider];
   const modelButtonRef = useRef<HTMLButtonElement>(null);
 
+  const [selectedImages, setSelectedImages] = useState<File[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   // Auto-resize textarea
   useEffect(() => {
     if (textareaRef.current) {
@@ -88,12 +93,39 @@ export default function MessageInput() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const convertFileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = (error) => reject(error);
+    });
+  };
+
   const handleSubmit = async () => {
-    if (!input.trim() || isSending || isDisabled) return;
+    if (
+      (!input.trim() && selectedImages.length === 0) ||
+      isSending ||
+      isDisabled
+    )
+      return;
 
     const message = input;
+    const imagesToUpload = [...selectedImages];
+
     setInput("");
-    await sendMessage(message);
+    setSelectedImages([]);
+
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+    }
+
+    // Convert images to base64
+    const base64Images = await Promise.all(
+      imagesToUpload.map((file) => convertFileToBase64(file))
+    );
+
+    await sendMessage(message, base64Images);
   };
 
   const handleImageGeneration = async () => {
@@ -111,9 +143,74 @@ export default function MessageInput() {
     }
   };
 
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (isDisabled) return;
+
+    const files = Array.from(e.dataTransfer.files).filter((file) =>
+      file.type.startsWith("image/")
+    );
+
+    if (files.length > 0) {
+      setSelectedImages((prev) => [...prev, ...files]);
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const files = Array.from(e.target.files).filter((file) =>
+        file.type.startsWith("image/")
+      );
+      setSelectedImages((prev) => [...prev, ...files]);
+    }
+    // Reset inputs
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const removeImage = (index: number) => {
+    setSelectedImages((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const showImageUpload =
+    activeProvider === "chatgpt" || activeProvider === "gemini";
+
   return (
     <div className="message-input-container">
-      <div className="message-input-wrapper">
+      {/* Image Previews */}
+      {selectedImages.length > 0 && (
+        <div className="image-previews">
+          {selectedImages.map((file, index) => (
+            <div key={index} className="image-preview-item">
+              <img
+                src={URL.createObjectURL(file)}
+                alt="preview"
+                className="image-preview-img"
+              />
+              <button
+                className="remove-image-btn"
+                onClick={() => removeImage(index)}
+              >
+                <FiX size={12} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div
+        className={`message-input-wrapper ${
+          selectedImages.length > 0 ? "has-images" : ""
+        }`}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+      >
         <div className="model-selector-inline">
           <button
             ref={modelButtonRef}
@@ -181,46 +278,72 @@ export default function MessageInput() {
           placeholder={
             isDisabled
               ? "Configure cookies in settings to start chatting..."
+              : selectedImages.length > 0
+              ? "Describe this image..."
               : `Message ${activeConfig.name}...`
           }
           disabled={isSending || isDisabled}
           rows={1}
         />
-        <button
-          className="send-btn"
-          onClick={handleImageGeneration}
-          disabled={
-            !input.trim() ||
-            isSending ||
-            isDisabled ||
-            (activeProvider !== "chatgpt" && activeProvider !== "gemini")
-          }
-          title="Generate Image (ChatGPT & Gemini)"
-          // Use a different color or style to distinguish
-          style={{
-            marginRight: "8px",
-            backgroundColor: "transparent",
-            color:
-              input.trim() &&
-              (activeProvider === "chatgpt" || activeProvider === "gemini")
-                ? activeConfig.color
-                : "inherit",
-            border: "1px solid",
-            borderColor:
-              input.trim() &&
-              (activeProvider === "chatgpt" || activeProvider === "gemini")
-                ? activeConfig.color
-                : "#404040",
-          }}
-        >
-          <FiImage size={20} />
-        </button>
+
+        {/* Hidden File Input */}
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileSelect}
+          accept="image/*"
+          multiple
+          style={{ display: "none" }}
+        />
+
+        {/* Generate Image Button (Only for supported providers) */}
+        {(activeProvider === "chatgpt" || activeProvider === "gemini") && (
+          <button
+            className="send-btn"
+            onClick={handleImageGeneration}
+            disabled={!input.trim() || isSending || isDisabled}
+            title="Generate Image"
+            style={{
+              marginRight: "4px",
+              backgroundColor: "transparent",
+              color: input.trim() ? activeConfig.color : "inherit",
+              border: "1px solid",
+              borderColor: input.trim() ? activeConfig.color : "#404040",
+            }}
+          >
+            <FiImage size={18} />
+          </button>
+        )}
+
+        {/* Upload Image Button (Only if supported) */}
+        {showImageUpload && (
+          <button
+            className="send-btn"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isSending || isDisabled}
+            title="Upload Image"
+            style={{
+              marginRight: "8px",
+              backgroundColor: "transparent",
+              color: "inherit",
+            }}
+          >
+            <FiPaperclip size={18} />
+          </button>
+        )}
+
         <button
           className="send-btn"
           onClick={handleSubmit}
-          disabled={!input.trim() || isSending || isDisabled}
+          disabled={
+            (!input.trim() && selectedImages.length === 0) ||
+            isSending ||
+            isDisabled
+          }
           style={
-            input.trim() && !isSending && !isDisabled
+            (input.trim() || selectedImages.length > 0) &&
+            !isSending &&
+            !isDisabled
               ? { backgroundColor: activeConfig.color, color: "white" }
               : {}
           }

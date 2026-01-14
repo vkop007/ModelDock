@@ -85,6 +85,7 @@ export interface Message {
   content: string;
   timestamp: number;
   provider?: LLMProvider;
+  images?: string[]; // Array of base64 strings
 }
 
 // Conversation structure

@@ -34,7 +34,8 @@ export class GeminiProvider extends BaseProvider {
   async sendMessageWithStreaming(
     message: string,
     onChunk: (chunk: string) => void,
-    conversationId?: string
+    conversationId?: string,
+    imagePaths?: string[]
   ): Promise<SendMessageResult> {
     try {
       const page = await this.getPage();
@@ -67,6 +68,49 @@ export class GeminiProvider extends BaseProvider {
       } else if (!currentUrl.includes("gemini.google.com")) {
         await this.navigate();
         await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+
+      // Handle Image Uploads
+      if (imagePaths && imagePaths.length > 0) {
+        console.log(`[Gemini] Uploading ${imagePaths.length} images...`);
+        try {
+          // 1. Locate file input. Gemini usually has one.
+          // Sometimes we need to click "Add to prompt" (+) button first.
+          let fileInput = await page.$('input[type="file"]');
+
+          if (!fileInput) {
+            const plusBtn = await page.$(
+              'button[aria-label="Add to prompt"], button[aria-label="Upload image"]'
+            );
+            if (plusBtn) {
+              await plusBtn.click();
+              await new Promise((resolve) => setTimeout(resolve, 500));
+              fileInput = await page.$('input[type="file"]');
+            }
+          }
+
+          if (fileInput) {
+            await fileInput.uploadFile(...imagePaths);
+            console.log("[Gemini] Files assigned to input");
+
+            // Wait for preview to appear
+            // Gemini shows thumbnails in the input area
+            try {
+              await page.waitForSelector(
+                'img[alt="Image preview"], .image-preview',
+                { timeout: 10000 }
+              );
+              console.log("[Gemini] Upload previews detected");
+            } catch (e) {
+              console.log("[Gemini] Warning: Image preview not detected");
+            }
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+          } else {
+            console.error("[Gemini] Could not find file input for upload");
+          }
+        } catch (uploadError) {
+          console.error("[Gemini] Upload failed:", uploadError);
+        }
       }
 
       // Wait for the input field

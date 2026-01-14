@@ -23,27 +23,21 @@ interface OllamaStreamResponse {
 }
 
 export class OllamaProvider extends BaseProvider {
-  private model: string = "llama3"; // Default model
+  private model: string = "llama3";
 
   constructor() {
     super("ollama", "http://localhost:11434");
   }
 
-  // Override to avoid browser interactions
   async getPage(): Promise<Page> {
     throw new Error("Ollama provider does not use Puppeteer pages");
   }
 
-  async injectCookies(): Promise<void> {
-    // No cookies needed
-  }
+  async injectCookies(): Promise<void> {}
 
-  async navigate(): Promise<void> {
-    // No navigation needed
-  }
+  async navigate(): Promise<void> {}
 
   async isAuthenticated(): Promise<boolean> {
-    // Check if Ollama is running by hitting the tags endpoint
     try {
       const response = await fetch(`${this.url}/api/tags`);
       return response.ok;
@@ -135,7 +129,6 @@ export class OllamaProvider extends BaseProvider {
         if (done) break;
 
         const chunk = decoder.decode(value, { stream: true });
-        // Ollama sends JSON objects, sometimes multiple per chunk
         const lines = chunk.split("\n").filter((line) => line.trim() !== "");
 
         for (const line of lines) {
@@ -165,12 +158,10 @@ export class OllamaProvider extends BaseProvider {
   }
 
   async waitForResponse(): Promise<string> {
-    // meaningful implementation not needed as sendMessage handles it
     return "";
   }
 
   async deleteConversation(_conversationId: string): Promise<boolean> {
-    // Ollama is stateless by default unless we manage context manually
     return true;
   }
 }

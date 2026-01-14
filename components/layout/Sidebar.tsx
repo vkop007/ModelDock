@@ -10,6 +10,7 @@ import {
   FiTrash2,
   FiCheck,
   FiAlertCircle,
+  FiSearch,
 } from "react-icons/fi";
 import { SiOpenai, SiGoogle } from "react-icons/si";
 import CookieModal from "../settings/CookieModal";
@@ -60,11 +61,22 @@ export default function Sidebar() {
   return (
     <>
       <aside className="sidebar">
-        {/* New Chat Button */}
-        <button className="new-chat-btn" onClick={newChat}>
-          <FiPlus size={18} />
-          <span>New Chat</span>
-        </button>
+        {/* Actions Header */}
+        <div className="sidebar-actions">
+          <button className="new-chat-btn" onClick={newChat}>
+            <FiPlus size={18} />
+            <span>New Chat</span>
+          </button>
+          <button
+            className="search-trigger-btn"
+            onClick={() =>
+              window.dispatchEvent(new Event("open-global-search"))
+            }
+            title="Search (Cmd+K)"
+          >
+            <FiSearch size={18} />
+          </button>
+        </div>
 
         {/* Conversation List */}
         <div className="conversation-list">

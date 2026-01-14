@@ -1,32 +1,67 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getProvider } from "@/lib/puppeteer";
-import { CookieEntry } from "@/types";
+import { CookieEntry, LLMProvider } from "@/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
   try {
-    const {
-      provider: providerName,
-      message,
-      cookies,
-      conversationId,
-    } = await request.json();
+    const body = await request.json();
+    const { provider, message, cookies, conversationId, images } = body as {
+      provider: LLMProvider;
+      message: string;
+      cookies: CookieEntry[];
+      conversationId?: string;
+      images?: string[]; // Base64 strings
+    };
 
-    if (!providerName || !message) {
-      return new Response(
-        JSON.stringify({ error: "Provider and message are required" }),
-        { status: 400, headers: { "Content-Type": "application/json" } }
+    if (!provider || (!message && (!images || images.length === 0))) {
+      return NextResponse.json(
+        { success: false, error: "Provider and message/images are required" },
+        { status: 400 }
       );
     }
 
     console.log("[Stream API] Using browser method...");
-    const provider = getProvider(providerName);
+    const llmProvider = getProvider(provider);
 
     // Inject cookies if provided
     if (cookies && cookies.length > 0) {
-      await provider.injectCookies(cookies as CookieEntry[]);
+      await llmProvider.injectCookies(cookies);
+    }
+
+    // Handle Image Uploads
+    const imagePaths: string[] = [];
+    if (images && images.length > 0) {
+      const fs = await import("fs");
+      const path = await import("path");
+      const os = await import("os");
+
+      const tmpDir = os.tmpdir();
+
+      for (const base64Image of images) {
+        // Remove header if present (e.g., "data:image/png;base64,")
+        const matches = base64Image.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+
+        let buffer: Buffer;
+        let ext = "png";
+
+        if (matches && matches.length === 3) {
+          ext = matches[1].split("/")[1];
+          buffer = Buffer.from(matches[2], "base64");
+        } else {
+          buffer = Buffer.from(base64Image, "base64");
+        }
+
+        const filename = `upload_${Date.now()}_${Math.random()
+          .toString(36)
+          .substring(7)}.${ext}`;
+        const filepath = path.join(tmpDir, filename);
+
+        await fs.promises.writeFile(filepath, buffer);
+        imagePaths.push(filepath);
+      }
     }
 
     // Create a readable stream for SSE
@@ -38,11 +73,12 @@ export async function POST(request: NextRequest) {
             encoder.encode(`data: ${JSON.stringify({ type: "start" })}\n\n`)
           );
 
-          const providerWithStreaming = provider as unknown as {
+          const providerWithStreaming = llmProvider as unknown as {
             sendMessageWithStreaming: (
               message: string,
               onChunk: (chunk: string) => void,
-              conversationId?: string
+              conversationId?: string,
+              imagePaths?: string[]
             ) => Promise<{
               success: boolean;
               content?: string;
@@ -63,7 +99,8 @@ export async function POST(request: NextRequest) {
                 )
               );
             },
-            conversationId
+            conversationId,
+            imagePaths
           );
 
           controller.enqueue(

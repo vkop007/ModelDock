@@ -53,6 +53,18 @@ export abstract class BaseProvider {
   // Abstract methods to be implemented by each provider
   abstract checkAuthentication(page: Page): Promise<boolean>;
   abstract sendMessage(message: string): Promise<SendMessageResult>;
+
+  // Optional streaming implementation - can be overridden by subclasses
+  async sendMessageWithStreaming(
+    message: string,
+    onChunk: (chunk: string) => void,
+    conversationId?: string,
+    imagePaths?: string[]
+  ): Promise<SendMessageResult> {
+    // Default implementation falls back to non-streaming
+    return this.sendMessage(message);
+  }
+
   abstract waitForResponse(): Promise<string>;
   abstract deleteConversation(conversationId: string): Promise<boolean>;
 
