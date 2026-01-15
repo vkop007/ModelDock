@@ -3,6 +3,8 @@ import { BaseProvider, SendMessageResult } from "./base";
 import {
   waitForCompletionWithStreaming,
   PROVIDER_CONFIGS,
+  setupNetworkMonitoring,
+  StreamParsers,
 } from "../fast-streaming";
 
 export class ClaudeProvider extends BaseProvider {
@@ -90,12 +92,8 @@ export class ClaudeProvider extends BaseProvider {
         (selector, text) => {
           const el = document.querySelector(selector) as HTMLElement;
           if (el) {
-            // Claude uses ProseMirror, which is a contenteditable div
-            // Setting innerText/textContent directly might break the editor state
-            // But usually a simple input event triggers a resync
-            el.innerHTML = `<p>${text}</p>`; // Basic paragraph structure often helps ProseMirror
-            // If that fails, simple textContent:
-            // el.textContent = text;
+            // Claude uses ProseMirror
+            el.innerHTML = `<p>${text}</p>`;
             el.dispatchEvent(new Event("input", { bubbles: true }));
 
             // Dispatch a comparison event just in case
@@ -116,6 +114,23 @@ export class ClaudeProvider extends BaseProvider {
         return responses.length;
       });
 
+      // Setup network interception (passive)
+      console.log("[Claude] Setting up passive network monitoring...");
+
+      let networkContent = "";
+      const { client, cleanup } = await setupNetworkMonitoring(
+        page,
+        "chat_conversations",
+        (chunk) => {
+          if (chunk) {
+            console.log(`[Claude] Network chunk (${chunk.length} chars)`);
+            onChunk(chunk);
+            networkContent += chunk;
+          }
+        },
+        StreamParsers.sse
+      );
+
       // Click send button or press Enter
       const sendButton = await page.$(
         '[data-testid="submit-button"], button[aria-label="Send message"]'
@@ -129,7 +144,7 @@ export class ClaudeProvider extends BaseProvider {
       // Wait for response with streaming
       console.log("[Claude] Waiting for streaming to complete...");
 
-      // Wait for a NEW response to appear (more than previousResponseCount)
+      // Wait for a NEW response to appear
       try {
         await page.waitForFunction(
           (prevCount: number) => {
@@ -142,18 +157,26 @@ export class ClaudeProvider extends BaseProvider {
           previousResponseCount
         );
       } catch {
-        // Continue, might be slow
+        // Continue, might be slow or network might have finished it already
       }
 
-      // Fast streaming with 50ms polling
+      // Fast streaming with 50ms polling (fallback)
       const config = PROVIDER_CONFIGS.claude;
       const result = await waitForCompletionWithStreaming(
         page,
         config,
-        onChunk,
+        (chunk) => {
+          if (!networkContent.includes(chunk)) {
+            onChunk(chunk);
+          }
+        },
         180000
       );
-      const lastContent = result.content;
+
+      // Cleanup
+      await cleanup();
+
+      const lastContent = result.content || networkContent;
 
       // Extract Conversation ID
       const finalUrl = page.url();
