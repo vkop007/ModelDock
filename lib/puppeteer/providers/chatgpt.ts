@@ -3,6 +3,8 @@ import { BaseProvider, SendMessageResult } from "./base";
 import {
   waitForCompletionWithStreaming,
   PROVIDER_CONFIGS,
+  setupNetworkMonitoring,
+  StreamParsers,
 } from "../fast-streaming";
 
 export class ChatGPTProvider extends BaseProvider {
@@ -562,7 +564,22 @@ export class ChatGPTProvider extends BaseProvider {
       await page.keyboard.type(message, { delay: 10 });
       await new Promise((resolve) => setTimeout(resolve, 200));
 
-      // Click send button
+      // Setup network interception (passive)
+      console.log("[ChatGPT] Setting up passive network monitoring...");
+
+      let networkContent = "";
+      const { client, cleanup } = await setupNetworkMonitoring(
+        page,
+        "backend-api/conversation",
+        (chunk) => {
+          console.log(`[ChatGPT] Network chunk (${chunk.length} chars)`);
+          onChunk(chunk);
+          networkContent += chunk;
+        },
+        StreamParsers.sse
+      );
+
+      // NOW click send button
       const sendButtonClicked = await page.evaluate(() => {
         const btn = document.querySelector(
           '[data-testid="send-button"]'
@@ -588,28 +605,38 @@ export class ChatGPTProvider extends BaseProvider {
         await page.keyboard.press("Enter");
       }
 
-      console.log("[ChatGPT] Message sent, streaming response...");
+      console.log("[ChatGPT] Message sent, waiting for response...");
 
+      // Wait for assistant message to appear
       try {
         await page.waitForSelector('[data-message-author-role="assistant"]', {
           timeout: 30000,
         });
       } catch {
+        await cleanup();
         return { success: false, error: "No response received" };
       }
 
-      // Fast streaming with 50ms polling
+      // Use DOM polling as backup (deduplicated)
       const config = PROVIDER_CONFIGS.chatgpt;
       const result = await waitForCompletionWithStreaming(
         page,
         config,
-        onChunk,
+        (chunk) => {
+          // Only emit if not already covered by network
+          if (!networkContent.includes(chunk)) {
+            onChunk(chunk);
+          }
+        },
         180000
       );
 
+      // Cleanup CDP session
+      await cleanup();
+
       this.hasActiveConversation = true;
 
-      const finalText = result.content;
+      const finalText = result.content || networkContent;
       const finalUrl = page.url();
       const match = finalUrl.match(/\/c\/([a-zA-Z0-9-]+)/);
       const newConversationId = match ? match[1] : undefined;
