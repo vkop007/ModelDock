@@ -1,5 +1,9 @@
 import { Page } from "puppeteer";
 import { BaseProvider, SendMessageResult } from "./base";
+import {
+  waitForCompletionWithStreaming,
+  PROVIDER_CONFIGS,
+} from "../fast-streaming";
 
 export class QwenProvider extends BaseProvider {
   constructor() {
@@ -133,62 +137,15 @@ export class QwenProvider extends BaseProvider {
         // Continue, might be slow
       }
 
-      let lastContent = "";
-      let stableCount = 0;
-      const maxWait = 180000;
-      const startTime = Date.now();
-
-      while (Date.now() - startTime < maxWait) {
-        await new Promise((resolve) => setTimeout(resolve, 200));
-
-        // Check for stop button (indicates generation state) - Qwen uses button.stop-button
-        const isGenerating = await page.evaluate(() => {
-          const stopBtn = document.querySelector("button.stop-button");
-          return stopBtn !== null;
-        });
-
-        // Get the NEW response only - use .qwen-markdown inside the latest assistant message
-        const currentResponse = await page.evaluate((prevCount: number) => {
-          const responses = document.querySelectorAll(
-            ".qwen-chat-message-assistant"
-          );
-          if (responses.length > prevCount) {
-            // Get the last (newest) response
-            const lastResponse = responses[responses.length - 1];
-            // Target only the markdown inside response-message-content to avoid model name/time
-            const markdown = lastResponse.querySelector(
-              ".response-message-content .qwen-markdown"
-            );
-            return markdown?.textContent || "";
-          }
-          return "";
-        }, previousResponseCount);
-
-        // Streaming update
-        if (currentResponse.length > lastContent.length) {
-          const chunk = currentResponse.substring(lastContent.length);
-          onChunk(chunk);
-          lastContent = currentResponse;
-          if (isGenerating) stableCount = 0;
-        }
-
-        if (isGenerating) {
-          continue;
-        }
-
-        if (
-          currentResponse.length === lastContent.length &&
-          currentResponse.length > 0
-        ) {
-          stableCount++;
-          if (stableCount >= 10) {
-            break;
-          }
-        } else {
-          stableCount = 0;
-          lastContent = currentResponse;
-        }
-      }
+      // Fast streaming with 50ms polling
+      const config = PROVIDER_CONFIGS.qwen;
+      const result = await waitForCompletionWithStreaming(
+        page,
+        config,
+        onChunk,
+        180000
+      );
+      const lastContent = result.content;
 
       // Extract Conversation ID from URL
       // URL pattern: https://chat.qwen.ai/c/<id>

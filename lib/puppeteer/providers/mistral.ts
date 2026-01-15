@@ -1,5 +1,9 @@
 import { Page } from "puppeteer";
 import { BaseProvider, SendMessageResult } from "./base";
+import {
+  waitForCompletionWithStreaming,
+  PROVIDER_CONFIGS,
+} from "../fast-streaming";
 
 export class MistralProvider extends BaseProvider {
   constructor() {
@@ -127,61 +131,15 @@ export class MistralProvider extends BaseProvider {
         // Continue
       }
 
-      let lastContent = "";
-      let stableCount = 0;
-      const maxWait = 180000;
-      const startTime = Date.now();
-
-      while (Date.now() - startTime < maxWait) {
-        await new Promise((resolve) => setTimeout(resolve, 200));
-
-        // Check for stop button
-        const isGenerating = await page.evaluate(() => {
-          const stopBtn = document.querySelector(
-            'button[aria-label*="Stop"], button[class*="stop"]'
-          );
-          return stopBtn !== null;
-        });
-
-        const currentResponse = await page.evaluate((prevCount: number) => {
-          const responses = document.querySelectorAll(
-            '[data-message-author-role="assistant"]'
-          );
-          if (responses.length > prevCount) {
-            const lastResponse = responses[responses.length - 1];
-            // Target only the answer part to avoid time text
-            const answerPart = lastResponse.querySelector(
-              '[data-message-part-type="answer"]'
-            );
-            return answerPart?.textContent || "";
-          }
-          return "";
-        }, previousResponseCount);
-
-        if (currentResponse.length > lastContent.length) {
-          const chunk = currentResponse.substring(lastContent.length);
-          onChunk(chunk);
-          lastContent = currentResponse;
-          if (isGenerating) stableCount = 0;
-        }
-
-        if (isGenerating) {
-          continue;
-        }
-
-        if (
-          currentResponse.length === lastContent.length &&
-          currentResponse.length > 0
-        ) {
-          stableCount++;
-          if (stableCount >= 10) {
-            break;
-          }
-        } else {
-          stableCount = 0;
-          lastContent = currentResponse;
-        }
-      }
+      // Fast streaming with 50ms polling
+      const config = PROVIDER_CONFIGS.mistral;
+      const result = await waitForCompletionWithStreaming(
+        page,
+        config,
+        onChunk,
+        180000
+      );
+      const lastContent = result.content;
 
       // Extract conversation ID from URL: https://chat.mistral.ai/chat/{id}
       const finalUrl = page.url();

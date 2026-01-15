@@ -1,5 +1,9 @@
 import { Page } from "puppeteer";
 import { BaseProvider, SendMessageResult } from "./base";
+import {
+  waitForCompletionWithStreaming,
+  PROVIDER_CONFIGS,
+} from "../fast-streaming";
 
 export class ClaudeProvider extends BaseProvider {
   constructor() {
@@ -141,60 +145,15 @@ export class ClaudeProvider extends BaseProvider {
         // Continue, might be slow
       }
 
-      let lastContent = "";
-      let stableCount = 0;
-      const maxWait = 180000;
-      const startTime = Date.now();
-
-      while (Date.now() - startTime < maxWait) {
-        await new Promise((resolve) => setTimeout(resolve, 200));
-
-        // Check for stop button (indicates still generating)
-        const isGenerating = await page.evaluate(() => {
-          const stopBtn = document.querySelector(
-            'button[aria-label="Stop response"], [data-testid="stop-button"]'
-          );
-          return stopBtn !== null;
-        });
-
-        // Get the NEW response only (at index >= previousResponseCount)
-        const currentResponse = await page.evaluate((prevCount: number) => {
-          const responses = document.querySelectorAll(
-            ".font-claude-response .standard-markdown, .font-claude-response .progressive-markdown"
-          );
-          // Only return content if there's a new response
-          if (responses.length > prevCount) {
-            return responses[responses.length - 1].textContent || "";
-          }
-          return "";
-        }, previousResponseCount);
-
-        // Streaming update
-        if (currentResponse.length > lastContent.length) {
-          const chunk = currentResponse.substring(lastContent.length);
-          onChunk(chunk);
-          lastContent = currentResponse;
-          if (isGenerating) stableCount = 0;
-        }
-
-        if (isGenerating) {
-          continue;
-        }
-
-        if (
-          currentResponse.length === lastContent.length &&
-          currentResponse.length > 0
-        ) {
-          stableCount++;
-          if (stableCount >= 10) {
-            // 2s at 200ms poll
-            break;
-          }
-        } else {
-          stableCount = 0;
-          lastContent = currentResponse;
-        }
-      }
+      // Fast streaming with 50ms polling
+      const config = PROVIDER_CONFIGS.claude;
+      const result = await waitForCompletionWithStreaming(
+        page,
+        config,
+        onChunk,
+        180000
+      );
+      const lastContent = result.content;
 
       // Extract Conversation ID
       const finalUrl = page.url();
