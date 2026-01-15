@@ -1,5 +1,9 @@
 import { Page } from "puppeteer";
 import { BaseProvider, SendMessageResult } from "./base";
+import {
+  waitForCompletionWithStreaming,
+  PROVIDER_CONFIGS,
+} from "../fast-streaming";
 
 export class ZaiProvider extends BaseProvider {
   constructor() {
@@ -130,96 +134,27 @@ export class ZaiProvider extends BaseProvider {
 
       console.log("[Z.ai] Message sent, waiting for response...");
 
-      // Streaming logic
-      let lastContent = "";
-      let stableCount = 0;
-      const maxWait = 90000; // 90s
-      const startTime = Date.now();
-      let finalResponse = "";
-
       // Wait for response to start (any likely container)
       try {
         await page.waitForSelector(
-          "div[class*='message'], div[class*='response'], .markdown, .prose",
+          "div[class*='message'], div[class*='response'], .markdown, .prose, .chat-assistant",
           { timeout: 20000 }
         );
       } catch {
         // Continue anyway, might be slow
       }
 
-      while (Date.now() - startTime < maxWait) {
-        await new Promise((resolve) => setTimeout(resolve, 500)); // Poll every 500ms
+      // Fast streaming with 50ms polling
+      const config = PROVIDER_CONFIGS.zai;
+      const result = await waitForCompletionWithStreaming(
+        page,
+        config,
+        onChunk,
+        90000
+      );
+      const lastContent = result.content;
 
-        const currentResponse = await page.evaluate(() => {
-          // Target the response container directly
-          const responseContainers =
-            document.querySelectorAll(".chat-assistant");
-          if (responseContainers.length === 0) return "";
-
-          // Get the last assistant message
-          const assistantMessage =
-            responseContainers[responseContainers.length - 1];
-          if (!assistantMessage) return "";
-
-          const container = assistantMessage.querySelector(
-            "#response-content-container"
-          );
-          if (!container) return "";
-
-          // Get the first child div that contains the actual content
-          const contentDiv = container.querySelector("div");
-          if (!contentDiv) {
-            // Fallback to container's innerText
-            return (container as HTMLElement).innerText || "";
-          }
-
-          // Use innerText which preserves formatting naturally
-          return contentDiv.innerText || "";
-        });
-
-        const isGenerating = await page.evaluate(() => {
-          const stopBtn = document.querySelector(
-            'button[aria-label="Stop generating"], button[aria-label="Stop response"], [class*="stop-button"]'
-          );
-          if (stopBtn) return true;
-
-          const allButtons = Array.from(document.querySelectorAll("button"));
-          const zaiStopBtn = allButtons.find((btn) => {
-            const span = btn.querySelector("span");
-            if (!span) return false;
-            const cls = span.className || "";
-            return cls.includes("size-3") && cls.includes("rounded-xs");
-          });
-          if (zaiStopBtn) return true;
-
-          if (document.querySelector(".loading-container")) return true;
-          return false;
-        });
-
-        if (currentResponse && currentResponse.length > lastContent.length) {
-          const chunk = currentResponse.substring(lastContent.length);
-          onChunk(chunk);
-          lastContent = currentResponse;
-          stableCount = 0;
-        }
-
-        if (isGenerating) {
-          stableCount = 0;
-          continue;
-        }
-
-        if (currentResponse && currentResponse.length > 0) {
-          // Content didn't change
-          stableCount++;
-          if (stableCount >= 10) {
-            // 5 seconds of stability
-            finalResponse = currentResponse;
-            break;
-          }
-        }
-      }
-
-      if (lastContent.length === 0 && finalResponse.length === 0) {
+      if (lastContent.length === 0) {
         return { success: false, error: "No response text detected" };
       }
 
@@ -247,7 +182,7 @@ export class ZaiProvider extends BaseProvider {
 
       return {
         success: true,
-        content: finalResponse || lastContent,
+        content: lastContent,
         conversationId: newConversationId,
       };
     } catch (error) {

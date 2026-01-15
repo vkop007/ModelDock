@@ -1,5 +1,9 @@
 import { Page } from "puppeteer";
 import { BaseProvider, SendMessageResult } from "./base";
+import {
+  waitForCompletionWithStreaming,
+  PROVIDER_CONFIGS,
+} from "../fast-streaming";
 
 export class ChatGPTProvider extends BaseProvider {
   private hasActiveConversation: boolean = false;
@@ -594,76 +598,18 @@ export class ChatGPTProvider extends BaseProvider {
         return { success: false, error: "No response received" };
       }
 
-      let lastContent = "";
-      let stableCount = 0;
-      const maxWait = 180000;
-      const startTime = Date.now();
-
-      while (Date.now() - startTime < maxWait) {
-        await new Promise((resolve) => setTimeout(resolve, 200)); // Poll every 200ms
-
-        const currentContent = await page.evaluate(() => {
-          const messages = document.querySelectorAll(
-            '[data-message-author-role="assistant"]'
-          );
-          if (messages.length > 0) {
-            return messages[messages.length - 1].textContent || "";
-          }
-          return "";
-        });
-
-        // If there's new content, send the delta
-        if (currentContent.length > lastContent.length) {
-          const newContent = currentContent.substring(lastContent.length);
-          onChunk(newContent);
-          lastContent = currentContent;
-          stableCount = 0;
-        } else if (currentContent.length > 0) {
-          stableCount++;
-        }
-
-        // Check if streaming is complete
-        const isGenerating = await page.evaluate(() => {
-          return (
-            document.querySelector('button[aria-label="Stop generating"]') !==
-            null
-          );
-        });
-
-        const isAnalyzing = currentContent
-          .toLowerCase()
-          .includes("analyzing image");
-
-        if (!isGenerating && !isAnalyzing) {
-          if (stableCount >= 10) {
-            // Increased from 5 to 10 (2 seconds)
-            break;
-          }
-        } else {
-          // If generating OR analyzing, keep waiting
-          if (currentContent.length > lastContent.length) {
-            stableCount = 0;
-          } else if (isAnalyzing) {
-            // If analyzing, we are "stable" in text but not done.
-            // Reset stable count to ensure we don't exit.
-            stableCount = 0;
-          }
-        }
-      }
+      // Fast streaming with 50ms polling
+      const config = PROVIDER_CONFIGS.chatgpt;
+      const result = await waitForCompletionWithStreaming(
+        page,
+        config,
+        onChunk,
+        180000
+      );
 
       this.hasActiveConversation = true;
 
-      const finalText = await page.evaluate(() => {
-        const messages = document.querySelectorAll(
-          '[data-message-author-role="assistant"]'
-        );
-        if (messages.length > 0) {
-          const lastMessage = messages[messages.length - 1];
-          return lastMessage.textContent || "";
-        }
-        return "";
-      });
-
+      const finalText = result.content;
       const finalUrl = page.url();
       const match = finalUrl.match(/\/c\/([a-zA-Z0-9-]+)/);
       const newConversationId = match ? match[1] : undefined;

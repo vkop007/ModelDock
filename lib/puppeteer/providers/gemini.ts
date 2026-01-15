@@ -1,5 +1,9 @@
 import { Page } from "puppeteer";
 import { BaseProvider, SendMessageResult } from "./base";
+import {
+  waitForCompletionWithStreaming,
+  PROVIDER_CONFIGS,
+} from "../fast-streaming";
 
 export class GeminiProvider extends BaseProvider {
   constructor() {
@@ -194,74 +198,15 @@ export class GeminiProvider extends BaseProvider {
 
       console.log("[Gemini] Waiting for streaming to complete...");
 
-      let lastContent = "";
-      let stableCount = 0;
-      const maxWait = 180000; // 3 minutes
-      const startTime = Date.now();
-
-      while (Date.now() - startTime < maxWait) {
-        await new Promise((resolve) => setTimeout(resolve, 200));
-
-        // Check for stop button
-        const isGenerating = await page.evaluate(() => {
-          const stopBtn = document.querySelector(
-            'button[aria-label="Stop response"], button[aria-label="Stop generating"], [data-testid="stop-button"]'
-          );
-          // Also check for loading indicators
-          const loading = document.querySelector(
-            '.loading-indicator, [aria-label="Loading"], .thinking-indicator'
-          );
-          return stopBtn !== null || loading !== null;
-        });
-
-        // Get the NEW response only (at index >= previousResponseCount)
-        const currentResponse = await page.evaluate((prevCount: number) => {
-          const responses = document.querySelectorAll(
-            ".response-content, .model-response-text, message-content"
-          );
-          // Get the newest response (index >= prevCount means it's new)
-          if (responses.length > prevCount) {
-            return responses[responses.length - 1].textContent || "";
-          }
-          return "";
-        }, previousResponseCount);
-
-        // Streaming update
-        if (currentResponse.length > lastContent.length) {
-          const chunk = currentResponse.substring(lastContent.length);
-          onChunk(chunk);
-          lastContent = currentResponse;
-          // Reset stable count if we are getting data
-          if (isGenerating) stableCount = 0;
-        }
-
-        if (isGenerating) {
-          // If generating but no new content, we wait
-          if (currentResponse.length === lastContent.length) {
-            // do nothing
-          }
-          continue;
-        }
-
-        // If not generating, check stability
-        if (
-          currentResponse.length === lastContent.length &&
-          currentResponse.length > 0
-        ) {
-          stableCount++;
-          if (stableCount >= 4) {
-            // 2 seconds stable (4 * 500ms... wait loop is 200ms now so 10)
-            // Let's adjust logic: 200ms sleep.
-            // We want 1-2s stability. 10 * 200 = 2000ms.
-            if (stableCount >= 10) {
-              break;
-            }
-          }
-        } else {
-          stableCount = 0;
-          lastContent = currentResponse;
-        }
-      }
+      // Fast streaming with 50ms polling
+      const config = PROVIDER_CONFIGS.gemini;
+      const result = await waitForCompletionWithStreaming(
+        page,
+        config,
+        onChunk,
+        180000
+      );
+      const lastContent = result.content;
 
       // Extract Conversation ID from URL
       const finalUrl = page.url();
