@@ -582,4 +582,115 @@ export class GeminiProvider extends BaseProvider {
       return { success: false, error: String(error) };
     }
   }
+
+  /**
+   * Set custom instructions in Gemini's saved info settings.
+   * Uses Gemini's batchexecute API directly.
+   */
+  async setCustomInstructions(
+    instructions: string
+  ): Promise<{ success: boolean; error?: string }> {
+    console.log("[Gemini] Setting custom instructions via API...");
+
+    try {
+      const page = await this.getPage();
+
+      // Make sure we're on Gemini domain to have proper auth context
+      const currentUrl = page.url();
+      if (!currentUrl.includes("gemini.google.com")) {
+        console.log("[Gemini] Navigating to Gemini for auth context...");
+        await page.goto("https://gemini.google.com/app", {
+          waitUntil: "domcontentloaded",
+          timeout: 30000,
+        });
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
+
+      // Make the API call from within the page context
+      const result = await page.evaluate(async (instructionsText: string) => {
+        try {
+          // Get the AT token from the page - it's embedded in the script
+          // We need to extract it from window.WIZ_global_data or similar
+          let atToken = "";
+
+          // Try to find the AT token in various places
+          // @ts-ignore - accessing global data
+          if ((window as any).WIZ_global_data?.SNlM0e) {
+            // @ts-ignore
+            atToken = (window as any).WIZ_global_data.SNlM0e;
+          }
+
+          if (!atToken) {
+            // Try to find it in script tags
+            const scripts = document.querySelectorAll("script");
+            for (const script of scripts) {
+              const content = script.textContent || "";
+              const match = content.match(/SNlM0e['"]\s*:\s*['"](.*?)['"]/);
+              if (match) {
+                atToken = match[1];
+                break;
+              }
+            }
+          }
+
+          if (!atToken) {
+            return {
+              success: false,
+              error: "Could not find AT token for Gemini API",
+            };
+          }
+
+          // Build the batchexecute request
+          // Format: [["xVRQX","[[null,\"<instructions>\"]]",null,"generic"]]
+          const rpcData = JSON.stringify([
+            ["xVRQX", `[[null,"${instructionsText}"]]`, null, "generic"],
+          ]);
+
+          const formData = new URLSearchParams();
+          formData.append("f.req", rpcData);
+          formData.append("at", atToken);
+
+          const response = await fetch(
+            "https://gemini.google.com/_/BardChatUi/data/batchexecute?rpcids=xVRQX&source-path=%2Fsaved-info&bl=boq_assistant-bard-web-server_20260114.01_p1&hl=en-GB&rt=c",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type":
+                  "application/x-www-form-urlencoded;charset=UTF-8",
+                "x-same-domain": "1",
+              },
+              credentials: "include",
+              body: formData.toString(),
+            }
+          );
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            return {
+              success: false,
+              error: `API returned ${response.status}: ${errorText.substring(
+                0,
+                200
+              )}`,
+            };
+          }
+
+          return { success: true };
+        } catch (err) {
+          return { success: false, error: String(err) };
+        }
+      }, instructions);
+
+      if (result.success) {
+        console.log("[Gemini] Custom instructions set successfully via API");
+      } else {
+        console.error("[Gemini] API call failed:", result.error);
+      }
+
+      return result;
+    } catch (error) {
+      console.error("[Gemini] Error setting custom instructions:", error);
+      return { success: false, error: String(error) };
+    }
+  }
 }

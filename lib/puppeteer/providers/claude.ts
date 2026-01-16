@@ -356,4 +356,89 @@ export class ClaudeProvider extends BaseProvider {
       return false;
     }
   }
+
+  /**
+   * Set custom instructions in Claude's account profile settings.
+   * Uses Claude's account_profile API directly.
+   */
+  async setCustomInstructions(
+    instructions: string
+  ): Promise<{ success: boolean; error?: string }> {
+    console.log("[Claude] Setting custom instructions via API...");
+
+    try {
+      const page = await this.getPage();
+
+      // Make sure we're on Claude domain to have proper auth context
+      const currentUrl = page.url();
+      if (!currentUrl.includes("claude.ai")) {
+        console.log("[Claude] Navigating to Claude for auth context...");
+        await page.goto("https://claude.ai/new", {
+          waitUntil: "domcontentloaded",
+          timeout: 30000,
+        });
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
+
+      // Make the API call from within the page context
+      const result = await page.evaluate(
+        async (conversationPreferences: string) => {
+          try {
+            // Get device ID from cookies
+            const cookies = document.cookie.split(";");
+            let deviceId = "";
+
+            for (const cookie of cookies) {
+              const [name, value] = cookie.trim().split("=");
+              if (name === "anthropic-device-id") {
+                deviceId = value;
+              }
+            }
+
+            const response = await fetch(
+              "https://claude.ai/api/account_profile",
+              {
+                method: "PUT",
+                headers: {
+                  "Content-Type": "application/json",
+                  "anthropic-client-platform": "web_claude_ai",
+                  ...(deviceId && { "anthropic-device-id": deviceId }),
+                },
+                credentials: "include",
+                body: JSON.stringify({
+                  work_function: "Other",
+                  conversation_preferences: conversationPreferences,
+                  avatar: null,
+                }),
+              }
+            );
+
+            if (!response.ok) {
+              const errorText = await response.text();
+              return {
+                success: false,
+                error: `API returned ${response.status}: ${errorText}`,
+              };
+            }
+
+            return { success: true };
+          } catch (err) {
+            return { success: false, error: String(err) };
+          }
+        },
+        instructions
+      );
+
+      if (result.success) {
+        console.log("[Claude] Custom instructions set successfully via API");
+      } else {
+        console.error("[Claude] API call failed:", result.error);
+      }
+
+      return result;
+    } catch (error) {
+      console.error("[Claude] Error setting custom instructions:", error);
+      return { success: false, error: String(error) };
+    }
+  }
 }

@@ -282,4 +282,77 @@ export class QwenProvider extends BaseProvider {
       return false;
     }
   }
+
+  /**
+   * Set custom instructions in Qwen's personalization settings.
+   * Uses Qwen's user settings API directly.
+   */
+  async setCustomInstructions(
+    instructions: string
+  ): Promise<{ success: boolean; error?: string }> {
+    console.log("[Qwen] Setting custom instructions via API...");
+
+    try {
+      const page = await this.getPage();
+
+      // Make sure we're on Qwen domain to have proper auth context
+      const currentUrl = page.url();
+      if (!currentUrl.includes("chat.qwen.ai")) {
+        console.log("[Qwen] Navigating to Qwen for auth context...");
+        await page.goto("https://chat.qwen.ai/", {
+          waitUntil: "domcontentloaded",
+          timeout: 30000,
+        });
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
+
+      // Make the API call from within the page context
+      const result = await page.evaluate(async (instructionsText: string) => {
+        try {
+          const response = await fetch(
+            "https://chat.qwen.ai/api/v2/users/user/settings/update",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                accept: "application/json, text/plain, */*",
+                source: "web",
+              },
+              credentials: "include",
+              body: JSON.stringify({
+                personalization: {
+                  name: "",
+                  description: "",
+                  instruction: instructionsText,
+                },
+              }),
+            }
+          );
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            return {
+              success: false,
+              error: `API returned ${response.status}: ${errorText}`,
+            };
+          }
+
+          return { success: true };
+        } catch (err) {
+          return { success: false, error: String(err) };
+        }
+      }, instructions);
+
+      if (result.success) {
+        console.log("[Qwen] Custom instructions set successfully via API");
+      } else {
+        console.error("[Qwen] API call failed:", result.error);
+      }
+
+      return result;
+    } catch (error) {
+      console.error("[Qwen] Error setting custom instructions:", error);
+      return { success: false, error: String(error) };
+    }
+  }
 }

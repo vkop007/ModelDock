@@ -27,6 +27,8 @@ import {
   loadActiveProvider,
   saveCurrentConversation,
   loadCurrentConversation,
+  saveSystemInstructions,
+  loadSystemInstructions,
 } from "@/lib/storage";
 
 // Initial state
@@ -51,6 +53,16 @@ const initialState: ChatState = {
     ollama: { ...initialSessionState, provider: "ollama" },
   },
   cookieConfigs: {
+    chatgpt: null,
+    claude: null,
+    gemini: null,
+    zai: null,
+    grok: null,
+    qwen: null,
+    mistral: null,
+    ollama: null,
+  },
+  systemInstructions: {
     chatgpt: null,
     claude: null,
     gemini: null,
@@ -167,6 +179,19 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
         },
       };
 
+    case "SET_SYSTEM_INSTRUCTIONS":
+      return {
+        ...state,
+        systemInstructions: {
+          ...state.systemInstructions,
+          [action.provider]: {
+            provider: action.provider,
+            instructions: action.instructions,
+            lastUpdated: Date.now(),
+          },
+        },
+      };
+
     case "LOAD_STATE":
       return { ...state, ...action.state };
 
@@ -222,6 +247,7 @@ interface ChatContextValue extends ChatState {
   selectConversation: (id: string) => void;
   setProvider: (provider: LLMProvider) => void;
   setCookies: (provider: LLMProvider, cookies: CookieEntry[]) => void;
+  setSystemInstructions: (provider: LLMProvider, instructions: string) => void;
   testConnection: (provider: LLMProvider) => Promise<boolean>;
   deleteConversation: (id: string) => void;
   generateImage: (prompt: string) => Promise<void>;
@@ -238,6 +264,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const conversations = loadConversations();
     const cookieConfigs = loadCookieConfigs();
+    const systemInstructions = loadSystemInstructions();
     const activeProvider = loadActiveProvider();
     const currentConversationId = loadCurrentConversation();
 
@@ -246,6 +273,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       state: {
         conversations,
         cookieConfigs,
+        systemInstructions,
         activeProvider,
         currentConversationId,
       },
@@ -260,6 +288,10 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     saveCookieConfigs(state.cookieConfigs);
   }, [state.cookieConfigs]);
+
+  useEffect(() => {
+    saveSystemInstructions(state.systemInstructions);
+  }, [state.systemInstructions]);
 
   useEffect(() => {
     saveActiveProvider(state.activeProvider);
@@ -323,6 +355,13 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const setCookies = useCallback(
     (provider: LLMProvider, cookies: CookieEntry[]) => {
       dispatch({ type: "SET_COOKIES", provider, cookies });
+    },
+    []
+  );
+
+  const setSystemInstructions = useCallback(
+    (provider: LLMProvider, instructions: string) => {
+      dispatch({ type: "SET_SYSTEM_INSTRUCTIONS", provider, instructions });
     },
     []
   );
@@ -644,6 +683,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     selectConversation,
     setProvider,
     setCookies,
+    setSystemInstructions,
     testConnection,
     deleteConversation,
     generateImage,

@@ -1,8 +1,14 @@
-import { Conversation, CookieConfig, LLMProvider } from "@/types";
+import {
+  Conversation,
+  CookieConfig,
+  LLMProvider,
+  SystemInstructions,
+} from "@/types";
 
 const STORAGE_KEYS = {
   CONVERSATIONS: "llm-chat-conversations",
   COOKIES: "llm-chat-cookies",
+  SYSTEM_INSTRUCTIONS: "llm-chat-system-instructions",
   ACTIVE_PROVIDER: "llm-chat-active-provider",
   CURRENT_CONVERSATION: "llm-chat-current-conversation",
 };
@@ -145,5 +151,50 @@ export function parseCookiesFromJSON(jsonString: string): {
     return { success: false, error: "Invalid cookie format" };
   } catch (error) {
     return { success: false, error: "Invalid JSON format" };
+  }
+}
+
+// System Instructions
+export function saveSystemInstructions(
+  configs: Record<LLMProvider, SystemInstructions | null>
+): void {
+  if (!isBrowser) return;
+  try {
+    localStorage.setItem(
+      STORAGE_KEYS.SYSTEM_INSTRUCTIONS,
+      JSON.stringify(configs)
+    );
+  } catch (error) {
+    console.error("Failed to save system instructions:", error);
+  }
+}
+
+export function loadSystemInstructions(): Record<
+  LLMProvider,
+  SystemInstructions | null
+> {
+  const defaults: Record<LLMProvider, SystemInstructions | null> = {
+    chatgpt: null,
+    claude: null,
+    gemini: null,
+    zai: null,
+    grok: null,
+    qwen: null,
+    mistral: null,
+    ollama: null,
+  };
+
+  if (!isBrowser) return defaults;
+
+  try {
+    const data = localStorage.getItem(STORAGE_KEYS.SYSTEM_INSTRUCTIONS);
+    if (!data) return defaults;
+
+    const parsed = JSON.parse(data);
+    // Merge parsed data with defaults to ensure all keys exist
+    return { ...defaults, ...parsed };
+  } catch (error) {
+    console.error("Failed to load system instructions:", error);
+    return defaults;
   }
 }
