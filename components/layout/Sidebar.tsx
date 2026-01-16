@@ -13,7 +13,7 @@ import {
   FiSearch,
 } from "react-icons/fi";
 import { SiOpenai, SiGoogle } from "react-icons/si";
-import CookieModal from "../settings/CookieModal";
+import SettingsModal from "../settings/SettingsModal";
 
 // Provider icon mapping
 function ProviderIcon({
@@ -48,7 +48,7 @@ export default function Sidebar() {
     deleteConversation,
   } = useChatContext();
 
-  const [showCookieModal, setShowCookieModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [hoveredConversation, setHoveredConversation] = useState<string | null>(
     null
   );
@@ -121,17 +121,17 @@ export default function Sidebar() {
         <div className="sidebar-footer">
           <button
             className="settings-btn"
-            onClick={() => setShowCookieModal(true)}
+            onClick={() => setShowSettingsModal(true)}
           >
             <FiSettings size={18} />
-            <span>Configure Cookies</span>
+            <span>Settings</span>
           </button>
         </div>
       </aside>
 
-      {/* Cookie Configuration Modal */}
-      {showCookieModal && (
-        <CookieModal onClose={() => setShowCookieModal(false)} />
+      {/* Settings Modal */}
+      {showSettingsModal && (
+        <SettingsModal onClose={() => setShowSettingsModal(false)} />
       )}
     </>
   );

@@ -106,6 +106,13 @@ export interface CookieConfig {
   lastUpdated?: number;
 }
 
+// System instructions per provider
+export interface SystemInstructions {
+  provider: LLMProvider;
+  instructions: string;
+  lastUpdated?: number;
+}
+
 // Individual cookie entry (Puppeteer format)
 export interface CookieEntry {
   name: string;
@@ -158,6 +165,7 @@ export interface ChatState {
   activeProvider: LLMProvider;
   sessions: Record<LLMProvider, SessionState>;
   cookieConfigs: Record<LLMProvider, CookieConfig | null>;
+  systemInstructions: Record<LLMProvider, SystemInstructions | null>;
   isLoading: boolean;
   isSending: boolean;
 }
@@ -177,6 +185,11 @@ export type ChatAction =
       state: Partial<SessionState>;
     }
   | { type: "SET_COOKIES"; provider: LLMProvider; cookies: CookieEntry[] }
+  | {
+      type: "SET_SYSTEM_INSTRUCTIONS";
+      provider: LLMProvider;
+      instructions: string;
+    }
   | { type: "LOAD_STATE"; state: Partial<ChatState> }
   | { type: "DELETE_CONVERSATION"; id: string }
   | { type: "UPDATE_CONVERSATION_TITLE"; id: string; title: string }

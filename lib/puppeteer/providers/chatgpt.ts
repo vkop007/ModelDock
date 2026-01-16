@@ -270,6 +270,115 @@ export class ChatGPTProvider extends BaseProvider {
     this.hasActiveConversation = false;
   }
 
+  /**
+   * Set custom instructions in ChatGPT's personalization settings.
+   * Uses ChatGPT's backend API directly for reliability.
+   */
+  async setCustomInstructions(
+    instructions: string
+  ): Promise<{ success: boolean; error?: string }> {
+    console.log("[ChatGPT] Setting custom instructions via API...");
+
+    try {
+      const page = await this.getPage();
+
+      // Make sure we're on ChatGPT domain to have proper auth context
+      const currentUrl = page.url();
+      if (!currentUrl.includes("chatgpt.com")) {
+        console.log("[ChatGPT] Navigating to ChatGPT for auth context...");
+        await page.goto("https://chatgpt.com/", {
+          waitUntil: "domcontentloaded",
+          timeout: 30000,
+        });
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
+
+      // First, get the access token by making a request to the session endpoint
+      const accessToken = await page.evaluate(async () => {
+        try {
+          // Try to get token from session API
+          const sessionResponse = await fetch(
+            "https://chatgpt.com/api/auth/session",
+            { credentials: "include" }
+          );
+          if (sessionResponse.ok) {
+            const sessionData = await sessionResponse.json();
+            return sessionData.accessToken || null;
+          }
+          return null;
+        } catch {
+          return null;
+        }
+      });
+
+      if (!accessToken) {
+        return {
+          success: false,
+          error:
+            "Could not obtain access token. Please ensure you are logged in to ChatGPT.",
+        };
+      }
+
+      console.log("[ChatGPT] Got access token, making API call...");
+
+      // Make the API call with the access token
+      const result = await page.evaluate(
+        async (traitsMessage: string, token: string) => {
+          try {
+            const response = await fetch(
+              "https://chatgpt.com/backend-api/user_system_messages",
+              {
+                method: "PATCH",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${token}`,
+                },
+                credentials: "include",
+                body: JSON.stringify({
+                  about_user_message: "",
+                  about_model_message: "",
+                  name_user_message: "",
+                  role_user_message: "",
+                  traits_model_message: traitsMessage,
+                  other_user_message: "",
+                  disabled_tools: [],
+                  enabled: true,
+                  conversation_id: null,
+                  message_id: null,
+                }),
+              }
+            );
+
+            if (!response.ok) {
+              const errorText = await response.text();
+              return {
+                success: false,
+                error: `API returned ${response.status}: ${errorText}`,
+              };
+            }
+
+            return { success: true };
+          } catch (err) {
+            return { success: false, error: String(err) };
+          }
+        },
+        instructions,
+        accessToken
+      );
+
+      if (result.success) {
+        console.log("[ChatGPT] Custom instructions set successfully via API");
+      } else {
+        console.error("[ChatGPT] API call failed:", result.error);
+      }
+
+      return result;
+    } catch (error) {
+      console.error("[ChatGPT] Error setting custom instructions:", error);
+      return { success: false, error: String(error) };
+    }
+  }
+
   async generateImage(
     prompt: string,
     onStatusUpdate?: (status: string) => void
