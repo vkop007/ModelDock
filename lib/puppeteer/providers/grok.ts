@@ -262,7 +262,8 @@ export class GrokProvider extends BaseProvider {
 
   /**
    * Set custom instructions in Grok's system prompt settings.
-   * Uses Grok's system-prompt/create API directly.
+   * First gets the existing system prompt ID, then updates it with PUT.
+   * If no existing prompt, creates a new one with POST.
    */
   async setCustomInstructions(
     instructions: string
@@ -286,20 +287,65 @@ export class GrokProvider extends BaseProvider {
       // Make the API call from within the page context
       const result = await page.evaluate(async (instructionsText: string) => {
         try {
-          const response = await fetch(
-            "https://grok.com/rest/system-prompt/create",
+          // First, try to get existing system prompts to find the ID
+          const listResponse = await fetch(
+            "https://grok.com/rest/system-prompt/list",
             {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
+              method: "GET",
               credentials: "include",
-              body: JSON.stringify({
-                name: "Custom",
-                content: [{ text: instructionsText }],
-              }),
             }
           );
+
+          let existingPromptId: string | null = null;
+
+          if (listResponse.ok) {
+            const listData = await listResponse.json();
+            // Look for an existing "Custom" prompt or any prompt to update
+            if (listData && Array.isArray(listData) && listData.length > 0) {
+              // Find a Custom prompt or use the first one
+              const customPrompt = listData.find(
+                (p: { name?: string }) => p.name === "Custom"
+              );
+              existingPromptId = customPrompt?.id || listData[0]?.id;
+            }
+          }
+
+          let response;
+          if (existingPromptId) {
+            // Update existing prompt with PUT
+            console.log(`[Grok] Updating existing prompt: ${existingPromptId}`);
+            response = await fetch(
+              `https://grok.com/rest/system-prompt/${existingPromptId}`,
+              {
+                method: "PUT",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                credentials: "include",
+                body: JSON.stringify({
+                  name: "Custom",
+                  content: [{ text: instructionsText }],
+                }),
+              }
+            );
+          } else {
+            // Create new prompt with POST
+            console.log("[Grok] Creating new system prompt");
+            response = await fetch(
+              "https://grok.com/rest/system-prompt/67fe7a87-92d4-4d7d-ae01-427ff11111f8",
+              {
+                method: "PUT",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                credentials: "include",
+                body: JSON.stringify({
+                  name: "Custom",
+                  content: [{ text: instructionsText }],
+                }),
+              }
+            );
+          }
 
           if (!response.ok) {
             const errorText = await response.text();

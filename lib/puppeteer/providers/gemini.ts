@@ -14,12 +14,12 @@ export class GeminiProvider extends BaseProvider {
     try {
       await page.waitForSelector(
         "rich-textarea, .ql-editor, [data-placeholder]",
-        { timeout: 10000 }
+        { timeout: 10000 },
       );
       return true;
     } catch {
       const signInButton = await page.$(
-        'a[href*="accounts.google.com"], button:has-text("Sign in")'
+        'a[href*="accounts.google.com"], button:has-text("Sign in")',
       );
       return !signInButton;
     }
@@ -39,7 +39,7 @@ export class GeminiProvider extends BaseProvider {
     message: string,
     onChunk: (chunk: string) => void,
     conversationId?: string,
-    imagePaths?: string[]
+    imagePaths?: string[],
   ): Promise<SendMessageResult> {
     try {
       const page = await this.getPage();
@@ -84,7 +84,7 @@ export class GeminiProvider extends BaseProvider {
 
           if (!fileInput) {
             const plusBtn = await page.$(
-              'button[aria-label="Add to prompt"], button[aria-label="Upload image"]'
+              'button[aria-label="Add to prompt"], button[aria-label="Upload image"]',
             );
             if (plusBtn) {
               await plusBtn.click();
@@ -102,7 +102,7 @@ export class GeminiProvider extends BaseProvider {
             try {
               await page.waitForSelector(
                 'img[alt="Image preview"], .image-preview',
-                { timeout: 10000 }
+                { timeout: 10000 },
               );
               console.log("[Gemini] Upload previews detected");
             } catch (e) {
@@ -128,39 +128,26 @@ export class GeminiProvider extends BaseProvider {
         return { success: false, error: "Could not find input field" };
       }
 
+      // Click to focus and clear any existing content
       await input.click();
-      // Use direct value setting for speed
-      await page.evaluate(
-        (selector, text) => {
-          const el = document.querySelector(selector) as HTMLElement;
-          if (el) {
-            // Gemini uses rich-textarea which often means contenteditable
-            // Clearing it first is safer
-            el.innerHTML = "";
-
-            // Insert text as simple paragraph
-            const p = document.createElement("p");
-            p.textContent = text;
-            el.appendChild(p);
-
-            // Trigger events
-            el.dispatchEvent(new Event("input", { bubbles: true }));
-
-            // Sometimes it needs a specific 'textInput' event or similar but input usually works for Angular/Lit
-          }
-        },
-        inputSelector,
-        message
-      );
-      // Small delay
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
-      // Small delay before sending
       await new Promise((resolve) => setTimeout(resolve, 100));
 
-      // Click send button
+      // Select all and delete any existing content
+      await page.keyboard.down("Meta"); // Cmd on Mac
+      await page.keyboard.press("a");
+      await page.keyboard.up("Meta");
+      await page.keyboard.press("Backspace");
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Type the message using keyboard - Quill.js requires actual keyboard events
+      await page.keyboard.type(message, { delay: 5 });
+
+      // Small delay for UI to update
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      // Click send button - updated selector based on current Gemini UI
       const sendButton = await page.$(
-        'button[aria-label="Send message"], .send-button, mat-icon[data-mat-icon-name="send"]'
+        'button.send-button[aria-label="Send message"], button[aria-label="Send message"], .send-button',
       );
       if (sendButton) {
         await sendButton.click();
@@ -172,7 +159,7 @@ export class GeminiProvider extends BaseProvider {
       // Count existing responses BEFORE sending so we can detect the new one
       const previousResponseCount = await page.evaluate(() => {
         const responses = document.querySelectorAll(
-          ".response-content, .model-response-text, message-content"
+          ".response-content, .model-response-text, message-content",
         );
         return responses.length;
       });
@@ -185,12 +172,12 @@ export class GeminiProvider extends BaseProvider {
         await page.waitForFunction(
           (prevCount: number) => {
             const responses = document.querySelectorAll(
-              ".response-content, .model-response-text, message-content"
+              ".response-content, .model-response-text, message-content",
             );
             return responses.length > prevCount;
           },
           { timeout: 15000 },
-          previousResponseCount
+          previousResponseCount,
         );
       } catch {
         // Continue, might use loading indicator
@@ -204,7 +191,7 @@ export class GeminiProvider extends BaseProvider {
         page,
         config,
         onChunk,
-        180000
+        180000,
       );
       const lastContent = result.content;
 
@@ -235,7 +222,7 @@ export class GeminiProvider extends BaseProvider {
     try {
       await page.waitForSelector(
         ".response-content, .model-response-text, message-content, .loading-indicator",
-        { timeout: 15000 }
+        { timeout: 15000 },
       );
     } catch {
       // Continue, might be already there
@@ -254,11 +241,11 @@ export class GeminiProvider extends BaseProvider {
       // Check for stop button
       const isGenerating = await page.evaluate(() => {
         const stopBtn = document.querySelector(
-          'button[aria-label="Stop response"], button[aria-label="Stop generating"], [data-testid="stop-button"]'
+          'button[aria-label="Stop response"], button[aria-label="Stop generating"], [data-testid="stop-button"]',
         );
         // Also check for loading indicators
         const loading = document.querySelector(
-          '.loading-indicator, [aria-label="Loading"], .thinking-indicator'
+          '.loading-indicator, [aria-label="Loading"], .thinking-indicator',
         );
         return stopBtn !== null || loading !== null;
       });
@@ -271,14 +258,14 @@ export class GeminiProvider extends BaseProvider {
       // Check content stability
       const currentResponse = await page.evaluate(() => {
         const responses = document.querySelectorAll(
-          ".response-content, .model-response-text, message-content"
+          ".response-content, .model-response-text, message-content",
         );
         if (responses.length > 0) {
           return responses[responses.length - 1].textContent || "";
         }
         // Fallback
         const markdown = document.querySelectorAll(
-          ".markdown-content, .response-text"
+          ".markdown-content, .response-text",
         );
         if (markdown.length > 0) {
           return markdown[markdown.length - 1].textContent || "";
@@ -305,13 +292,13 @@ export class GeminiProvider extends BaseProvider {
     // Get final response
     const response = await page.evaluate(() => {
       const responses = document.querySelectorAll(
-        ".response-content, .model-response-text, message-content"
+        ".response-content, .model-response-text, message-content",
       );
       if (responses.length > 0) {
         return responses[responses.length - 1].textContent || "";
       }
       const markdown = document.querySelectorAll(
-        ".markdown-content, .response-text"
+        ".markdown-content, .response-text",
       );
       if (markdown.length > 0) {
         return markdown[markdown.length - 1].textContent || "";
@@ -406,7 +393,7 @@ export class GeminiProvider extends BaseProvider {
   }
   async generateImage(
     prompt: string,
-    onStatusUpdate?: (status: string) => void
+    onStatusUpdate?: (status: string) => void,
   ): Promise<{ success: boolean; imageUrl?: string; error?: string }> {
     console.log("[Gemini] Generating image...");
     if (onStatusUpdate) onStatusUpdate("Initializing...");
@@ -434,7 +421,7 @@ export class GeminiProvider extends BaseProvider {
       } catch (e) {
         console.log(
           "[Gemini] Tools button interaction failed or not needed",
-          e
+          e,
         );
       }
 
@@ -444,7 +431,7 @@ export class GeminiProvider extends BaseProvider {
       const createImgClicked = await page.evaluate(() => {
         const buttons = Array.from(document.querySelectorAll("button"));
         const createImgBtn = buttons.find((btn) =>
-          btn.textContent?.includes("Create images")
+          btn.textContent?.includes("Create images"),
         );
 
         if (createImgBtn) {
@@ -459,7 +446,7 @@ export class GeminiProvider extends BaseProvider {
         // But user provided the steps, so we assume it defines the mode.
         // However, if we fail, we might try to just type the prompt "Generate an image of..."
         console.log(
-          "[Gemini] 'Create images' option not found, trying direct prompt..."
+          "[Gemini] 'Create images' option not found, trying direct prompt...",
         );
       } else {
         await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -481,7 +468,7 @@ export class GeminiProvider extends BaseProvider {
       // 4. Send
       if (onStatusUpdate) onStatusUpdate("Sending request...");
       const sendButton = await page.$(
-        'button[aria-label="Send message"], .send-button, mat-icon[data-mat-icon-name="send"]'
+        'button[aria-label="Send message"], .send-button, mat-icon[data-mat-icon-name="send"]',
       );
       if (sendButton) {
         await sendButton.click();
@@ -560,7 +547,7 @@ export class GeminiProvider extends BaseProvider {
 
         if (!response.ok) {
           throw new Error(
-            `Failed to fetch image: ${response.status} ${response.statusText}`
+            `Failed to fetch image: ${response.status} ${response.statusText}`,
           );
         }
         const arrayBuffer = await response.arrayBuffer();
@@ -585,109 +572,100 @@ export class GeminiProvider extends BaseProvider {
 
   /**
    * Set custom instructions in Gemini's saved info settings.
-   * Uses Gemini's batchexecute API directly.
+   * Uses browser automation on the Personal Context page.
    */
   async setCustomInstructions(
-    instructions: string
+    instructions: string,
   ): Promise<{ success: boolean; error?: string }> {
-    console.log("[Gemini] Setting custom instructions via API...");
+    console.log(
+      "[Gemini] Setting custom instructions via browser automation...",
+    );
 
     try {
       const page = await this.getPage();
 
-      // Make sure we're on Gemini domain to have proper auth context
-      const currentUrl = page.url();
-      if (!currentUrl.includes("gemini.google.com")) {
-        console.log("[Gemini] Navigating to Gemini for auth context...");
-        await page.goto("https://gemini.google.com/app", {
-          waitUntil: "domcontentloaded",
-          timeout: 30000,
-        });
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-      }
+      // Navigate to the saved-info (Personal Context) page
+      console.log("[Gemini] Navigating to Personal Context page...");
+      await page.goto("https://gemini.google.com/saved-info", {
+        waitUntil: "domcontentloaded",
+        timeout: 30000,
+      });
+      await new Promise((resolve) => setTimeout(resolve, 2000));
 
-      // Make the API call from within the page context
-      const result = await page.evaluate(async (instructionsText: string) => {
-        try {
-          // Get the AT token from the page - it's embedded in the script
-          // We need to extract it from window.WIZ_global_data or similar
-          let atToken = "";
+      // If instructions is empty, just delete all and return
+      if (!instructions || instructions.trim() === "") {
+        console.log("[Gemini] Empty instructions - deleting all...");
+        const deleteAllBtn = await page.$("button.delete-all-memories-button");
+        if (deleteAllBtn) {
+          console.log("[Gemini] Found delete all button, clicking...");
+          await deleteAllBtn.click();
 
-          // Try to find the AT token in various places
-          // @ts-ignore - accessing global data
-          if ((window as any).WIZ_global_data?.SNlM0e) {
-            // @ts-ignore
-            atToken = (window as any).WIZ_global_data.SNlM0e;
-          }
-
-          if (!atToken) {
-            // Try to find it in script tags
-            const scripts = document.querySelectorAll("script");
-            for (const script of scripts) {
-              const content = script.textContent || "";
-              const match = content.match(/SNlM0e['"]\s*:\s*['"](.*?)['"]/);
-              if (match) {
-                atToken = match[1];
-                break;
-              }
+          // Wait for the confirmation dialog to appear
+          console.log("[Gemini] Waiting for confirmation dialog...");
+          try {
+            await page.waitForSelector(
+              'button[data-test-id="delete-all-memories-button"]',
+              { timeout: 5000 },
+            );
+            const confirmBtn = await page.$(
+              'button[data-test-id="delete-all-memories-button"]',
+            );
+            if (confirmBtn) {
+              console.log("[Gemini] Clicking confirm delete button...");
+              await confirmBtn.click();
+              await new Promise((resolve) => setTimeout(resolve, 1500));
+              console.log("[Gemini] All instructions deleted successfully");
             }
+          } catch (e) {
+            console.log(
+              "[Gemini] Confirmation dialog not found, may already be deleted",
+            );
           }
-
-          if (!atToken) {
-            return {
-              success: false,
-              error: "Could not find AT token for Gemini API",
-            };
-          }
-
-          // Build the batchexecute request
-          // Format: [["xVRQX","[[null,\"<instructions>\"]]",null,"generic"]]
-          const rpcData = JSON.stringify([
-            ["xVRQX", `[[null,"${instructionsText}"]]`, null, "generic"],
-          ]);
-
-          const formData = new URLSearchParams();
-          formData.append("f.req", rpcData);
-          formData.append("at", atToken);
-
-          const response = await fetch(
-            "https://gemini.google.com/_/BardChatUi/data/batchexecute?rpcids=xVRQX&source-path=%2Fsaved-info&bl=boq_assistant-bard-web-server_20260114.01_p1&hl=en-GB&rt=c",
-            {
-              method: "POST",
-              headers: {
-                "Content-Type":
-                  "application/x-www-form-urlencoded;charset=UTF-8",
-                "x-same-domain": "1",
-              },
-              credentials: "include",
-              body: formData.toString(),
-            }
+        } else {
+          console.log(
+            "[Gemini] No delete button found - no instructions to delete",
           );
-
-          if (!response.ok) {
-            const errorText = await response.text();
-            return {
-              success: false,
-              error: `API returned ${response.status}: ${errorText.substring(
-                0,
-                200
-              )}`,
-            };
-          }
-
-          return { success: true };
-        } catch (err) {
-          return { success: false, error: String(err) };
         }
-      }, instructions);
-
-      if (result.success) {
-        console.log("[Gemini] Custom instructions set successfully via API");
-      } else {
-        console.error("[Gemini] API call failed:", result.error);
+        return { success: true };
       }
 
-      return result;
+      // Step 1: Click the "Add" button
+      console.log("[Gemini] Clicking Add button...");
+      const addButton = await page.$("button.create-memory-button");
+      if (!addButton) {
+        return { success: false, error: "Could not find Add button" };
+      }
+      await addButton.click();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Step 3: Fill in the textarea
+      console.log("[Gemini] Filling in instruction textarea...");
+      const textarea = await page.$("textarea.edit-memory-input");
+      if (!textarea) {
+        return { success: false, error: "Could not find instruction textarea" };
+      }
+      await textarea.click();
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      await page.keyboard.down("Meta");
+      await page.keyboard.press("a");
+      await page.keyboard.up("Meta");
+      await page.keyboard.press("Backspace");
+      await page.keyboard.type(instructions, { delay: 5 });
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      // Step 4: Click the Submit button
+      console.log("[Gemini] Clicking Submit button...");
+      const submitButton = await page.$(
+        'button[data-test-id="submit-button"], button.edit-memory-submit-button',
+      );
+      if (!submitButton) {
+        return { success: false, error: "Could not find Submit button" };
+      }
+      await submitButton.click();
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+
+      console.log("[Gemini] Custom instructions set successfully");
+      return { success: true };
     } catch (error) {
       console.error("[Gemini] Error setting custom instructions:", error);
       return { success: false, error: String(error) };

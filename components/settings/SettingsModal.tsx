@@ -35,7 +35,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
   const [settingsTab, setSettingsTab] = useState<SettingsTab>("cookies");
   const [jsonInput, setJsonInput] = useState("");
   const [instructionsInput, setInstructionsInput] = useState(
-    systemInstructions["chatgpt"]?.instructions || ""
+    systemInstructions["chatgpt"]?.instructions || "",
   );
   const [error, setError] = useState<string | null>(null);
   const [testing, setTesting] = useState(false);
@@ -139,10 +139,39 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
     }
   };
 
-  const handleClearInstructions = () => {
-    setInstructionsInput("");
-    setSystemInstructions(activeProvider, "");
+  const handleClearInstructions = async () => {
+    setApplyingInstructions(true);
     setError(null);
+
+    try {
+      const cookies = cookieConfigs[activeProvider]?.cookies || [];
+
+      // Call API with empty instructions to trigger delete
+      const response = await fetch("/api/settings/instructions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider: activeProvider,
+          instructions: "", // Empty string triggers delete all
+          cookies,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setInstructionsInput("");
+        setSystemInstructions(activeProvider, "");
+        setInstructionsSuccess(true);
+        setTimeout(() => setInstructionsSuccess(false), 3000);
+      } else {
+        setError(data.error || "Failed to clear instructions");
+      }
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setApplyingInstructions(false);
+    }
   };
 
   return (
@@ -366,8 +395,9 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                       <button
                         className="clear-btn"
                         onClick={handleClearInstructions}
+                        disabled={applyingInstructions}
                       >
-                        Clear
+                        {applyingInstructions ? "Clearing..." : "Clear"}
                       </button>
                     </div>
                   )}
