@@ -19,13 +19,13 @@ export class ChatGPTProvider extends BaseProvider {
       // Check for presence of chat interface elements
       await page.waitForSelector(
         '#prompt-textarea, [data-testid="send-button"], textarea',
-        { timeout: 10000 }
+        { timeout: 10000 },
       );
       return true;
     } catch {
       // Check for login button or sign-in page
       const loginButton = await page.$(
-        'button:has-text("Log in"), a[href*="login"]'
+        'button:has-text("Log in"), a[href*="login"]',
       );
       return !loginButton;
     }
@@ -53,7 +53,7 @@ export class ChatGPTProvider extends BaseProvider {
       } else if (this.hasActiveConversation && isInConversation) {
         console.log(
           "[ChatGPT] Continuing existing conversation at:",
-          currentUrl
+          currentUrl,
         );
         await new Promise((resolve) => setTimeout(resolve, 300));
       } else {
@@ -66,7 +66,7 @@ export class ChatGPTProvider extends BaseProvider {
         console.log("[ChatGPT] Found #prompt-textarea");
       } catch {
         console.log(
-          "[ChatGPT] #prompt-textarea not found, trying alternatives..."
+          "[ChatGPT] #prompt-textarea not found, trying alternatives...",
         );
         await page.waitForSelector('div[contenteditable="true"], textarea', {
           timeout: 15000,
@@ -96,14 +96,14 @@ export class ChatGPTProvider extends BaseProvider {
           el.dispatchEvent(new Event("input", { bubbles: true }));
           el.dispatchEvent(new Event("change", { bubbles: true }));
         } else if (active.getAttribute("contenteditable") === "true") {
-          active.innerHTML = text; // or textContent? ChatGPT handles HTML sometimes. Safest is text.
-          (active as HTMLElement).innerText = text; // Use innerText to be safe
+          // Use textContent instead of innerHTML to avoid Trusted Types errors
+          active.textContent = text;
           active.dispatchEvent(new Event("input", { bubbles: true }));
         }
       }, message);
 
       console.log(
-        `[ChatGPT] Set message content: ${message.substring(0, 50)}...`
+        `[ChatGPT] Set message content: ${message.substring(0, 50)}...`,
       );
 
       // Quick wait for text to register in UI state
@@ -113,7 +113,7 @@ export class ChatGPTProvider extends BaseProvider {
       const sendButtonClicked = await page.evaluate(() => {
         // Try finding the send button by data-testid
         const sendBtn = document.querySelector(
-          '[data-testid="send-button"]'
+          '[data-testid="send-button"]',
         ) as HTMLButtonElement;
         if (sendBtn && !sendBtn.disabled) {
           sendBtn.click();
@@ -122,7 +122,7 @@ export class ChatGPTProvider extends BaseProvider {
 
         // Try finding by aria-label
         const ariaBtn = document.querySelector(
-          'button[aria-label="Send prompt"]'
+          'button[aria-label="Send prompt"]',
         ) as HTMLButtonElement;
         if (ariaBtn && !ariaBtn.disabled) {
           ariaBtn.click();
@@ -185,7 +185,7 @@ export class ChatGPTProvider extends BaseProvider {
       console.log("[ChatGPT] Response element appeared");
     } catch {
       console.log(
-        "[ChatGPT] No response element found, checking for alternatives..."
+        "[ChatGPT] No response element found, checking for alternatives...",
       );
       try {
         await page.waitForSelector('.markdown, .prose, [class*="message"]', {
@@ -210,7 +210,7 @@ export class ChatGPTProvider extends BaseProvider {
 
       const isGenerating = await page.evaluate(() => {
         const btn = document.querySelector(
-          'button[aria-label="Stop generating"]'
+          'button[aria-label="Stop generating"]',
         );
         return btn !== null;
       });
@@ -223,7 +223,7 @@ export class ChatGPTProvider extends BaseProvider {
       // If stop button is gone, verify text stability
       const currentResponse = await page.evaluate(() => {
         const messages = document.querySelectorAll(
-          '[data-message-author-role="assistant"]'
+          '[data-message-author-role="assistant"]',
         );
         if (messages.length > 0) {
           return messages[messages.length - 1].textContent || "";
@@ -250,7 +250,7 @@ export class ChatGPTProvider extends BaseProvider {
     // Get the LAST assistant message text content
     const response = await page.evaluate(() => {
       const messages = document.querySelectorAll(
-        '[data-message-author-role="assistant"]'
+        '[data-message-author-role="assistant"]',
       );
       if (messages.length > 0) {
         const lastMessage = messages[messages.length - 1];
@@ -260,7 +260,7 @@ export class ChatGPTProvider extends BaseProvider {
     });
 
     console.log(
-      `[ChatGPT] Response extracted. Length: ${response.length} chars`
+      `[ChatGPT] Response extracted. Length: ${response.length} chars`,
     );
     console.log("[ChatGPT] Response content:", response);
     return response;
@@ -275,7 +275,7 @@ export class ChatGPTProvider extends BaseProvider {
    * Uses ChatGPT's backend API directly for reliability.
    */
   async setCustomInstructions(
-    instructions: string
+    instructions: string,
   ): Promise<{ success: boolean; error?: string }> {
     console.log("[ChatGPT] Setting custom instructions via API...");
 
@@ -299,7 +299,7 @@ export class ChatGPTProvider extends BaseProvider {
           // Try to get token from session API
           const sessionResponse = await fetch(
             "https://chatgpt.com/api/auth/session",
-            { credentials: "include" }
+            { credentials: "include" },
           );
           if (sessionResponse.ok) {
             const sessionData = await sessionResponse.json();
@@ -346,7 +346,7 @@ export class ChatGPTProvider extends BaseProvider {
                   conversation_id: null,
                   message_id: null,
                 }),
-              }
+              },
             );
 
             if (!response.ok) {
@@ -363,7 +363,7 @@ export class ChatGPTProvider extends BaseProvider {
           }
         },
         instructions,
-        accessToken
+        accessToken,
       );
 
       if (result.success) {
@@ -381,7 +381,7 @@ export class ChatGPTProvider extends BaseProvider {
 
   async generateImage(
     prompt: string,
-    onStatusUpdate?: (status: string) => void
+    onStatusUpdate?: (status: string) => void,
   ): Promise<{ success: boolean; imageUrl?: string; error?: string }> {
     console.log("[ChatGPT] Generating image...");
     if (onStatusUpdate) onStatusUpdate("Initializing...");
@@ -412,10 +412,10 @@ export class ChatGPTProvider extends BaseProvider {
       if (onStatusUpdate) onStatusUpdate("Selecting Image Generation...");
       const createImgClicked = await page.evaluate(() => {
         const menuItems = Array.from(
-          document.querySelectorAll('div[role="menuitemradio"]')
+          document.querySelectorAll('div[role="menuitemradio"]'),
         );
         const createImgItem = menuItems.find((item) =>
-          item.textContent?.includes("Create image")
+          item.textContent?.includes("Create image"),
         );
         if (createImgItem) {
           (createImgItem as HTMLElement).click();
@@ -450,7 +450,7 @@ export class ChatGPTProvider extends BaseProvider {
 
       const sendButtonClicked = await page.evaluate(() => {
         const sendBtn = document.querySelector(
-          '[data-testid="send-button"]'
+          '[data-testid="send-button"]',
         ) as HTMLButtonElement;
         if (sendBtn && !sendBtn.disabled) {
           sendBtn.click();
@@ -494,7 +494,7 @@ export class ChatGPTProvider extends BaseProvider {
 
         imageUrl = await page.evaluate(async () => {
           const images = Array.from(
-            document.querySelectorAll('img[alt="Generated image"]')
+            document.querySelectorAll('img[alt="Generated image"]'),
           );
           if (images.length > 0) {
             const imgParams = images[images.length - 1] as HTMLImageElement;
@@ -523,7 +523,7 @@ export class ChatGPTProvider extends BaseProvider {
 
         const errorMsg = await page.evaluate(() => {
           const alerts = document.querySelectorAll(
-            'div[role="alert"], .text-red-500'
+            'div[role="alert"], .text-red-500',
           );
           if (alerts.length > 0) {
             return alerts[alerts.length - 1].textContent;
@@ -553,7 +553,7 @@ export class ChatGPTProvider extends BaseProvider {
     message: string,
     onChunk: (chunk: string) => void,
     conversationId?: string,
-    imagePaths?: string[]
+    imagePaths?: string[],
   ): Promise<SendMessageResult> {
     console.log("[ChatGPT] Using browser streaming...");
 
@@ -568,7 +568,7 @@ export class ChatGPTProvider extends BaseProvider {
 
       if (targetUrl && !currentUrl.includes(conversationId!)) {
         console.log(
-          `[ChatGPT] Navigating to specific conversation: ${conversationId}`
+          `[ChatGPT] Navigating to specific conversation: ${conversationId}`,
         );
         await page.goto(targetUrl, {
           waitUntil: "domcontentloaded",
@@ -604,7 +604,7 @@ export class ChatGPTProvider extends BaseProvider {
 
           if (!fileInput) {
             console.log(
-              "[ChatGPT] File input not found, clicking plus button..."
+              "[ChatGPT] File input not found, clicking plus button...",
             );
             try {
               await page.waitForSelector('[data-testid="composer-plus-btn"]', {
@@ -628,12 +628,12 @@ export class ChatGPTProvider extends BaseProvider {
             try {
               await page.waitForSelector(
                 'button[aria-label="Remove attachment"], [data-testid="file-attachment"], img[alt="Uploaded image"], .group.relative img',
-                { timeout: 10000 }
+                { timeout: 10000 },
               );
               console.log("[ChatGPT] Upload previews detected");
             } catch (e) {
               console.log(
-                "[ChatGPT] Warning: Could not detect upload preview, but continuing..."
+                "[ChatGPT] Warning: Could not detect upload preview, but continuing...",
               );
             }
 
@@ -685,13 +685,13 @@ export class ChatGPTProvider extends BaseProvider {
           onChunk(chunk);
           networkContent += chunk;
         },
-        StreamParsers.sse
+        StreamParsers.sse,
       );
 
       // NOW click send button
       const sendButtonClicked = await page.evaluate(() => {
         const btn = document.querySelector(
-          '[data-testid="send-button"]'
+          '[data-testid="send-button"]',
         ) as HTMLButtonElement;
         if (btn && !btn.disabled) {
           btn.click();
@@ -737,7 +737,7 @@ export class ChatGPTProvider extends BaseProvider {
             onChunk(chunk);
           }
         },
-        180000
+        180000,
       );
 
       // Cleanup CDP session
@@ -751,7 +751,7 @@ export class ChatGPTProvider extends BaseProvider {
       const newConversationId = match ? match[1] : undefined;
 
       console.log(
-        `[ChatGPT] Streaming complete. Text length: ${finalText.length}. ConvID: ${newConversationId}`
+        `[ChatGPT] Streaming complete. Text length: ${finalText.length}. ConvID: ${newConversationId}`,
       );
       console.log("[ChatGPT] Response content:", finalText);
 
@@ -799,7 +799,7 @@ export class ChatGPTProvider extends BaseProvider {
               },
               body: JSON.stringify({ is_visible: false }),
               credentials: "include",
-            }
+            },
           );
 
           if (response.ok) {

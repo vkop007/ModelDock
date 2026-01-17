@@ -14,10 +14,10 @@ export async function POST(request: NextRequest) {
       cookies: CookieEntry[];
     };
 
-    if (!provider || !instructions) {
+    if (!provider || instructions === undefined) {
       return NextResponse.json(
         { success: false, error: "Provider and instructions are required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
           error:
             "System instructions only supported for ChatGPT, Claude, Gemini, Grok, and Qwen",
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -55,9 +55,8 @@ export async function POST(request: NextRequest) {
       }>;
     };
 
-    const result = await providerWithInstructions.setCustomInstructions(
-      instructions
-    );
+    const result =
+      await providerWithInstructions.setCustomInstructions(instructions);
 
     if (result.success) {
       console.log(`[Instructions API] Successfully set instructions`);
@@ -66,14 +65,14 @@ export async function POST(request: NextRequest) {
       console.error(`[Instructions API] Failed:`, result.error);
       return NextResponse.json(
         { success: false, error: result.error },
-        { status: 500 }
+        { status: 500 },
       );
     }
   } catch (error) {
     console.error("[Instructions API] Error:", error);
     return NextResponse.json(
       { success: false, error: String(error) },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

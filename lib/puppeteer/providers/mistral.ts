@@ -16,7 +16,7 @@ export class MistralProvider extends BaseProvider {
         'textarea, [contenteditable="true"], .ProseMirror',
         {
           timeout: 10000,
-        }
+        },
       );
       return true;
     } catch {
@@ -37,7 +37,7 @@ export class MistralProvider extends BaseProvider {
   async sendMessageWithStreaming(
     message: string,
     onChunk: (chunk: string) => void,
-    conversationId?: string
+    conversationId?: string,
   ): Promise<SendMessageResult> {
     try {
       const page = await this.getPage();
@@ -46,7 +46,7 @@ export class MistralProvider extends BaseProvider {
       if (conversationId) {
         if (!currentUrl.includes(`/chat/${conversationId}`)) {
           console.log(
-            `[Mistral] Navigating to conversation: ${conversationId}`
+            `[Mistral] Navigating to conversation: ${conversationId}`,
           );
           await page.goto(`https://chat.mistral.ai/chat/${conversationId}`, {
             waitUntil: "domcontentloaded",
@@ -85,27 +85,30 @@ export class MistralProvider extends BaseProvider {
         (selector, text) => {
           const el = document.querySelector(selector) as HTMLElement;
           if (el) {
-            // Mistral uses ProseMirror, similar to Claude
-            el.innerHTML = `<p>${text}</p>`;
+            // Mistral uses ProseMirror - use DOM methods instead of innerHTML to avoid Trusted Types errors
+            el.replaceChildren();
+            const p = document.createElement("p");
+            p.textContent = text;
+            el.appendChild(p);
             el.dispatchEvent(new Event("input", { bubbles: true }));
           }
         },
         inputSelector,
-        message
+        message,
       );
       await new Promise((resolve) => setTimeout(resolve, 300));
 
       // Count existing assistant messages
       const previousResponseCount = await page.evaluate(() => {
         const responses = document.querySelectorAll(
-          '[data-message-author-role="assistant"]'
+          '[data-message-author-role="assistant"]',
         );
         return responses.length;
       });
 
       // Click send or press Enter
       const sendButton = await page.$(
-        'button[type="submit"], button[aria-label*="Send"]'
+        'button[type="submit"], button[aria-label*="Send"]',
       );
       if (sendButton) {
         await sendButton.click();
@@ -120,12 +123,12 @@ export class MistralProvider extends BaseProvider {
         await page.waitForFunction(
           (prevCount: number) => {
             const responses = document.querySelectorAll(
-              '[data-message-author-role="assistant"]'
+              '[data-message-author-role="assistant"]',
             );
             return responses.length > prevCount;
           },
           { timeout: 15000 },
-          previousResponseCount
+          previousResponseCount,
         );
       } catch {
         // Continue
@@ -137,7 +140,7 @@ export class MistralProvider extends BaseProvider {
         page,
         config,
         onChunk,
-        180000
+        180000,
       );
       const lastContent = result.content;
 
@@ -182,13 +185,13 @@ export class MistralProvider extends BaseProvider {
 
       const currentResponse = await page.evaluate(() => {
         const responses = document.querySelectorAll(
-          '[data-message-author-role="assistant"]'
+          '[data-message-author-role="assistant"]',
         );
         if (responses.length > 0) {
           const lastResponse = responses[responses.length - 1];
           // Target only the answer part to avoid time text
           const answerPart = lastResponse.querySelector(
-            '[data-message-part-type="answer"]'
+            '[data-message-part-type="answer"]',
           );
           return answerPart?.textContent || "";
         }
@@ -208,13 +211,13 @@ export class MistralProvider extends BaseProvider {
 
     const response = await page.evaluate(() => {
       const responses = document.querySelectorAll(
-        '[data-message-author-role="assistant"]'
+        '[data-message-author-role="assistant"]',
       );
       if (responses.length > 0) {
         const lastResponse = responses[responses.length - 1];
         // Target only the answer part to avoid time text
         const answerPart = lastResponse.querySelector(
-          '[data-message-part-type="answer"]'
+          '[data-message-part-type="answer"]',
         );
         return answerPart?.textContent || "";
       }
@@ -253,7 +256,7 @@ export class MistralProvider extends BaseProvider {
                 "x-trpc-source": "nextjs-react",
               },
               body: JSON.stringify({ "0": { json: { id: chatId } } }),
-            }
+            },
           );
           return { success: response.ok, status: response.status };
         } catch (error) {
@@ -263,7 +266,7 @@ export class MistralProvider extends BaseProvider {
 
       if (result.success) {
         console.log(
-          `[Mistral] Successfully deleted conversation: ${conversationId}`
+          `[Mistral] Successfully deleted conversation: ${conversationId}`,
         );
         return true;
       } else {

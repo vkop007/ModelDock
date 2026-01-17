@@ -17,13 +17,13 @@ export class ClaudeProvider extends BaseProvider {
       // Check for presence of chat interface elements
       await page.waitForSelector(
         '[data-testid="composer-input"], div[contenteditable="true"]',
-        { timeout: 10000 }
+        { timeout: 10000 },
       );
       return true;
     } catch {
       // Check for login elements
       const loginElement = await page.$(
-        'button:has-text("Log in"), a:has-text("Sign in")'
+        'button:has-text("Log in"), a:has-text("Sign in")',
       );
       return !loginElement;
     }
@@ -42,7 +42,7 @@ export class ClaudeProvider extends BaseProvider {
   async sendMessageWithStreaming(
     message: string,
     onChunk: (chunk: string) => void,
-    conversationId?: string
+    conversationId?: string,
   ): Promise<SendMessageResult> {
     try {
       const page = await this.getPage();
@@ -92,24 +92,23 @@ export class ClaudeProvider extends BaseProvider {
         (selector, text) => {
           const el = document.querySelector(selector) as HTMLElement;
           if (el) {
-            // Claude uses ProseMirror
-            el.innerHTML = `<p>${text}</p>`;
+            // Claude uses ProseMirror - use DOM methods instead of innerHTML to avoid Trusted Types errors
+            el.replaceChildren();
+            const p = document.createElement("p");
+            p.textContent = text;
+            el.appendChild(p);
             el.dispatchEvent(new Event("input", { bubbles: true }));
-
-            // Dispatch a comparison event just in case
-            const event = new Event("input", { bubbles: true });
-            el.dispatchEvent(event);
           }
         },
         inputSelector,
-        message
+        message,
       );
       await new Promise((resolve) => setTimeout(resolve, 500));
 
       // Count existing responses BEFORE clicking send
       const previousResponseCount = await page.evaluate(() => {
         const responses = document.querySelectorAll(
-          ".font-claude-response .standard-markdown, .font-claude-response .progressive-markdown"
+          ".font-claude-response .standard-markdown, .font-claude-response .progressive-markdown",
         );
         return responses.length;
       });
@@ -128,12 +127,12 @@ export class ClaudeProvider extends BaseProvider {
             networkContent += chunk;
           }
         },
-        StreamParsers.sse
+        StreamParsers.sse,
       );
 
       // Click send button or press Enter
       const sendButton = await page.$(
-        '[data-testid="submit-button"], button[aria-label="Send message"]'
+        '[data-testid="submit-button"], button[aria-label="Send message"]',
       );
       if (sendButton) {
         await sendButton.click();
@@ -149,12 +148,12 @@ export class ClaudeProvider extends BaseProvider {
         await page.waitForFunction(
           (prevCount: number) => {
             const responses = document.querySelectorAll(
-              ".font-claude-response .standard-markdown, .font-claude-response .progressive-markdown"
+              ".font-claude-response .standard-markdown, .font-claude-response .progressive-markdown",
             );
             return responses.length > prevCount;
           },
           { timeout: 15000 },
-          previousResponseCount
+          previousResponseCount,
         );
       } catch {
         // Continue, might be slow or network might have finished it already
@@ -170,7 +169,7 @@ export class ClaudeProvider extends BaseProvider {
             onChunk(chunk);
           }
         },
-        180000
+        180000,
       );
 
       // Cleanup
@@ -204,7 +203,7 @@ export class ClaudeProvider extends BaseProvider {
     try {
       await page.waitForSelector(
         '.font-claude-response .standard-markdown, .font-claude-response .progressive-markdown, [data-testid="assistant-message"]',
-        { timeout: 15000 }
+        { timeout: 15000 },
       );
     } catch {
       // Continue
@@ -223,7 +222,7 @@ export class ClaudeProvider extends BaseProvider {
       // Check for stop button (indicates still generating)
       const isGenerating = await page.evaluate(() => {
         const stopBtn = document.querySelector(
-          'button[aria-label="Stop response"], [data-testid="stop-button"]'
+          'button[aria-label="Stop response"], [data-testid="stop-button"]',
         );
         return stopBtn !== null;
       });
@@ -236,13 +235,13 @@ export class ClaudeProvider extends BaseProvider {
       // Check content stability
       const currentResponse = await page.evaluate(() => {
         const responses = document.querySelectorAll(
-          ".font-claude-response .standard-markdown, .font-claude-response .progressive-markdown"
+          ".font-claude-response .standard-markdown, .font-claude-response .progressive-markdown",
         );
         if (responses.length > 0) {
           return responses[responses.length - 1].textContent || "";
         }
         const messages = document.querySelectorAll(
-          '[data-testid="assistant-message"], .assistant-message'
+          '[data-testid="assistant-message"], .assistant-message',
         );
         if (messages.length > 0) {
           return messages[messages.length - 1].textContent || "";
@@ -266,13 +265,13 @@ export class ClaudeProvider extends BaseProvider {
 
     const response = await page.evaluate(() => {
       const responses = document.querySelectorAll(
-        ".font-claude-response .standard-markdown, .font-claude-response .progressive-markdown"
+        ".font-claude-response .standard-markdown, .font-claude-response .progressive-markdown",
       );
       if (responses.length > 0) {
         return responses[responses.length - 1].textContent || "";
       }
       const messages = document.querySelectorAll(
-        '[data-testid="assistant-message"], .assistant-message'
+        '[data-testid="assistant-message"], .assistant-message',
       );
       if (messages.length > 0) {
         return messages[messages.length - 1].textContent || "";
@@ -327,7 +326,7 @@ export class ClaudeProvider extends BaseProvider {
                 ...(deviceId && { "anthropic-device-id": deviceId }),
               },
               credentials: "include",
-            }
+            },
           );
 
           if (response.ok || response.status === 204) {
@@ -362,7 +361,7 @@ export class ClaudeProvider extends BaseProvider {
    * Uses Claude's account_profile API directly.
    */
   async setCustomInstructions(
-    instructions: string
+    instructions: string,
   ): Promise<{ success: boolean; error?: string }> {
     console.log("[Claude] Setting custom instructions via API...");
 
@@ -410,7 +409,7 @@ export class ClaudeProvider extends BaseProvider {
                   conversation_preferences: conversationPreferences,
                   avatar: null,
                 }),
-              }
+              },
             );
 
             if (!response.ok) {
@@ -426,7 +425,7 @@ export class ClaudeProvider extends BaseProvider {
             return { success: false, error: String(err) };
           }
         },
-        instructions
+        instructions,
       );
 
       if (result.success) {
