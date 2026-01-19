@@ -1,7 +1,7 @@
 "use client";
 
 import { Streamdown } from "streamdown";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 interface StreamdownRendererProps {
   content: string;
@@ -13,8 +13,10 @@ export function StreamdownRenderer({
   isStreaming = false,
 }: StreamdownRendererProps) {
   const [displayedContent, setDisplayedContent] = useState(
-    isStreaming ? "" : content
+    isStreaming ? "" : content,
   );
+  const animationFrameRef = useRef<number | null>(null);
+  const lastUpdateRef = useRef<number>(0);
 
   useEffect(() => {
     if (!isStreaming) {
@@ -28,22 +30,55 @@ export function StreamdownRenderer({
       return;
     }
 
-    const interval = setInterval(() => {
+    // Use requestAnimationFrame for smoother animation
+    const animate = (timestamp: number) => {
+      // Throttle to ~60fps (roughly every 16ms)
+      if (timestamp - lastUpdateRef.current < 12) {
+        animationFrameRef.current = requestAnimationFrame(animate);
+        return;
+      }
+      lastUpdateRef.current = timestamp;
+
       setDisplayedContent((current: string) => {
         if (current.length >= content.length) {
           return current;
         }
 
         const remaining = content.length - current.length;
-        // Speed up if we fall too far behind
-        const step = remaining > 50 ? 5 : remaining > 20 ? 2 : 1;
 
-        return content.slice(0, current.length + step);
+        // Adaptive step size for natural feel:
+        // - Large gaps: catch up quickly (code blocks, etc)
+        // - Small gaps: slow reveal for conversational text
+        let step = 1;
+        if (remaining > 100) {
+          step = Math.min(remaining / 10, 20); // Rapid catch-up
+        } else if (remaining > 50) {
+          step = 3;
+        } else if (remaining > 20) {
+          step = 2;
+        }
+
+        return content.slice(0, current.length + Math.ceil(step));
       });
-    }, 15); // Update every 15ms for smooth 60fps-ish feel
 
-    return () => clearInterval(interval);
+      animationFrameRef.current = requestAnimationFrame(animate);
+    };
+
+    animationFrameRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
   }, [content, isStreaming]);
+
+  // Sync displayed content when streaming ends
+  useEffect(() => {
+    if (!isStreaming && displayedContent !== content) {
+      setDisplayedContent(content);
+    }
+  }, [isStreaming, content, displayedContent]);
 
   return (
     <div className="streamdown-wrapper">

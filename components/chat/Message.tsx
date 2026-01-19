@@ -2,9 +2,10 @@
 
 import { Message, PROVIDERS, LLMProvider } from "@/types";
 import { useState, useRef, useEffect } from "react";
-import { FiCopy, FiCheck, FiRefreshCw, FiEdit2, FiX } from "react-icons/fi";
+import { FiCopy, FiCheck, FiRefreshCw, FiEdit2 } from "react-icons/fi";
 import Image from "next/image";
 import { StreamdownRenderer } from "./StreamdownRenderer";
+import { getRelativeTime, getFormattedTime } from "@/lib/utils/time";
 
 // Logo paths for each provider
 const PROVIDER_LOGOS: Record<LLMProvider, string> = {
@@ -42,11 +43,22 @@ export default function MessageBubble({
   const [copied, setCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(message.content);
+  const [relativeTime, setRelativeTime] = useState(
+    getRelativeTime(message.timestamp),
+  );
   const editTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   const isUser = message.role === "user";
   const isLoading =
     message.role === "assistant" && !message.content && isLast && isSending;
+
+  // Update relative time every minute
+  useEffect(() => {
+    const updateTime = () =>
+      setRelativeTime(getRelativeTime(message.timestamp));
+    const interval = setInterval(updateTime, 60000);
+    return () => clearInterval(interval);
+  }, [message.timestamp]);
 
   // Auto-focus and auto-resize textarea when editing
   useEffect(() => {
@@ -167,40 +179,49 @@ export default function MessageBubble({
               </div>
             )}
 
-            {/* Message Actions */}
-            <div className="message-actions">
-              {/* User message actions */}
-              {isUser && canEdit && !isEditing && !isSending && (
-                <button
-                  className="action-btn"
-                  onClick={() => setIsEditing(true)}
-                  title="Edit message"
-                >
-                  <FiEdit2 size={14} />
-                </button>
-              )}
+            {/* Message Footer with Timestamp and Actions */}
+            <div className="message-footer">
+              <span
+                className="message-timestamp"
+                title={getFormattedTime(message.timestamp)}
+              >
+                {relativeTime}
+              </span>
 
-              {/* Assistant message actions */}
-              {!isUser && message.content && (
-                <>
+              <div className="message-actions">
+                {/* User message actions */}
+                {isUser && canEdit && !isEditing && !isSending && (
                   <button
                     className="action-btn"
-                    onClick={handleCopy}
-                    title="Copy"
+                    onClick={() => setIsEditing(true)}
+                    title="Edit message"
                   >
-                    {copied ? <FiCheck size={14} /> : <FiCopy size={14} />}
+                    <FiEdit2 size={14} />
                   </button>
-                  {canRegenerate && !isSending && (
+                )}
+
+                {/* Assistant message actions */}
+                {!isUser && message.content && (
+                  <>
                     <button
                       className="action-btn"
-                      onClick={onRegenerate}
-                      title="Regenerate response"
+                      onClick={handleCopy}
+                      title="Copy"
                     >
-                      <FiRefreshCw size={14} />
+                      {copied ? <FiCheck size={14} /> : <FiCopy size={14} />}
                     </button>
-                  )}
-                </>
-              )}
+                    {canRegenerate && !isSending && (
+                      <button
+                        className="action-btn"
+                        onClick={onRegenerate}
+                        title="Regenerate response"
+                      >
+                        <FiRefreshCw size={14} />
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
           </>
         )}
