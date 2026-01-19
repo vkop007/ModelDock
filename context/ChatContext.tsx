@@ -82,7 +82,7 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
     case "SET_PROVIDER": {
       // Find the most recent conversation for the new provider
       const providerConvos = state.conversations.filter(
-        (c) => c.provider === action.provider
+        (c) => c.provider === action.provider,
       );
       const mostRecent =
         providerConvos.length > 0 ? providerConvos[0].id : null;
@@ -139,7 +139,7 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
       const conversations = state.conversations.map((conv) => {
         if (conv.id === state.currentConversationId) {
           const messages = conv.messages.map((msg) =>
-            msg.id === action.id ? { ...msg, content: action.content } : msg
+            msg.id === action.id ? { ...msg, content: action.content } : msg,
           );
           return { ...conv, messages, updatedAt: Date.now() };
         }
@@ -197,10 +197,10 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
 
     case "DELETE_CONVERSATION": {
       const deletedConversation = state.conversations.find(
-        (c) => c.id === action.id
+        (c) => c.id === action.id,
       );
       const conversations = state.conversations.filter(
-        (c) => c.id !== action.id
+        (c) => c.id !== action.id,
       );
 
       // If we're deleting the current conversation, select a new one from the SAME provider
@@ -209,7 +209,7 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
         const providerToFilter =
           deletedConversation?.provider || state.activeProvider;
         const sameProviderConvos = conversations.filter(
-          (c) => c.provider === providerToFilter
+          (c) => c.provider === providerToFilter,
         );
         currentConversationId =
           sameProviderConvos.length > 0 ? sameProviderConvos[0].id : null;
@@ -220,7 +220,7 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
 
     case "UPDATE_CONVERSATION_TITLE": {
       const conversations = state.conversations.map((conv) =>
-        conv.id === action.id ? { ...conv, title: action.title } : conv
+        conv.id === action.id ? { ...conv, title: action.title } : conv,
       );
       return { ...state, conversations };
     }
@@ -229,7 +229,7 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
       const conversations = state.conversations.map((conv) =>
         conv.id === action.id
           ? { ...conv, externalId: action.externalId }
-          : conv
+          : conv,
       );
       return { ...state, conversations };
     }
@@ -307,7 +307,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       const cookies = state.cookieConfigs[state.activeProvider]?.cookies || [];
       try {
         console.log(
-          `[ChatContext] Warming up browser for ${state.activeProvider}`
+          `[ChatContext] Warming up browser for ${state.activeProvider}`,
         );
         await fetch("/api/session/warmup", {
           method: "POST",
@@ -356,14 +356,14 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     (provider: LLMProvider, cookies: CookieEntry[]) => {
       dispatch({ type: "SET_COOKIES", provider, cookies });
     },
-    []
+    [],
   );
 
   const setSystemInstructions = useCallback(
     (provider: LLMProvider, instructions: string) => {
       dispatch({ type: "SET_SYSTEM_INSTRUCTIONS", provider, instructions });
     },
-    []
+    [],
   );
 
   const deleteConversation = useCallback(
@@ -393,7 +393,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         }
       }
     },
-    [state.conversations, state.cookieConfigs]
+    [state.conversations, state.cookieConfigs],
   );
 
   const testConnection = useCallback(
@@ -437,7 +437,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         return false;
       }
     },
-    [state.cookieConfigs]
+    [state.cookieConfigs],
   );
 
   const sendMessage = useCallback(
@@ -448,9 +448,34 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       )
         return;
 
+      // Track the actual conversation ID we're using
+      // This is needed because dispatch is async and state.currentConversationId
+      // may not be updated immediately after NEW_CONVERSATION dispatch
+      let activeConversationId = state.currentConversationId;
+
       // Create new conversation if none exists
-      if (!state.currentConversationId) {
-        dispatch({ type: "NEW_CONVERSATION" });
+      if (!activeConversationId) {
+        // Generate ID here to track it immediately
+        const newConvId = uuidv4();
+        activeConversationId = newConvId;
+
+        const newConversation: Conversation = {
+          id: newConvId,
+          title: "New Chat",
+          messages: [],
+          provider: state.activeProvider,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        };
+
+        // Dispatch with the new conversation directly
+        dispatch({
+          type: "LOAD_STATE",
+          state: {
+            conversations: [newConversation, ...state.conversations],
+            currentConversationId: newConvId,
+          },
+        });
       }
 
       // Add user message
@@ -483,9 +508,9 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         const cookies =
           state.cookieConfigs[state.activeProvider]?.cookies || [];
 
-        // Use streaming endpoint
+        // Use streaming endpoint - look up conversation by our tracked ID
         const currentConv = state.conversations.find(
-          (c) => c.id === state.currentConversationId
+          (c) => c.id === activeConversationId,
         );
         const externalId = currentConv?.externalId;
 
@@ -539,10 +564,10 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
                       });
 
                       // Update conversation external ID if provided
-                      if (state.currentConversationId && data.conversationId) {
+                      if (activeConversationId && data.conversationId) {
                         dispatch({
                           type: "UPDATE_CONVERSATION_EXTERNAL_ID",
-                          id: state.currentConversationId,
+                          id: activeConversationId,
                           externalId: data.conversationId,
                         });
                       }
@@ -588,7 +613,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       state.activeProvider,
       state.cookieConfigs,
       state.isSending,
-    ]
+    ],
   );
 
   const generateImage = useCallback(
@@ -626,7 +651,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           state.cookieConfigs[state.activeProvider]?.cookies || [];
 
         const currentConv = state.conversations.find(
-          (c) => c.id === state.currentConversationId
+          (c) => c.id === state.currentConversationId,
         );
         const externalId = currentConv?.externalId;
 
@@ -672,7 +697,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       state.cookieConfigs,
       state.isSending,
       state.conversations,
-    ]
+    ],
   );
 
   const value: ChatContextValue = {
