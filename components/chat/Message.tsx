@@ -3,6 +3,7 @@
 import { Message, PROVIDERS, LLMProvider } from "@/types";
 import { useState, useRef, useEffect } from "react";
 import { FiCopy, FiCheck, FiRefreshCw, FiEdit2 } from "react-icons/fi";
+import { BsPinAngle, BsPinAngleFill } from "react-icons/bs";
 import Image from "next/image";
 import { StreamdownRenderer } from "./StreamdownRenderer";
 import { getRelativeTime, getFormattedTime } from "@/lib/utils/time";
@@ -26,8 +27,11 @@ interface MessageBubbleProps {
   conversationProvider: LLMProvider;
   onRegenerate?: () => void;
   onEdit?: (messageId: string, newContent: string) => void;
+  onPin?: (messageId: string) => void;
+  onUnpin?: (messageId: string) => void;
   canRegenerate?: boolean;
   canEdit?: boolean;
+  allowPin?: boolean;
 }
 
 export default function MessageBubble({
@@ -37,8 +41,11 @@ export default function MessageBubble({
   conversationProvider,
   onRegenerate,
   onEdit,
+  onPin,
+  onUnpin,
   canRegenerate = false,
   canEdit = false,
+  allowPin = false,
 }: MessageBubbleProps) {
   const [copied, setCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -117,7 +124,14 @@ export default function MessageBubble({
   };
 
   return (
-    <div className={`message ${isUser ? "user" : "assistant"}`}>
+    <div
+      className={`message ${isUser ? "user" : "assistant"} ${message.isPinned ? "pinned" : ""}`}
+    >
+      {message.isPinned && (
+        <div className="pin-indicator" title="Pinned message">
+          <BsPinAngleFill size={12} />
+        </div>
+      )}
       {!isUser && <div className="message-avatar">{getProviderLogo()}</div>}
       <div className="message-content">
         {isLoading ? (
@@ -189,6 +203,24 @@ export default function MessageBubble({
               </span>
 
               <div className="message-actions">
+                {/* Pin action (available for both) */}
+                {allowPin && !isSending && (
+                  <button
+                    className={`action-btn ${message.isPinned ? "active" : ""}`}
+                    onClick={() => {
+                      if (message.isPinned && onUnpin) onUnpin(message.id);
+                      else if (!message.isPinned && onPin) onPin(message.id);
+                    }}
+                    title={message.isPinned ? "Unpin message" : "Pin message"}
+                  >
+                    {message.isPinned ? (
+                      <BsPinAngleFill size={14} />
+                    ) : (
+                      <BsPinAngle size={14} />
+                    )}
+                  </button>
+                )}
+
                 {/* User message actions */}
                 {isUser && canEdit && !isEditing && !isSending && (
                   <button

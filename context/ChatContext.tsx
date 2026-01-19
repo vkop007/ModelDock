@@ -293,6 +293,32 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
       };
     }
 
+    case "PIN_MESSAGE": {
+      const conversations = state.conversations.map((conv) => {
+        if (conv.id === state.currentConversationId) {
+          const messages = conv.messages.map((msg) =>
+            msg.id === action.messageId ? { ...msg, isPinned: true } : msg,
+          );
+          return { ...conv, messages, updatedAt: Date.now() };
+        }
+        return conv;
+      });
+      return { ...state, conversations };
+    }
+
+    case "UNPIN_MESSAGE": {
+      const conversations = state.conversations.map((conv) => {
+        if (conv.id === state.currentConversationId) {
+          const messages = conv.messages.map((msg) =>
+            msg.id === action.messageId ? { ...msg, isPinned: false } : msg,
+          );
+          return { ...conv, messages, updatedAt: Date.now() };
+        }
+        return conv;
+      });
+      return { ...state, conversations };
+    }
+
     default:
       return state;
   }
@@ -317,6 +343,8 @@ interface ChatContextValue extends ChatState {
   stopGeneration: () => void;
   exportConversation: (format: "json" | "markdown") => void;
   importConversation: (jsonData: string) => boolean;
+  pinMessage: (messageId: string) => void;
+  unpinMessage: (messageId: string) => void;
 }
 
 const ChatContext = createContext<ChatContextValue | null>(null);
@@ -975,6 +1003,14 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const pinMessage = useCallback((messageId: string) => {
+    dispatch({ type: "PIN_MESSAGE", messageId });
+  }, []);
+
+  const unpinMessage = useCallback((messageId: string) => {
+    dispatch({ type: "UNPIN_MESSAGE", messageId });
+  }, []);
+
   const value: ChatContextValue = {
     ...state,
     dispatch,
@@ -994,6 +1030,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     stopGeneration,
     exportConversation,
     importConversation,
+    pinMessage,
+    unpinMessage,
   };
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;
