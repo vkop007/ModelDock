@@ -10,6 +10,7 @@ import {
   FiImage,
   FiX,
   FiPaperclip,
+  FiSquare,
 } from "react-icons/fi";
 import Image from "next/image";
 import { PROVIDERS, LLMProvider } from "@/types";
@@ -48,6 +49,7 @@ export default function MessageInput() {
     cookieConfigs,
     setProvider,
     generateImage,
+    stopGeneration,
   } = useChatContext();
   const [input, setInput] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -122,7 +124,7 @@ export default function MessageInput() {
 
     // Convert images to base64
     const base64Images = await Promise.all(
-      imagesToUpload.map((file) => convertFileToBase64(file))
+      imagesToUpload.map((file) => convertFileToBase64(file)),
     );
 
     await sendMessage(message, base64Images);
@@ -155,7 +157,7 @@ export default function MessageInput() {
     if (isDisabled) return;
 
     const files = Array.from(e.dataTransfer.files).filter((file) =>
-      file.type.startsWith("image/")
+      file.type.startsWith("image/"),
     );
 
     if (files.length > 0) {
@@ -166,7 +168,7 @@ export default function MessageInput() {
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const files = Array.from(e.target.files).filter((file) =>
-        file.type.startsWith("image/")
+        file.type.startsWith("image/"),
       );
       setSelectedImages((prev) => [...prev, ...files]);
     }
@@ -279,8 +281,8 @@ export default function MessageInput() {
             isDisabled
               ? "Configure cookies in settings to start chatting..."
               : selectedImages.length > 0
-              ? "Describe this image..."
-              : `Message ${activeConfig.name}...`
+                ? "Describe this image..."
+                : `Message ${activeConfig.name}...`
           }
           disabled={isSending || isDisabled}
           rows={1}
@@ -332,28 +334,31 @@ export default function MessageInput() {
           </button>
         )}
 
-        <button
-          className="send-btn"
-          onClick={handleSubmit}
-          disabled={
-            (!input.trim() && selectedImages.length === 0) ||
-            isSending ||
-            isDisabled
-          }
-          style={
-            (input.trim() || selectedImages.length > 0) &&
-            !isSending &&
-            !isDisabled
-              ? { backgroundColor: activeConfig.color, color: "white" }
-              : {}
-          }
-        >
-          {isSending ? (
-            <FiLoader size={20} className="spin" />
-          ) : (
+        {isSending ? (
+          <button
+            className="send-btn stop-btn"
+            onClick={stopGeneration}
+            title="Stop generating"
+            style={{ backgroundColor: "#ef4444", color: "white" }}
+          >
+            <FiSquare size={18} />
+          </button>
+        ) : (
+          <button
+            className="send-btn"
+            onClick={handleSubmit}
+            disabled={
+              (!input.trim() && selectedImages.length === 0) || isDisabled
+            }
+            style={
+              (input.trim() || selectedImages.length > 0) && !isDisabled
+                ? { backgroundColor: activeConfig.color, color: "white" }
+                : {}
+            }
+          >
             <FiSend size={20} />
-          )}
-        </button>
+          </button>
+        )}
       </div>
     </div>
   );

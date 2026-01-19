@@ -1,8 +1,8 @@
 "use client";
 
 import { Message, PROVIDERS, LLMProvider } from "@/types";
-import { useState } from "react";
-import { FiCopy, FiCheck } from "react-icons/fi";
+import { useState, useRef, useEffect } from "react";
+import { FiCopy, FiCheck, FiRefreshCw, FiEdit2, FiX } from "react-icons/fi";
 import Image from "next/image";
 import { StreamdownRenderer } from "./StreamdownRenderer";
 
@@ -23,6 +23,10 @@ interface MessageBubbleProps {
   isLast: boolean;
   isSending?: boolean;
   conversationProvider: LLMProvider;
+  onRegenerate?: () => void;
+  onEdit?: (messageId: string, newContent: string) => void;
+  canRegenerate?: boolean;
+  canEdit?: boolean;
 }
 
 export default function MessageBubble({
@@ -30,11 +34,29 @@ export default function MessageBubble({
   isLast,
   isSending,
   conversationProvider,
+  onRegenerate,
+  onEdit,
+  canRegenerate = false,
+  canEdit = false,
 }: MessageBubbleProps) {
   const [copied, setCopied] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editContent, setEditContent] = useState(message.content);
+  const editTextareaRef = useRef<HTMLTextAreaElement>(null);
+
   const isUser = message.role === "user";
   const isLoading =
     message.role === "assistant" && !message.content && isLast && isSending;
+
+  // Auto-focus and auto-resize textarea when editing
+  useEffect(() => {
+    if (isEditing && editTextareaRef.current) {
+      editTextareaRef.current.focus();
+      editTextareaRef.current.style.height = "auto";
+      editTextareaRef.current.style.height =
+        Math.min(editTextareaRef.current.scrollHeight, 200) + "px";
+    }
+  }, [isEditing, editContent]);
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(message.content);
@@ -42,14 +64,31 @@ export default function MessageBubble({
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleEditSubmit = () => {
+    if (editContent.trim() && onEdit) {
+      onEdit(message.id, editContent.trim());
+      setIsEditing(false);
+    }
+  };
+
+  const handleEditCancel = () => {
+    setEditContent(message.content);
+    setIsEditing(false);
+  };
+
+  const handleEditKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleEditSubmit();
+    } else if (e.key === "Escape") {
+      handleEditCancel();
+    }
+  };
+
   const isGeneratedImage = message.content.startsWith("![Generated Image](");
   const imageUrl = isGeneratedImage
     ? message.content.slice(19, -1) // Remove ![Generated Image]( and )
     : null;
-
-  if (isGeneratedImage) {
-    // console.log("Rendering Generated Image:", imageUrl ? imageUrl : "null");
-  }
 
   const getProviderLogo = () => {
     // Use message's provider, falling back to the conversation's provider
@@ -78,7 +117,35 @@ export default function MessageBubble({
         ) : (
           <>
             {isUser ? (
-              <div className="user-bubble">{message.content}</div>
+              isEditing ? (
+                <div className="edit-mode">
+                  <textarea
+                    ref={editTextareaRef}
+                    className="edit-textarea"
+                    value={editContent}
+                    onChange={(e) => setEditContent(e.target.value)}
+                    onKeyDown={handleEditKeyDown}
+                    rows={1}
+                  />
+                  <div className="edit-actions">
+                    <button
+                      className="edit-save-btn"
+                      onClick={handleEditSubmit}
+                      disabled={!editContent.trim()}
+                    >
+                      Save & Resend
+                    </button>
+                    <button
+                      className="edit-cancel-btn"
+                      onClick={handleEditCancel}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="user-bubble">{message.content}</div>
+              )
             ) : isGeneratedImage && imageUrl ? (
               <div className="message-image">
                 <img
@@ -99,17 +166,42 @@ export default function MessageBubble({
                 />
               </div>
             )}
-            {!isUser && message.content && (
-              <div className="message-actions">
+
+            {/* Message Actions */}
+            <div className="message-actions">
+              {/* User message actions */}
+              {isUser && canEdit && !isEditing && !isSending && (
                 <button
                   className="action-btn"
-                  onClick={handleCopy}
-                  title="Copy"
+                  onClick={() => setIsEditing(true)}
+                  title="Edit message"
                 >
-                  {copied ? <FiCheck size={14} /> : <FiCopy size={14} />}
+                  <FiEdit2 size={14} />
                 </button>
-              </div>
-            )}
+              )}
+
+              {/* Assistant message actions */}
+              {!isUser && message.content && (
+                <>
+                  <button
+                    className="action-btn"
+                    onClick={handleCopy}
+                    title="Copy"
+                  >
+                    {copied ? <FiCheck size={14} /> : <FiCopy size={14} />}
+                  </button>
+                  {canRegenerate && !isSending && (
+                    <button
+                      className="action-btn"
+                      onClick={onRegenerate}
+                      title="Regenerate response"
+                    >
+                      <FiRefreshCw size={14} />
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
           </>
         )}
       </div>
