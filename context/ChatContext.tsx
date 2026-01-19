@@ -259,6 +259,7 @@ const ChatContext = createContext<ChatContextValue | null>(null);
 export function ChatProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(chatReducer, initialState);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const isInitializedRef = useRef(false);
 
   // Load saved state on mount
   useEffect(() => {
@@ -278,33 +279,49 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         currentConversationId,
       },
     });
+
+    // Mark as initialized after loading
+    isInitializedRef.current = true;
   }, []);
 
-  // Persist state changes
+  // Persist state changes - only after initial load to prevent overwriting saved data
   useEffect(() => {
-    saveConversations(state.conversations);
+    if (isInitializedRef.current) {
+      saveConversations(state.conversations);
+    }
   }, [state.conversations]);
 
   useEffect(() => {
-    saveCookieConfigs(state.cookieConfigs);
+    if (isInitializedRef.current) {
+      saveCookieConfigs(state.cookieConfigs);
+    }
   }, [state.cookieConfigs]);
 
   useEffect(() => {
-    saveSystemInstructions(state.systemInstructions);
+    if (isInitializedRef.current) {
+      saveSystemInstructions(state.systemInstructions);
+    }
   }, [state.systemInstructions]);
 
   useEffect(() => {
-    saveActiveProvider(state.activeProvider);
+    if (isInitializedRef.current) {
+      saveActiveProvider(state.activeProvider);
+    }
   }, [state.activeProvider]);
 
   useEffect(() => {
-    saveCurrentConversation(state.currentConversationId);
+    if (isInitializedRef.current) {
+      saveCurrentConversation(state.currentConversationId);
+    }
   }, [state.currentConversationId]);
 
   // Warmup browser page for active provider
+  // Only depends on active provider's cookies, not all cookieConfigs
+  const activeProviderCookies =
+    state.cookieConfigs[state.activeProvider]?.cookies;
   useEffect(() => {
     const warmupProvider = async () => {
-      const cookies = state.cookieConfigs[state.activeProvider]?.cookies || [];
+      const cookies = activeProviderCookies || [];
       try {
         console.log(
           `[ChatContext] Warming up browser for ${state.activeProvider}`,
@@ -323,10 +340,10 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     };
 
     // Only warmup if we have loaded cookies (not on very first render)
-    if (state.cookieConfigs[state.activeProvider]) {
+    if (activeProviderCookies) {
       warmupProvider();
     }
-  }, [state.activeProvider, state.cookieConfigs]);
+  }, [state.activeProvider, activeProviderCookies]);
 
   // Get current conversation
   const currentConversation =
@@ -534,6 +551,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         const reader = response.body?.getReader();
         const decoder = new TextDecoder();
         let accumulatedContent = "";
+        let sseBuffer = ""; // Buffer for incomplete SSE messages
 
         if (reader) {
           while (true) {
@@ -541,7 +559,10 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
             if (done) break;
 
             const chunk = decoder.decode(value, { stream: true });
-            const lines = chunk.split("\n");
+            sseBuffer += chunk;
+            const lines = sseBuffer.split("\n");
+            // Keep the last incomplete line in the buffer
+            sseBuffer = lines.pop() || "";
 
             for (const line of lines) {
               if (line.startsWith("data: ")) {
@@ -613,6 +634,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       state.activeProvider,
       state.cookieConfigs,
       state.isSending,
+      state.conversations,
     ],
   );
 
@@ -620,9 +642,34 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     async (prompt: string) => {
       if (!prompt.trim() || state.isSending) return;
 
+      // Track the actual conversation ID we're using
+      // This is needed because dispatch is async and state.currentConversationId
+      // may not be updated immediately after NEW_CONVERSATION dispatch
+      let activeConversationId = state.currentConversationId;
+
       // Create new conversation if none exists
-      if (!state.currentConversationId) {
-        dispatch({ type: "NEW_CONVERSATION" });
+      if (!activeConversationId) {
+        // Generate ID here to track it immediately
+        const newConvId = uuidv4();
+        activeConversationId = newConvId;
+
+        const newConversation: Conversation = {
+          id: newConvId,
+          title: "New Chat",
+          messages: [],
+          provider: state.activeProvider,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        };
+
+        // Dispatch with the new conversation directly
+        dispatch({
+          type: "LOAD_STATE",
+          state: {
+            conversations: [newConversation, ...state.conversations],
+            currentConversationId: newConvId,
+          },
+        });
       }
 
       // Add user message
@@ -650,8 +697,9 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         const cookies =
           state.cookieConfigs[state.activeProvider]?.cookies || [];
 
+        // Use streaming endpoint - look up conversation by our tracked ID
         const currentConv = state.conversations.find(
-          (c) => c.id === state.currentConversationId,
+          (c) => c.id === activeConversationId,
         );
         const externalId = currentConv?.externalId;
 
@@ -674,6 +722,15 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
             id: assistantMessage.id,
             content: `![Generated Image](${data.imageUrl})`,
           });
+
+          // Update conversation external ID if provided
+          if (activeConversationId && data.conversationId) {
+            dispatch({
+              type: "UPDATE_CONVERSATION_EXTERNAL_ID",
+              id: activeConversationId,
+              externalId: data.conversationId,
+            });
+          }
         } else {
           dispatch({
             type: "UPDATE_MESSAGE",
