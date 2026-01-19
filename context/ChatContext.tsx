@@ -234,6 +234,65 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
       return { ...state, conversations };
     }
 
+    case "DELETE_MESSAGES_AFTER": {
+      const conversations = state.conversations.map((conv) => {
+        if (conv.id === state.currentConversationId) {
+          const messageIndex = conv.messages.findIndex(
+            (m) => m.id === action.messageId,
+          );
+          if (messageIndex !== -1) {
+            return {
+              ...conv,
+              messages: conv.messages.slice(0, messageIndex + 1),
+              updatedAt: Date.now(),
+            };
+          }
+        }
+        return conv;
+      });
+      return { ...state, conversations };
+    }
+
+    case "EDIT_MESSAGE": {
+      const conversations = state.conversations.map((conv) => {
+        if (conv.id === state.currentConversationId) {
+          const messages = conv.messages.map((msg) =>
+            msg.id === action.messageId
+              ? { ...msg, content: action.content }
+              : msg,
+          );
+          return { ...conv, messages, updatedAt: Date.now() };
+        }
+        return conv;
+      });
+      return { ...state, conversations };
+    }
+
+    case "REMOVE_LAST_MESSAGE": {
+      const conversations = state.conversations.map((conv) => {
+        if (
+          conv.id === state.currentConversationId &&
+          conv.messages.length > 0
+        ) {
+          return {
+            ...conv,
+            messages: conv.messages.slice(0, -1),
+            updatedAt: Date.now(),
+          };
+        }
+        return conv;
+      });
+      return { ...state, conversations };
+    }
+
+    case "IMPORT_CONVERSATION": {
+      return {
+        ...state,
+        conversations: [action.conversation, ...state.conversations],
+        currentConversationId: action.conversation.id,
+      };
+    }
+
     default:
       return state;
   }
@@ -252,6 +311,12 @@ interface ChatContextValue extends ChatState {
   deleteConversation: (id: string) => void;
   generateImage: (prompt: string) => Promise<void>;
   currentConversation: Conversation | null;
+  // New features
+  regenerateLastMessage: () => Promise<void>;
+  editAndResend: (messageId: string, newContent: string) => Promise<void>;
+  stopGeneration: () => void;
+  exportConversation: (format: "json" | "markdown") => void;
+  importConversation: (jsonData: string) => boolean;
 }
 
 const ChatContext = createContext<ChatContextValue | null>(null);
@@ -757,6 +822,159 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     ],
   );
 
+  // Stop generation - aborts the current streaming request
+  const stopGeneration = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+      dispatch({ type: "SET_SENDING", isSending: false });
+    }
+  }, []);
+
+  // Regenerate last message - removes last assistant message and resends last user message
+  const regenerateLastMessage = useCallback(async () => {
+    if (!currentConversation || state.isSending) return;
+
+    const messages = currentConversation.messages;
+    if (messages.length < 2) return;
+
+    // Find the last user message
+    let lastUserMessageIndex = -1;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === "user") {
+        lastUserMessageIndex = i;
+        break;
+      }
+    }
+
+    if (lastUserMessageIndex === -1) return;
+
+    const lastUserMessage = messages[lastUserMessageIndex];
+
+    // Remove all messages after the last user message (including assistant responses)
+    dispatch({ type: "DELETE_MESSAGES_AFTER", messageId: lastUserMessage.id });
+
+    // Resend the user message
+    await sendMessage(lastUserMessage.content, lastUserMessage.images);
+  }, [currentConversation, state.isSending, sendMessage]);
+
+  // Edit and resend - edits a user message and regenerates from that point
+  const editAndResend = useCallback(
+    async (messageId: string, newContent: string) => {
+      if (!currentConversation || state.isSending) return;
+
+      const messageIndex = currentConversation.messages.findIndex(
+        (m) => m.id === messageId,
+      );
+      if (messageIndex === -1) return;
+
+      const message = currentConversation.messages[messageIndex];
+      if (message.role !== "user") return;
+
+      // Edit the message content
+      dispatch({ type: "EDIT_MESSAGE", messageId, content: newContent });
+
+      // Delete all messages after this one
+      dispatch({ type: "DELETE_MESSAGES_AFTER", messageId });
+
+      // Resend the edited message
+      await sendMessage(newContent, message.images);
+    },
+    [currentConversation, state.isSending, sendMessage],
+  );
+
+  // Export conversation
+  const exportConversation = useCallback(
+    (format: "json" | "markdown") => {
+      if (!currentConversation) return;
+
+      let content: string;
+      let filename: string;
+      let mimeType: string;
+
+      if (format === "json") {
+        content = JSON.stringify(currentConversation, null, 2);
+        filename = `${currentConversation.title.replace(/[^a-z0-9]/gi, "_")}.json`;
+        mimeType = "application/json";
+      } else {
+        // Markdown format
+        const lines: string[] = [
+          `# ${currentConversation.title}`,
+          "",
+          `**Provider:** ${currentConversation.provider}`,
+          `**Created:** ${new Date(currentConversation.createdAt).toLocaleString()}`,
+          "",
+          "---",
+          "",
+        ];
+
+        for (const msg of currentConversation.messages) {
+          const role = msg.role === "user" ? "**You:**" : "**Assistant:**";
+          lines.push(role);
+          lines.push("");
+          lines.push(msg.content);
+          lines.push("");
+        }
+
+        content = lines.join("\n");
+        filename = `${currentConversation.title.replace(/[^a-z0-9]/gi, "_")}.md`;
+        mimeType = "text/markdown";
+      }
+
+      // Create download
+      const blob = new Blob([content], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    },
+    [currentConversation],
+  );
+
+  // Import conversation
+  const importConversation = useCallback((jsonData: string): boolean => {
+    try {
+      const parsed = JSON.parse(jsonData);
+
+      // Validate the structure
+      if (
+        !parsed.id ||
+        !parsed.title ||
+        !Array.isArray(parsed.messages) ||
+        !parsed.provider
+      ) {
+        console.error("Invalid conversation format");
+        return false;
+      }
+
+      // Generate a new ID to avoid conflicts
+      const importedConversation: Conversation = {
+        id: uuidv4(),
+        title: `[Imported] ${parsed.title}`,
+        messages: parsed.messages.map((msg: Message) => ({
+          ...msg,
+          id: uuidv4(), // Generate new IDs for messages too
+        })),
+        provider: parsed.provider,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      dispatch({
+        type: "IMPORT_CONVERSATION",
+        conversation: importedConversation,
+      });
+      return true;
+    } catch (error) {
+      console.error("Failed to import conversation:", error);
+      return false;
+    }
+  }, []);
+
   const value: ChatContextValue = {
     ...state,
     dispatch,
@@ -770,6 +988,12 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     deleteConversation,
     generateImage,
     currentConversation,
+    // New features
+    regenerateLastMessage,
+    editAndResend,
+    stopGeneration,
+    exportConversation,
+    importConversation,
   };
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;
