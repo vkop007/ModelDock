@@ -218,27 +218,6 @@ export default function MessageInput() {
 
   return (
     <div className="message-input-container">
-      {/* Image Previews */}
-      {selectedImages.length > 0 && (
-        <div className="image-previews">
-          {selectedImages.map((file, index) => (
-            <div key={index} className="image-preview-item">
-              <img
-                src={URL.createObjectURL(file)}
-                alt="preview"
-                className="image-preview-img"
-              />
-              <button
-                className="remove-image-btn"
-                onClick={() => removeImage(index)}
-              >
-                <FiX size={12} />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
       <div
         className={`message-input-wrapper ${
           selectedImages.length > 0 ? "has-images" : ""
@@ -246,152 +225,179 @@ export default function MessageInput() {
         onDragOver={handleDragOver}
         onDrop={handleDrop}
       >
-        <div className="model-selector-inline">
-          <button
-            ref={modelButtonRef}
-            className="model-selector-btn-inline"
-            onClick={() => setShowModelMenu(!showModelMenu)}
-            style={{
-              borderColor: showModelMenu ? activeConfig.color : "transparent",
-              color: activeConfig.color,
-            }}
-          >
-            {getProviderLogo(activeProvider, 14)}
-            <span>{activeConfig.name}</span>
-            <FiChevronDown
-              size={14}
-              style={{
-                transform: showModelMenu ? "rotate(180deg)" : "rotate(0deg)",
-                transition: "transform 0.2s",
-              }}
-            />
-          </button>
-
-          {showModelMenu && (
-            <div id="model-menu" className="model-menu">
-              {(Object.keys(PROVIDERS) as LLMProvider[]).map((provider) => {
-                const config = PROVIDERS[provider];
-                const isActive = activeProvider === provider;
-                const hasCookies =
-                  (cookieConfigs[provider]?.cookies?.length ?? 0) > 0;
-
-                return (
+        {/* Image Previews - Inside the input box like ChatGPT */}
+        {selectedImages.length > 0 && (
+          <div className="image-previews-inline">
+            {selectedImages.map((file, index) => (
+              <div key={index} className="image-preview-item-inline">
+                <img
+                  src={URL.createObjectURL(file)}
+                  alt="preview"
+                  className="image-preview-img-inline"
+                />
+                <div className="image-preview-actions">
                   <button
-                    key={provider}
-                    className={`model-menu-item ${isActive ? "active" : ""}`}
-                    onClick={() => {
-                      setProvider(provider);
-                      setShowModelMenu(false);
-                    }}
+                    className="image-action-btn"
+                    onClick={() => removeImage(index)}
+                    title="Remove image"
                   >
-                    <div
-                      className="model-icon-wrapper"
-                      style={{ color: config.color }}
-                    >
-                      {getProviderLogo(provider, 16)}
-                    </div>
-                    <div className="model-info">
-                      <span className="model-name">{config.name}</span>
-                      <span className="model-status">
-                        {hasCookies ? "Ready" : "Not Configured"}
-                      </span>
-                    </div>
-                    {isActive && <FiCheck size={16} className="check-icon" />}
+                    <FiX size={14} />
                   </button>
-                );
-              })}
-            </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Input row */}
+        <div className="input-row">
+          <div className="model-selector-inline">
+            <button
+              ref={modelButtonRef}
+              className="model-selector-btn-inline"
+              onClick={() => setShowModelMenu(!showModelMenu)}
+              style={{
+                borderColor: showModelMenu ? activeConfig.color : "transparent",
+                color: activeConfig.color,
+              }}
+            >
+              {getProviderLogo(activeProvider, 14)}
+              <span>{activeConfig.name}</span>
+              <FiChevronDown
+                size={14}
+                style={{
+                  transform: showModelMenu ? "rotate(180deg)" : "rotate(0deg)",
+                  transition: "transform 0.2s",
+                }}
+              />
+            </button>
+
+            {showModelMenu && (
+              <div id="model-menu" className="model-menu">
+                {(Object.keys(PROVIDERS) as LLMProvider[]).map((provider) => {
+                  const config = PROVIDERS[provider];
+                  const isActive = activeProvider === provider;
+                  const hasCookies =
+                    (cookieConfigs[provider]?.cookies?.length ?? 0) > 0;
+
+                  return (
+                    <button
+                      key={provider}
+                      className={`model-menu-item ${isActive ? "active" : ""}`}
+                      onClick={() => {
+                        setProvider(provider);
+                        setShowModelMenu(false);
+                      }}
+                    >
+                      <div
+                        className="model-icon-wrapper"
+                        style={{ color: config.color }}
+                      >
+                        {getProviderLogo(provider, 16)}
+                      </div>
+                      <div className="model-info">
+                        <span className="model-name">{config.name}</span>
+                        <span className="model-status">
+                          {hasCookies ? "Ready" : "Not Configured"}
+                        </span>
+                      </div>
+                      {isActive && <FiCheck size={16} className="check-icon" />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <textarea
+            ref={textareaRef}
+            className="message-input"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={
+              isDisabled
+                ? "Configure cookies in settings to start chatting..."
+                : selectedImages.length > 0
+                  ? "Describe this image..."
+                  : `Message ${activeConfig.name}...`
+            }
+            disabled={isSending || isDisabled}
+            rows={1}
+          />
+
+          {/* Hidden File Input */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileSelect}
+            accept="image/*"
+            multiple
+            style={{ display: "none" }}
+          />
+
+          {/* Generate Image Button (Only for supported providers) */}
+          {(activeProvider === "chatgpt" || activeProvider === "gemini") && (
+            <button
+              className="send-btn"
+              onClick={handleImageGeneration}
+              disabled={!input.trim() || isSending || isDisabled}
+              title="Generate Image"
+              style={{
+                marginRight: "4px",
+                backgroundColor: "transparent",
+                color: input.trim() ? activeConfig.color : "inherit",
+                border: "1px solid",
+                borderColor: input.trim() ? activeConfig.color : "#404040",
+              }}
+            >
+              <FiImage size={18} />
+            </button>
+          )}
+
+          {/* Upload Image Button (Only if supported) */}
+          {showImageUpload && (
+            <button
+              className="send-btn"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isSending || isDisabled}
+              title="Upload Image"
+              style={{
+                marginRight: "8px",
+                backgroundColor: "transparent",
+                color: "inherit",
+              }}
+            >
+              <FiPaperclip size={18} />
+            </button>
+          )}
+
+          {isSending ? (
+            <button
+              className="send-btn stop-btn"
+              onClick={stopGeneration}
+              title="Stop generating"
+              style={{ backgroundColor: "#ef4444", color: "white" }}
+            >
+              <FiSquare size={18} />
+            </button>
+          ) : (
+            <button
+              className="send-btn"
+              onClick={handleSubmit}
+              disabled={
+                (!input.trim() && selectedImages.length === 0) || isDisabled
+              }
+              style={
+                (input.trim() || selectedImages.length > 0) && !isDisabled
+                  ? { backgroundColor: activeConfig.color, color: "white" }
+                  : {}
+              }
+            >
+              <FiSend size={20} />
+            </button>
           )}
         </div>
-
-        <textarea
-          ref={textareaRef}
-          className="message-input"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder={
-            isDisabled
-              ? "Configure cookies in settings to start chatting..."
-              : selectedImages.length > 0
-                ? "Describe this image..."
-                : `Message ${activeConfig.name}...`
-          }
-          disabled={isSending || isDisabled}
-          rows={1}
-        />
-
-        {/* Hidden File Input */}
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleFileSelect}
-          accept="image/*"
-          multiple
-          style={{ display: "none" }}
-        />
-
-        {/* Generate Image Button (Only for supported providers) */}
-        {(activeProvider === "chatgpt" || activeProvider === "gemini") && (
-          <button
-            className="send-btn"
-            onClick={handleImageGeneration}
-            disabled={!input.trim() || isSending || isDisabled}
-            title="Generate Image"
-            style={{
-              marginRight: "4px",
-              backgroundColor: "transparent",
-              color: input.trim() ? activeConfig.color : "inherit",
-              border: "1px solid",
-              borderColor: input.trim() ? activeConfig.color : "#404040",
-            }}
-          >
-            <FiImage size={18} />
-          </button>
-        )}
-
-        {/* Upload Image Button (Only if supported) */}
-        {showImageUpload && (
-          <button
-            className="send-btn"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isSending || isDisabled}
-            title="Upload Image"
-            style={{
-              marginRight: "8px",
-              backgroundColor: "transparent",
-              color: "inherit",
-            }}
-          >
-            <FiPaperclip size={18} />
-          </button>
-        )}
-
-        {isSending ? (
-          <button
-            className="send-btn stop-btn"
-            onClick={stopGeneration}
-            title="Stop generating"
-            style={{ backgroundColor: "#ef4444", color: "white" }}
-          >
-            <FiSquare size={18} />
-          </button>
-        ) : (
-          <button
-            className="send-btn"
-            onClick={handleSubmit}
-            disabled={
-              (!input.trim() && selectedImages.length === 0) || isDisabled
-            }
-            style={
-              (input.trim() || selectedImages.length > 0) && !isDisabled
-                ? { backgroundColor: activeConfig.color, color: "white" }
-                : {}
-            }
-          >
-            <FiSend size={20} />
-          </button>
-        )}
       </div>
     </div>
   );
