@@ -2,7 +2,7 @@
 
 import { useChatContext } from "@/context/ChatContext";
 import { PROVIDERS, LLMProvider, CookieEntry } from "@/types";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   FiX,
   FiCheck,
@@ -41,6 +41,14 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
   const [testing, setTesting] = useState(false);
   const [applyingInstructions, setApplyingInstructions] = useState(false);
   const [instructionsSuccess, setInstructionsSuccess] = useState(false);
+
+  // Listen for Escape key to close modal
+  useEffect(() => {
+    const handleCloseModals = () => onClose();
+    window.addEventListener("close-all-modals", handleCloseModals);
+    return () =>
+      window.removeEventListener("close-all-modals", handleCloseModals);
+  }, [onClose]);
 
   const providerConfig = PROVIDERS[activeProvider];
   const currentCookies = cookieConfigs[activeProvider]?.cookies || [];

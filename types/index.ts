@@ -86,7 +86,12 @@ export interface Message {
   timestamp: number;
   provider?: LLMProvider;
   images?: string[]; // Array of base64 strings
+  isPinned?: boolean;
 }
+
+// ... existing code ...
+
+// Chat context actions
 
 // Conversation structure
 export interface Conversation {
@@ -197,4 +202,6 @@ export type ChatAction =
   | { type: "DELETE_MESSAGES_AFTER"; messageId: string }
   | { type: "EDIT_MESSAGE"; messageId: string; content: string }
   | { type: "REMOVE_LAST_MESSAGE" }
-  | { type: "IMPORT_CONVERSATION"; conversation: Conversation };
+  | { type: "IMPORT_CONVERSATION"; conversation: Conversation }
+  | { type: "PIN_MESSAGE"; messageId: string }
+  | { type: "UNPIN_MESSAGE"; messageId: string };

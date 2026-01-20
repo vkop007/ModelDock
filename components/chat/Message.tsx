@@ -2,9 +2,11 @@
 
 import { Message, PROVIDERS, LLMProvider } from "@/types";
 import { useState, useRef, useEffect } from "react";
-import { FiCopy, FiCheck, FiRefreshCw, FiEdit2, FiX } from "react-icons/fi";
+import { FiCopy, FiCheck, FiRefreshCw, FiEdit2 } from "react-icons/fi";
+import { BsPinAngle, BsPinAngleFill } from "react-icons/bs";
 import Image from "next/image";
 import { StreamdownRenderer } from "./StreamdownRenderer";
+import { getRelativeTime, getFormattedTime } from "@/lib/utils/time";
 
 // Logo paths for each provider
 const PROVIDER_LOGOS: Record<LLMProvider, string> = {
@@ -25,8 +27,11 @@ interface MessageBubbleProps {
   conversationProvider: LLMProvider;
   onRegenerate?: () => void;
   onEdit?: (messageId: string, newContent: string) => void;
+  onPin?: (messageId: string) => void;
+  onUnpin?: (messageId: string) => void;
   canRegenerate?: boolean;
   canEdit?: boolean;
+  allowPin?: boolean;
 }
 
 export default function MessageBubble({
@@ -36,17 +41,31 @@ export default function MessageBubble({
   conversationProvider,
   onRegenerate,
   onEdit,
+  onPin,
+  onUnpin,
   canRegenerate = false,
   canEdit = false,
+  allowPin = false,
 }: MessageBubbleProps) {
   const [copied, setCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(message.content);
+  const [relativeTime, setRelativeTime] = useState(
+    getRelativeTime(message.timestamp),
+  );
   const editTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   const isUser = message.role === "user";
   const isLoading =
     message.role === "assistant" && !message.content && isLast && isSending;
+
+  // Update relative time every minute
+  useEffect(() => {
+    const updateTime = () =>
+      setRelativeTime(getRelativeTime(message.timestamp));
+    const interval = setInterval(updateTime, 60000);
+    return () => clearInterval(interval);
+  }, [message.timestamp]);
 
   // Auto-focus and auto-resize textarea when editing
   useEffect(() => {
@@ -105,7 +124,14 @@ export default function MessageBubble({
   };
 
   return (
-    <div className={`message ${isUser ? "user" : "assistant"}`}>
+    <div
+      className={`message ${isUser ? "user" : "assistant"} ${message.isPinned ? "pinned" : ""}`}
+    >
+      {message.isPinned && (
+        <div className="pin-indicator" title="Pinned message">
+          <BsPinAngleFill size={12} />
+        </div>
+      )}
       {!isUser && <div className="message-avatar">{getProviderLogo()}</div>}
       <div className="message-content">
         {isLoading ? (
@@ -167,40 +193,67 @@ export default function MessageBubble({
               </div>
             )}
 
-            {/* Message Actions */}
-            <div className="message-actions">
-              {/* User message actions */}
-              {isUser && canEdit && !isEditing && !isSending && (
-                <button
-                  className="action-btn"
-                  onClick={() => setIsEditing(true)}
-                  title="Edit message"
-                >
-                  <FiEdit2 size={14} />
-                </button>
-              )}
+            {/* Message Footer with Timestamp and Actions */}
+            <div className="message-footer">
+              <span
+                className="message-timestamp"
+                title={getFormattedTime(message.timestamp)}
+              >
+                {relativeTime}
+              </span>
 
-              {/* Assistant message actions */}
-              {!isUser && message.content && (
-                <>
+              <div className="message-actions">
+                {/* Pin action (available for both) */}
+                {allowPin && !isSending && (
+                  <button
+                    className={`action-btn ${message.isPinned ? "active" : ""}`}
+                    onClick={() => {
+                      if (message.isPinned && onUnpin) onUnpin(message.id);
+                      else if (!message.isPinned && onPin) onPin(message.id);
+                    }}
+                    title={message.isPinned ? "Unpin message" : "Pin message"}
+                  >
+                    {message.isPinned ? (
+                      <BsPinAngleFill size={14} />
+                    ) : (
+                      <BsPinAngle size={14} />
+                    )}
+                  </button>
+                )}
+
+                {/* User message actions */}
+                {isUser && canEdit && !isEditing && !isSending && (
                   <button
                     className="action-btn"
-                    onClick={handleCopy}
-                    title="Copy"
+                    onClick={() => setIsEditing(true)}
+                    title="Edit message"
                   >
-                    {copied ? <FiCheck size={14} /> : <FiCopy size={14} />}
+                    <FiEdit2 size={14} />
                   </button>
-                  {canRegenerate && !isSending && (
+                )}
+
+                {/* Assistant message actions */}
+                {!isUser && message.content && (
+                  <>
                     <button
                       className="action-btn"
-                      onClick={onRegenerate}
-                      title="Regenerate response"
+                      onClick={handleCopy}
+                      title="Copy"
                     >
-                      <FiRefreshCw size={14} />
+                      {copied ? <FiCheck size={14} /> : <FiCopy size={14} />}
                     </button>
-                  )}
-                </>
-              )}
+                    {canRegenerate && !isSending && (
+                      <button
+                        className="action-btn"
+                        onClick={onRegenerate}
+                        title="Regenerate response"
+                      >
+                        <FiRefreshCw size={14} />
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
           </>
         )}

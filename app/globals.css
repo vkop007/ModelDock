@@ -459,8 +459,6 @@ body {
 
 .message.assistant {
   background: var(--bg-secondary);
-  border-left: 2px solid rgba(255, 255, 255, 0.03);
-  box-shadow: none;
 }
 
 .message-avatar {
@@ -1916,4 +1914,282 @@ body {
 .export-menu button:hover {
   background: var(--bg-hover);
   color: var(--text-primary);
+}
+
+/* Resizable Sidebar */
+.sidebar {
+  position: relative;
+  transition: width 0.2s ease;
+}
+
+.sidebar.collapsed {
+  padding: 12px 8px;
+}
+
+.sidebar.collapsed .new-chat-btn {
+  justify-content: center;
+  padding: 12px;
+}
+
+.sidebar.collapsed .conversation-item {
+  justify-content: center;
+  padding: 10px;
+}
+
+.sidebar.collapsed .settings-btn {
+  justify-content: center;
+}
+
+.sidebar-toggle {
+  position: absolute;
+  top: 12px;
+  right: -12px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 50%;
+  color: var(--text-muted);
+  cursor: pointer;
+  z-index: 10;
+  transition: all 0.2s ease;
+  opacity: 0;
+}
+
+.sidebar:hover .sidebar-toggle {
+  opacity: 1;
+}
+
+.sidebar-toggle:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  transform: scale(1.1);
+}
+
+/* Collapse/Expand Button in Footer */
+.collapse-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.collapse-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--text-muted);
+}
+
+.collapse-btn:active {
+  transform: scale(0.95);
+}
+
+/* Update sidebar footer layout */
+.sidebar-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-color);
+}
+
+.sidebar-footer .settings-btn {
+  flex: 1;
+}
+
+/* Collapsed sidebar adjustments */
+.sidebar.collapsed .sidebar-footer {
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sidebar.collapsed .settings-btn {
+  width: 100%;
+  justify-content: center;
+}
+
+.sidebar.collapsed .collapse-btn {
+  width: 100%;
+}
+
+/* Message Footer with Timestamp */
+.message-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  min-height: 24px;
+}
+
+.message-timestamp {
+  font-size: 11px;
+  color: var(--text-muted);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  white-space: nowrap;
+}
+
+.message:hover .message-timestamp {
+  opacity: 1;
+}
+
+.message-footer .message-actions {
+  margin-top: 0;
+  margin-left: auto;
+}
+
+/* Typing Cursor Animation */
+.streamdown-wrapper {
+  display: inline;
+}
+
+.typing-cursor {
+  display: inline;
+  animation: cursor-blink 1s step-end infinite;
+  color: var(--text-primary);
+  font-weight: normal;
+}
+
+@keyframes cursor-blink {
+  0%, 50% {
+    opacity: 1;
+  }
+  51%, 100% {
+    opacity: 0;
+  }
+}
+
+/* Enhanced message content layout */
+.message.user .message-footer {
+  justify-content: flex-end;
+}
+
+.message.user .message-timestamp {
+  order: 1;
+}
+
+.message.user .message-footer .message-actions {
+  margin-left: 0;
+  margin-right: 8px;
+  order: 0;
+}
+/* Pinned Messages */
+.message.pinned {
+  border-left: 2px solid var(--accent-color);
+  background: var(--bg-hover);
+}
+
+.message.pinned .pin-indicator {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background: var(--accent-color);
+  color: var(--text-inverse);
+  padding: 4px;
+  border-radius: 50%;
+  display: flex;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.action-btn.active {
+  color: var(--accent-color);
+  background: var(--bg-hover);
+}
+
+/* Pinned Messages Section */
+.pinned-messages-section {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 16px;
+  padding: 8px 16px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.pinned-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.pinned-item {
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  padding: 8px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  border: 1px solid var(--border-color);
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.pinned-item:hover {
+  border-color: var(--text-muted);
+}
+
+.pinned-item-content {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+
+.pinned-item:last-child {
+  margin-bottom: 0;
+}
+
+.unpin-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.unpin-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+@keyframes highlight-pulse {
+  0% {
+    background-color: var(--bg-hover);
+    box-shadow: 0 0 0 2px var(--accent-color);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+.highlight-pulse {
+  animation: highlight-pulse 2s ease-out;
+  border-radius: 12px;
 }

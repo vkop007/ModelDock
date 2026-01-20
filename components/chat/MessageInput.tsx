@@ -1,10 +1,9 @@
 "use client";
 
 import { useChatContext } from "@/context/ChatContext";
-import { useState, useRef, useEffect, KeyboardEvent } from "react";
+import { useState, useRef, useEffect, KeyboardEvent, useCallback } from "react";
 import {
   FiSend,
-  FiLoader,
   FiChevronDown,
   FiCheck,
   FiImage,
@@ -14,6 +13,7 @@ import {
 } from "react-icons/fi";
 import Image from "next/image";
 import { PROVIDERS, LLMProvider } from "@/types";
+import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 
 // Logo paths for each provider
 const PROVIDER_LOGOS: Record<LLMProvider, string> = {
@@ -50,6 +50,8 @@ export default function MessageInput() {
     setProvider,
     generateImage,
     stopGeneration,
+    currentConversation,
+    editAndResend,
   } = useChatContext();
   const [input, setInput] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -63,6 +65,37 @@ export default function MessageInput() {
 
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Edit last user message callback for keyboard shortcut
+  const handleEditLastMessage = useCallback(() => {
+    if (!currentConversation) return;
+    const messages = currentConversation.messages;
+    // Find the last user message
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === "user") {
+        // Put the content in the input for editing
+        setInput(messages[i].content);
+        textareaRef.current?.focus();
+        return;
+      }
+    }
+  }, [currentConversation]);
+
+  // Initialize keyboard shortcuts
+  useKeyboardShortcuts({
+    inputRef: textareaRef,
+    onEditLastMessage: handleEditLastMessage,
+  });
+
+  // Listen for close-all-modals event
+  useEffect(() => {
+    const handleCloseModals = () => {
+      setShowModelMenu(false);
+    };
+    window.addEventListener("close-all-modals", handleCloseModals);
+    return () =>
+      window.removeEventListener("close-all-modals", handleCloseModals);
+  }, []);
 
   // Auto-resize textarea
   useEffect(() => {
