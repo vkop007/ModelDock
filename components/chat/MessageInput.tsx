@@ -346,7 +346,7 @@ export default function MessageInput() {
         <textarea
           ref={textareaRef}
           className="message-input"
-          value={input}
+          value={input + interimTranscript}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={
