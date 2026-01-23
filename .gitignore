@@ -1,0 +1,6 @@
+node_modules
+bun.lock
+/node_modules
+.env
+.next
+node_modules
