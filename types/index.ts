@@ -89,10 +89,6 @@ export interface Message {
   isPinned?: boolean;
 }
 
-// ... existing code ...
-
-// Chat context actions
-
 // Conversation structure
 export interface Conversation {
   id: string;
@@ -185,16 +181,16 @@ export type ChatAction =
   | { type: "SET_LOADING"; isLoading: boolean }
   | { type: "SET_SENDING"; isSending: boolean }
   | {
-      type: "SET_SESSION_STATE";
-      provider: LLMProvider;
-      state: Partial<SessionState>;
-    }
+    type: "SET_SESSION_STATE";
+    provider: LLMProvider;
+    state: Partial<SessionState>;
+  }
   | { type: "SET_COOKIES"; provider: LLMProvider; cookies: CookieEntry[] }
   | {
-      type: "SET_SYSTEM_INSTRUCTIONS";
-      provider: LLMProvider;
-      instructions: string;
-    }
+    type: "SET_SYSTEM_INSTRUCTIONS";
+    provider: LLMProvider;
+    instructions: string;
+  }
   | { type: "LOAD_STATE"; state: Partial<ChatState> }
   | { type: "DELETE_CONVERSATION"; id: string }
   | { type: "UPDATE_CONVERSATION_TITLE"; id: string; title: string }

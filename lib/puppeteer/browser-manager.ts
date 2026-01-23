@@ -56,10 +56,21 @@ class BrowserManager {
   private async initBrowser(): Promise<{ browser: Browser; page: Page }> {
     console.log("[BrowserManager] Initializing puppeteer-real-browser...");
 
+    // Detect platform for platform-specific configurations
+    const platform = process.platform;
+
+    if (platform === "win32") {
+      console.log("[BrowserManager] Detected Windows platform - Chrome will be auto-detected");
+    } else if (platform === "darwin") {
+      console.log("[BrowserManager] Detected macOS platform - Chrome will be auto-detected");
+    } else if (platform === "linux") {
+      console.log("[BrowserManager] Detected Linux platform - Chrome will be auto-detected");
+    }
+
     const response = await connect({
-      headless: false, // Use visible browser for reliability (hidden via AppleScript)
+      headless: false, // Use visible browser for reliability
       turnstile: true, // Auto-solve Cloudflare Turnstile
-      disableXvfb: true, // Disable virtual display on macOS
+      disableXvfb: platform === "darwin", // Only disable Xvfb on macOS
       args: [
         "--no-sandbox",
         "--disable-dev-shm-usage",
@@ -78,7 +89,7 @@ class BrowserManager {
     });
 
     console.log(
-      "[BrowserManager] Browser launched with Cloudflare bypass enabled"
+      `[BrowserManager] Browser launched on ${process.platform} with Cloudflare bypass enabled`
     );
     return {
       browser: response.browser as unknown as Browser,
