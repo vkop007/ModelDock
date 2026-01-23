@@ -201,3 +201,20 @@ export type ChatAction =
   | { type: "IMPORT_CONVERSATION"; conversation: Conversation }
   | { type: "PIN_MESSAGE"; messageId: string }
   | { type: "UNPIN_MESSAGE"; messageId: string };
+
+// Voice settings configuration
+export interface VoiceSettings {
+  speechRecognition: {
+    enabled: boolean;
+    language: string; // e.g., 'en-US', 'es-ES', etc.
+    continuous: boolean;
+  };
+  textToSpeech: {
+    enabled: boolean;
+    autoPlay: boolean; // Auto-play AI responses
+    voiceURI: string | null;
+    rate: number; // 0.5 - 2.0 (speed)
+    pitch: number; // 0 - 2 (tone)
+    volume: number; // 0 - 1
+  };
+}
