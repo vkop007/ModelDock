@@ -2,11 +2,12 @@
 
 import { Message, PROVIDERS, LLMProvider } from "@/types";
 import { useState, useRef, useEffect } from "react";
-import { FiCopy, FiCheck, FiRefreshCw, FiEdit2 } from "react-icons/fi";
+import { FiCopy, FiCheck, FiRefreshCw, FiEdit2, FiVolume2, FiVolumeX } from "react-icons/fi";
 import { BsPinAngle, BsPinAngleFill } from "react-icons/bs";
 import Image from "next/image";
 import { StreamdownRenderer } from "./StreamdownRenderer";
 import { getRelativeTime, getFormattedTime } from "@/lib/utils/time";
+import { useTextToSpeech } from "@/hooks/useTextToSpeech";
 
 // Logo paths for each provider
 const PROVIDER_LOGOS: Record<LLMProvider, string> = {
@@ -55,6 +56,17 @@ export default function MessageBubble({
   );
   const editTextareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // TTS for assistant messages
+  const {
+    isSpeaking,
+    isPaused,
+    isSupported: isTTSSupported,
+    speak,
+    pause,
+    resume,
+    stop,
+  } = useTextToSpeech();
+
   const isUser = message.role === "user";
   const isLoading =
     message.role === "assistant" && !message.content && isLast && isSending;
@@ -102,6 +114,34 @@ export default function MessageBubble({
     } else if (e.key === "Escape") {
       handleEditCancel();
     }
+  };
+
+  // Handle TTS
+  const handleTTSToggle = () => {
+    if (!isTTSSupported) {
+      alert("Text-to-speech is not supported in your browser.");
+      return;
+    }
+
+    if (isSpeaking) {
+      if (isPaused) {
+        resume();
+      } else {
+        pause();
+      }
+    } else {
+      // Strip markdown and speak plain text
+      const plainText = message.content
+        .replace(/```[\s\S]*?```/g, '')
+        .replace(/`([^`]+)`/g, '$1')
+        .replace(/[*_~#\[\]]/g, '')
+        .trim();
+      speak(plainText);
+    }
+  };
+
+  const handleTTSStop = () => {
+    stop();
   };
 
   const isGeneratedImage = message.content.startsWith("![Generated Image](");
@@ -235,6 +275,23 @@ export default function MessageBubble({
                 {/* Assistant message actions */}
                 {!isUser && message.content && (
                   <>
+                    {/* TTS Button */}
+                    <button
+                      className={`action-btn ${isSpeaking ? "speaking" : ""}`}
+                      onClick={handleTTSToggle}
+                      title={isSpeaking ? (isPaused ? "Resume" : "Pause") : "Read aloud"}
+                    >
+                      {isSpeaking ? <FiVolumeX size={14} /> : <FiVolume2 size={14} />}
+                    </button>
+                    {isSpeaking && (
+                      <button
+                        className="action-btn"
+                        onClick={handleTTSStop}
+                        title="Stop"
+                      >
+                        <FiCheck size={14} />
+                      </button>
+                    )}
                     <button
                       className="action-btn"
                       onClick={handleCopy}

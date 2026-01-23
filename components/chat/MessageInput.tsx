@@ -10,10 +10,13 @@ import {
   FiX,
   FiPaperclip,
   FiSquare,
+  FiMic,
+  FiMicOff,
 } from "react-icons/fi";
 import Image from "next/image";
 import { PROVIDERS, LLMProvider } from "@/types";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
+import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 
 // Logo paths for each provider
 const PROVIDER_LOGOS: Record<LLMProvider, string> = {
@@ -65,6 +68,18 @@ export default function MessageInput() {
 
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Voice input
+  const {
+    transcript,
+    interimTranscript,
+    isListening,
+    isSupported: isVoiceSupported,
+    error: voiceError,
+    startListening,
+    stopListening,
+    resetTranscript,
+  } = useSpeechRecognition({ continuous: false, interimResults: true });
 
   // Edit last user message callback for keyboard shortcut
   const handleEditLastMessage = useCallback(() => {
@@ -213,6 +228,31 @@ export default function MessageInput() {
     setSelectedImages((prev) => prev.filter((_, i) => i !== index));
   };
 
+  // Handle voice input
+  const handleVoiceToggle = () => {
+    if (!isVoiceSupported) {
+      alert(
+        "Voice input is not supported in your browser. Please use Chrome, Edge, or Safari."
+      );
+      return;
+    }
+
+    if (isListening) {
+      stopListening();
+    } else {
+      resetTranscript();
+      startListening();
+    }
+  };
+
+  // Update input when transcript changes
+  useEffect(() => {
+    if (transcript) {
+      setInput((prev) => prev + transcript);
+      resetTranscript();
+    }
+  }, [transcript, resetTranscript]);
+
   const showImageUpload =
     activeProvider === "chatgpt" || activeProvider === "gemini";
 
@@ -240,9 +280,8 @@ export default function MessageInput() {
       )}
 
       <div
-        className={`message-input-wrapper ${
-          selectedImages.length > 0 ? "has-images" : ""
-        }`}
+        className={`message-input-wrapper ${selectedImages.length > 0 ? "has-images" : ""
+          }`}
         onDragOver={handleDragOver}
         onDrop={handleDrop}
       >
@@ -365,6 +404,35 @@ export default function MessageInput() {
           >
             <FiPaperclip size={18} />
           </button>
+        )}
+
+        {/* Voice Input Button */}
+        <button
+          className={`send-btn voice-btn ${isListening ? "listening" : ""}`}
+          onClick={handleVoiceToggle}
+          disabled={isSending || isDisabled}
+          title={isListening ? "Stop recording" : "Voice input"}
+          style={{
+            marginRight: "8px",
+            backgroundColor: isListening ? "#ef4444" : "transparent",
+            color: isListening ? "white" : "inherit",
+            animation: isListening ? "pulse 1.5s infinite" : "none",
+          }}
+        >
+          {isListening ? <FiMicOff size={18} /> : <FiMic size={18} />}
+        </button>
+
+        {/* Voice Transcript Overlay */}
+        {(isListening || interimTranscript) && (
+          <div className="voice-transcript-overlay">
+            <div className="voice-recording-indicator">
+              <span className="recording-dot"></span>
+              <span>Listening...</span>
+            </div>
+            {interimTranscript && (
+              <div className="interim-transcript">{interimTranscript}</div>
+            )}
+          </div>
         )}
 
         {isSending ? (
