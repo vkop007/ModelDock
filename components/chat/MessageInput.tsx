@@ -245,13 +245,77 @@ export default function MessageInput() {
     }
   };
 
+  // Voice command detector and processor
+  const processVoiceCommand = useCallback((text: string): { shouldKeep: boolean; newText: string; action?: () => void } => {
+    const lowerText = text.toLowerCase().trim();
+
+    // Command: Send message
+    if (lowerText.includes("send message") || lowerText.includes("send it")) {
+      return {
+        shouldKeep: false,
+        newText: text.replace(/send (message|it)/gi, "").trim(),
+        action: () => {
+          setTimeout(() => handleSubmit(), 100);
+        }
+      };
+    }
+
+    // Command: New line
+    if (lowerText.includes("new line") || lowerText.includes("newline")) {
+      return {
+        shouldKeep: true,
+        newText: text.replace(/new ?line/gi, "\n"),
+      };
+    }
+
+    // Command: Delete last word
+    if (lowerText.includes("delete last word")) {
+      return {
+        shouldKeep: false,
+        newText: "",
+        action: () => {
+          setInput((prev) => {
+            const words = prev.trim().split(/\s+/);
+            words.pop();
+            return words.join(" ") + (words.length > 0 ? " " : "");
+          });
+        }
+      };
+    }
+
+    // Command: Clear all
+    if (lowerText.includes("clear all") || lowerText.includes("clear everything")) {
+      return {
+        shouldKeep: false,
+        newText: "",
+        action: () => {
+          setInput("");
+          setSelectedImages([]);
+        }
+      };
+    }
+
+    // No command detected, return text as-is
+    return { shouldKeep: true, newText: text };
+  }, [handleSubmit]);
+
   // Update input field in real-time as transcript changes
   useEffect(() => {
     if (transcript) {
-      setInput((prev) => prev + transcript);
+      const result = processVoiceCommand(transcript);
+
+      if (result.shouldKeep && result.newText) {
+        setInput((prev) => prev + result.newText + " ");
+      }
+
+      // Execute command action if present
+      if (result.action) {
+        result.action();
+      }
+
       resetTranscript();
     }
-  }, [transcript, resetTranscript]);
+  }, [transcript, resetTranscript, processVoiceCommand]);
 
   const showImageUpload =
     activeProvider === "chatgpt" || activeProvider === "gemini";
