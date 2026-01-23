@@ -245,7 +245,7 @@ export default function MessageInput() {
     }
   };
 
-  // Update input when transcript changes
+  // Update input field in real-time as transcript changes
   useEffect(() => {
     if (transcript) {
       setInput((prev) => prev + transcript);
@@ -421,19 +421,6 @@ export default function MessageInput() {
         >
           {isListening ? <FiMicOff size={18} /> : <FiMic size={18} />}
         </button>
-
-        {/* Voice Transcript Overlay */}
-        {(isListening || interimTranscript) && (
-          <div className="voice-transcript-overlay">
-            <div className="voice-recording-indicator">
-              <span className="recording-dot"></span>
-              <span>Listening...</span>
-            </div>
-            {interimTranscript && (
-              <div className="interim-transcript">{interimTranscript}</div>
-            )}
-          </div>
-        )}
 
         {isSending ? (
           <button
