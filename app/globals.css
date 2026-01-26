@@ -2270,18 +2270,36 @@ body {
   background: var(--bg-secondary); /* Changed from primary to secondary to match sidebar */
 }
 
+.unified-chat-column-wrapper {
+  position: relative;
+  height: 100%;
+  display: flex;
+}
+
 .unified-chat-column {
-  min-width: 400px;
-  flex: 1;
+  flex: 1; /* Match parent width */
+  min-width: 0; /* Allow shrinking */
   display: flex;
   flex-direction: column;
   border-right: 1px solid var(--border-color);
-  background: var(--bg-secondary); /* Changed from primary to secondary */
+  background: var(--bg-secondary);
   height: 100%;
 }
 
-.unified-chat-column:last-child {
-  border-right: none;
+.column-resizer {
+  width: 6px;
+  cursor: col-resize;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -3px; /* Center over border */
+  z-index: 10;
+  transition: background 0.2s ease;
+}
+
+.column-resizer:hover,
+.column-resizer.resizing {
+  background: var(--text-muted); /* Visible on hover */
 }
 
 .unified-column-header {
@@ -2364,7 +2382,6 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-right: 1px solid var(--border-color); /* Optional: closes the layout */
   background: var(--bg-secondary);
 }
 

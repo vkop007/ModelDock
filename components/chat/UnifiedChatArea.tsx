@@ -42,6 +42,42 @@ export default function UnifiedChatArea() {
   } = useChatContext();
 
   const [showAddMenu, setShowAddMenu] = useState(false);
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
+  const [isResizing, setIsResizing] = useState<string | null>(null);
+
+  // Initialize widths if not set
+  const getColumnWidth = (provider: string) => {
+    return columnWidths[provider] || 450;
+  };
+
+  const startResizing = (provider: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(provider);
+
+    const startX = e.clientX;
+    const startWidth = getColumnWidth(provider);
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const diff = moveEvent.clientX - startX;
+      // Minimum width 300px, max 800px or so
+      const newWidth = Math.max(300, Math.min(800, startWidth + diff));
+      setColumnWidths((prev) => ({
+        ...prev,
+        [provider]: newWidth,
+      }));
+    };
+
+    const onMouseUp = () => {
+      setIsResizing(null);
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+      document.body.style.cursor = "default";
+    };
+
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+    document.body.style.cursor = "col-resize";
+  };
 
   // Find latest conversation for each provider
   const providerConversations = unifiedProviders.map((provider) => {
@@ -59,47 +95,59 @@ export default function UnifiedChatArea() {
     <div className="unified-chat-container">
       {providerConversations.map(({ provider, conversation }) => {
         const config = PROVIDERS[provider];
+        const width = getColumnWidth(provider);
 
         return (
-          <div key={provider} className="unified-chat-column">
-            <div className="unified-column-header">
-              <div className="provider-info">
-                {getProviderLogo(provider, 20)}
-                <span className="provider-name">{config.name}</span>
-              </div>
-              <div className="column-actions">
-                {conversation && (
+          <div
+            key={provider}
+            className="unified-chat-column-wrapper"
+            style={{ width: width, flexShrink: 0 }}
+          >
+            <div className="unified-chat-column">
+              <div className="unified-column-header">
+                <div className="provider-info">
+                  {getProviderLogo(provider, 20)}
+                  <span className="provider-name">{config.name}</span>
+                </div>
+                <div className="column-actions">
+                  {conversation && (
+                    <button
+                      className="column-action-btn"
+                      onClick={() => deleteConversation(conversation.id)}
+                      title="Clear conversation"
+                    >
+                      <FiTrash2 size={14} />
+                    </button>
+                  )}
                   <button
                     className="column-action-btn"
-                    onClick={() => deleteConversation(conversation.id)}
-                    title="Clear conversation"
+                    onClick={() => toggleUnifiedProvider(provider)}
+                    title="Remove from view"
                   >
-                    <FiTrash2 size={14} />
+                    <FiX size={14} />
                   </button>
+                </div>
+              </div>
+
+              <div className="unified-messages-area">
+                {conversation ? (
+                  <MessageList
+                    messages={conversation.messages}
+                    isSending={isSending} // Note: this makes all spinners spin if ANY is sending. Can refine later.
+                    conversationProvider={provider}
+                  />
+                ) : (
+                  <div className="empty-column-state">
+                    <p>No conversation yet</p>
+                  </div>
                 )}
-                <button
-                  className="column-action-btn"
-                  onClick={() => toggleUnifiedProvider(provider)}
-                  title="Remove from view"
-                >
-                  <FiX size={14} />
-                </button>
               </div>
             </div>
-
-            <div className="unified-messages-area">
-              {conversation ? (
-                <MessageList
-                  messages={conversation.messages}
-                  isSending={isSending} // Note: this makes all spinners spin if ANY is sending. Can refine later.
-                  conversationProvider={provider}
-                />
-              ) : (
-                <div className="empty-column-state">
-                  <p>No conversation yet</p>
-                </div>
-              )}
-            </div>
+            {/* Resizer Handle */}
+            <div
+              className={`column-resizer ${isResizing === provider ? "resizing" : ""}`}
+              onMouseDown={(e) => startResizing(provider, e)}
+            />
           </div>
         );
       })}
