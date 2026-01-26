@@ -2378,53 +2378,53 @@ body {
 
 /* Add Column Section */
 .unified-add-column {
-  min-width: 100px;
+  width: 42px; /* Minimal width */
+  flex: 0 0 auto;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   background: var(--bg-secondary);
+  padding-top: 12px;
+  border-left: 1px solid var(--border-color);
 }
 
 .add-column-content {
   position: relative;
-  padding: 0 16px;
+  padding: 0;
+  width: 100%;
+  display: flex;
+  justify-content: center;
 }
 
 .add-column-btn {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
   background: transparent;
   border: 1px dashed var(--border-color);
-  border-radius: 12px;
-  padding: 16px 24px;
+  border-radius: 6px;
   color: var(--text-muted);
   cursor: pointer;
   transition: all 0.2s ease;
-  min-width: 100px;
+  padding: 0;
 }
 
 .add-column-btn:hover {
   background: var(--bg-hover);
   border-color: var(--text-secondary);
   color: var(--text-primary);
-  transform: translateY(-2px);
-}
-
-.add-column-btn span {
-  font-size: 13px;
-  font-weight: 500;
 }
 
 /* Add Provider Menu */
 .add-provider-menu {
   position: absolute;
-  bottom: 0; /* Position relative to button/content, maybe top? */
   top: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  margin-top: 12px;
+  right: 0; /* Align to right edge */
+  left: auto;
+  transform: none; /* Remove centering transform */
+  margin-top: 8px;
   width: 280px;
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);

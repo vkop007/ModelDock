@@ -160,8 +160,7 @@ export default function UnifiedChatArea() {
             onClick={() => setShowAddMenu(!showAddMenu)}
             title="Add Chat Column"
           >
-            <FiPlus size={24} />
-            <span>Add Chat</span>
+            <FiPlus size={20} />
           </button>
 
           {showAddMenu && (
