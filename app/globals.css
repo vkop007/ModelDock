@@ -2213,3 +2213,299 @@ body {
   animation: highlight-pulse 2s ease-out;
   border-radius: 12px;
 }
+
+/* ChatGPT-style inline image previews */
+.message-input-wrapper.has-images {
+  flex-direction: column;
+  align-items: stretch;
+  padding: 12px 14px;
+  gap: 12px;
+}
+
+.image-previews-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.image-preview-item-inline {
+  position: relative;
+  width: 100px;
+  height: 100px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--bg-tertiary);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.image-preview-img-inline {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.image-preview-actions {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: flex;
+  gap: 4px;
+}
+
+.image-action-btn {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.7);
+  border: none;
+  border-radius: 50%;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.image-action-btn:hover {
+  background: rgba(0, 0, 0, 0.9);
+  transform: scale(1.1);
+}
+
+.input-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+
+/* Unified Chat Area */
+.unified-chat-container {
+  display: flex;
+  flex: 1; /* Take available space */
+  height: 100%; /* Respect parent height */
+  overflow-x: auto;
+  overflow-y: hidden;
+  position: relative;
+  background: var(--bg-secondary); /* Changed from primary to secondary to match sidebar */
+}
+
+.unified-chat-column-wrapper {
+  position: relative;
+  height: 100%;
+  display: flex;
+}
+
+.unified-chat-column {
+  flex: 1; /* Match parent width */
+  min-width: 0; /* Allow shrinking */
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  height: 100%;
+}
+
+.column-resizer {
+  width: 6px;
+  cursor: col-resize;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -3px; /* Center over border */
+  z-index: 10;
+  transition: background 0.2s ease;
+}
+
+.column-resizer:hover,
+.column-resizer.resizing {
+  background: var(--text-muted); /* Visible on hover */
+}
+
+.unified-column-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  width: 100%;
+}
+
+.provider-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.provider-name {
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.column-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.column-action-btn {
+  padding: 6px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.column-action-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.unified-messages-area {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 120px; /* Space for input */
+}
+
+/* Tighter styling for unified view */
+.unified-messages-area .message {
+  padding: 16px 12px;
+  max-width: 100%;
+}
+
+.unified-messages-area .message.user .message-content {
+    max-width: 90%;
+}
+
+.empty-column-state {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
+  padding: 20px;
+}
+
+/* Add Column Section */
+.unified-add-column {
+  width: 42px; /* Minimal width */
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  background: var(--bg-secondary);
+  padding-top: 12px;
+  border-left: 1px solid var(--border-color);
+}
+
+.add-column-content {
+  position: relative;
+  padding: 0;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.add-column-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: 1px dashed var(--border-color);
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 0;
+}
+
+.add-column-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--text-secondary);
+  color: var(--text-primary);
+}
+
+/* Add Provider Menu */
+.add-provider-menu {
+  position: absolute;
+  top: 100%;
+  right: 0; /* Align to right edge */
+  left: auto;
+  transform: none; /* Remove centering transform */
+  margin-top: 8px;
+  width: 280px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  z-index: 50;
+  max-height: 400px; /* Prevent going off screen */
+  overflow-y: auto;
+}
+
+/* Fix menu positioning if it goes off bottom - handled by state now */
+
+/* Actually, let's just make it right aligned or center */
+.add-provider-menu h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.provider-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.provider-option-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.provider-option-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--text-muted);
+  color: var(--text-primary);
+}
+
+.provider-option-btn span {
+  font-size: 12px;
+  text-align: center;
+}
+
+.no-providers {
+  font-size: 13px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 12px;
+  grid-column: span 2;
+}
+}

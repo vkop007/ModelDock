@@ -13,6 +13,7 @@ import {
   FiUpload,
   FiChevronLeft,
   FiChevronRight,
+  FiGrid,
 } from "react-icons/fi";
 import SettingsModal from "../settings/SettingsModal";
 
@@ -35,6 +36,8 @@ export default function Sidebar() {
     exportConversation,
     importConversation,
     currentConversation,
+    isUnifiedMode,
+    toggleUnifiedMode,
   } = useChatContext();
 
   const [showSettingsModal, setShowSettingsModal] = useState(false);
