@@ -364,52 +364,6 @@ export default function MessageInput() {
           </div>
         )}
 
-        <textarea
-          ref={textareaRef}
-          className="message-input"
-          value={input + interimTranscript}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder={
-            isDisabled
-              ? "Configure cookies in settings to start chatting..."
-              : selectedImages.length > 0
-                ? "Describe this image..."
-                : `Message ${activeConfig.name}...`
-          }
-          disabled={isSending || isDisabled}
-          rows={1}
-        />
-
-        {/* Hidden File Input */}
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleFileSelect}
-          accept="image/*"
-          multiple
-          style={{ display: "none" }}
-        />
-
-        {/* Generate Image Button (Only for supported providers) */}
-        {(activeProvider === "chatgpt" || activeProvider === "gemini") && (
-          <button
-            className="send-btn"
-            onClick={handleImageGeneration}
-            disabled={!input.trim() || isSending || isDisabled}
-            title="Generate Image"
-            style={{
-              marginRight: "4px",
-              backgroundColor: "transparent",
-              color: input.trim() ? activeConfig.color : "inherit",
-              border: "1px solid",
-              borderColor: input.trim() ? activeConfig.color : "#404040",
-            }}
-          >
-            <FiImage size={18} />
-          </button>
-        )}
-
         {/* Input row */}
         <div className="input-row">
           <div className="model-selector-inline">
@@ -531,6 +485,22 @@ export default function MessageInput() {
             </button>
           )}
 
+          {/* Voice Input Button */}
+          <button
+            className={`send-btn voice-btn ${isListening ? "listening" : ""}`}
+            onClick={handleVoiceToggle}
+            disabled={isSending || isDisabled}
+            title={isListening ? "Stop recording" : "Voice input"}
+            style={{
+              marginRight: "8px",
+              backgroundColor: isListening ? "#ef4444" : "transparent",
+              color: isListening ? "white" : "inherit",
+              animation: isListening ? "pulse 1.5s infinite" : "none",
+            }}
+          >
+            {isListening ? <FiMicOff size={18} /> : <FiMic size={18} />}
+          </button>
+
           {isSending ? (
             <button
               className="send-btn stop-btn"
@@ -557,47 +527,6 @@ export default function MessageInput() {
             </button>
           )}
         </div>
-        {/* Voice Input Button */}
-        <button
-          className={`send-btn voice-btn ${isListening ? "listening" : ""}`}
-          onClick={handleVoiceToggle}
-          disabled={isSending || isDisabled}
-          title={isListening ? "Stop recording" : "Voice input"}
-          style={{
-            marginRight: "8px",
-            backgroundColor: isListening ? "#ef4444" : "transparent",
-            color: isListening ? "white" : "inherit",
-            animation: isListening ? "pulse 1.5s infinite" : "none",
-          }}
-        >
-          {isListening ? <FiMicOff size={18} /> : <FiMic size={18} />}
-        </button>
-
-        {isSending ? (
-          <button
-            className="send-btn stop-btn"
-            onClick={stopGeneration}
-            title="Stop generating"
-            style={{ backgroundColor: "#ef4444", color: "white" }}
-          >
-            <FiSquare size={18} />
-          </button>
-        ) : (
-          <button
-            className="send-btn"
-            onClick={handleSubmit}
-            disabled={
-              (!input.trim() && selectedImages.length === 0) || isDisabled
-            }
-            style={
-              (input.trim() || selectedImages.length > 0) && !isDisabled
-                ? { backgroundColor: activeConfig.color, color: "white" }
-                : {}
-            }
-          >
-            <FiSend size={20} />
-          </button>
-        )}
       </div>
     </div>
   );
