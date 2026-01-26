@@ -173,6 +173,8 @@ export interface ChatState {
   systemInstructions: Record<LLMProvider, SystemInstructions | null>;
   isLoading: boolean;
   isSending: boolean;
+  isUnifiedMode: boolean;
+  unifiedProviders: LLMProvider[];
 }
 
 // Chat context actions
@@ -180,8 +182,13 @@ export type ChatAction =
   | { type: "SET_PROVIDER"; provider: LLMProvider }
   | { type: "NEW_CONVERSATION" }
   | { type: "SELECT_CONVERSATION"; id: string }
-  | { type: "ADD_MESSAGE"; message: Message }
-  | { type: "UPDATE_MESSAGE"; id: string; content: string }
+  | { type: "ADD_MESSAGE"; message: Message; conversationId?: string }
+  | {
+      type: "UPDATE_MESSAGE";
+      id: string;
+      content: string;
+      conversationId?: string;
+    }
   | { type: "SET_LOADING"; isLoading: boolean }
   | { type: "SET_SENDING"; isSending: boolean }
   | {
@@ -204,4 +211,6 @@ export type ChatAction =
   | { type: "REMOVE_LAST_MESSAGE" }
   | { type: "IMPORT_CONVERSATION"; conversation: Conversation }
   | { type: "PIN_MESSAGE"; messageId: string }
-  | { type: "UNPIN_MESSAGE"; messageId: string };
+  | { type: "UNPIN_MESSAGE"; messageId: string }
+  | { type: "TOGGLE_UNIFIED_MODE" }
+  | { type: "TOGGLE_UNIFIED_PROVIDER"; provider: LLMProvider };

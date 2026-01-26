@@ -74,6 +74,8 @@ const initialState: ChatState = {
   },
   isLoading: false,
   isSending: false,
+  isUnifiedMode: true, // Always true now
+  unifiedProviders: ["chatgpt", "gemini"], // Default providers for unified view
 };
 
 // Reducer
@@ -114,8 +116,9 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
       return { ...state, currentConversationId: action.id };
 
     case "ADD_MESSAGE": {
+      const targetId = action.conversationId || state.currentConversationId;
       const conversations = state.conversations.map((conv) => {
-        if (conv.id === state.currentConversationId) {
+        if (conv.id === targetId) {
           const updatedMessages = [...conv.messages, action.message];
           // Update title based on first user message
           const title =
@@ -136,8 +139,9 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
     }
 
     case "UPDATE_MESSAGE": {
+      const targetId = action.conversationId || state.currentConversationId;
       const conversations = state.conversations.map((conv) => {
-        if (conv.id === state.currentConversationId) {
+        if (conv.id === targetId) {
           const messages = conv.messages.map((msg) =>
             msg.id === action.id ? { ...msg, content: action.content } : msg,
           );
@@ -319,6 +323,18 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
       return { ...state, conversations };
     }
 
+    // Unified Mode is now permanent, so this toggle is no-op or removed
+    case "TOGGLE_UNIFIED_MODE":
+      return { ...state, isUnifiedMode: true };
+
+    case "TOGGLE_UNIFIED_PROVIDER": {
+      const current = state.unifiedProviders;
+      const updated = current.includes(action.provider)
+        ? current.filter((p) => p !== action.provider)
+        : [...current, action.provider];
+      return { ...state, unifiedProviders: updated };
+    }
+
     default:
       return state;
   }
@@ -345,6 +361,9 @@ interface ChatContextValue extends ChatState {
   importConversation: (jsonData: string) => boolean;
   pinMessage: (messageId: string) => void;
   unpinMessage: (messageId: string) => void;
+  toggleUnifiedMode: () => void;
+  toggleUnifiedProvider: (provider: LLMProvider) => void;
+  broadcastMessage: (content: string, images?: string[]) => Promise<void>;
 }
 
 const ChatContext = createContext<ChatContextValue | null>(null);
@@ -408,35 +427,57 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     }
   }, [state.currentConversationId]);
 
-  // Warmup browser page for active provider
-  // Only depends on active provider's cookies, not all cookieConfigs
+  // Warmup browser page for active provider and unified providers
   const activeProviderCookies =
     state.cookieConfigs[state.activeProvider]?.cookies;
-  useEffect(() => {
-    const warmupProvider = async () => {
-      const cookies = activeProviderCookies || [];
-      try {
-        console.log(
-          `[ChatContext] Warming up browser for ${state.activeProvider}`,
-        );
-        await fetch("/api/session/warmup", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            provider: state.activeProvider,
-            cookies,
-          }),
-        });
-      } catch (error) {
-        console.error("[ChatContext] Warmup failed:", error);
-      }
-    };
 
-    // Only warmup if we have loaded cookies (not on very first render)
-    if (activeProviderCookies) {
-      warmupProvider();
+  // Trigger warmup for a list of providers
+  const warmupProviders = useCallback(
+    async (providers: LLMProvider[]) => {
+      // Deduplicate
+      const uniqueProviders = Array.from(new Set(providers));
+
+      await Promise.all(
+        uniqueProviders.map(async (provider) => {
+          const cookies = state.cookieConfigs[provider]?.cookies;
+          // Even if no cookies, we might want to open the browser
+          try {
+            console.log(`[ChatContext] Warming up browser for ${provider}`);
+            await fetch("/api/session/warmup", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                provider: provider,
+                cookies: cookies || [],
+              }),
+            });
+          } catch (error) {
+            console.error(
+              `[ChatContext] Warmup failed for ${provider}:`,
+              error,
+            );
+          }
+        }),
+      );
+    },
+    [state.cookieConfigs],
+  );
+
+  // Initial warmup on mount for default unified providers + active
+  useEffect(() => {
+    if (isInitializedRef.current) {
+      // Warmup all unified providers (defaults to chatgpt, gemini) plus current active one
+      const providersToWarm = [...state.unifiedProviders, state.activeProvider];
+      warmupProviders(providersToWarm);
     }
-  }, [state.activeProvider, activeProviderCookies]);
+  }, [isInitializedRef.current, warmupProviders]); // Depend on initialization
+
+  // Keep the active provider warmup on change if needed, but the above covers initial load
+  useEffect(() => {
+    if (isInitializedRef.current && activeProviderCookies) {
+      warmupProviders([state.activeProvider]);
+    }
+  }, [state.activeProvider, activeProviderCookies, warmupProviders]);
 
   // Get current conversation
   const currentConversation =
@@ -1003,6 +1044,187 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const toggleUnifiedMode = useCallback(() => {
+    dispatch({ type: "TOGGLE_UNIFIED_MODE" });
+  }, []);
+
+  const toggleUnifiedProvider = useCallback((provider: LLMProvider) => {
+    dispatch({ type: "TOGGLE_UNIFIED_PROVIDER", provider });
+  }, []);
+
+  const broadcastMessage = useCallback(
+    async (content: string, images?: string[]) => {
+      if (
+        (!content.trim() && (!images || images.length === 0)) ||
+        state.isSending
+      )
+        return;
+
+      dispatch({ type: "SET_SENDING", isSending: true });
+
+      const providersToCall = state.unifiedProviders;
+
+      try {
+        await Promise.all(
+          providersToCall.map(async (provider) => {
+            // Find latest conversation or create new one for this provider
+            const providerConvos = state.conversations.filter(
+              (c) => c.provider === provider,
+            );
+
+            // Should reuse latest? Usually yes.
+            let conversationId =
+              providerConvos.length > 0 ? providerConvos[0].id : uuidv4();
+            let isNew = providerConvos.length === 0;
+
+            if (isNew) {
+              const newConversation: Conversation = {
+                id: conversationId,
+                title: "New Chat",
+                messages: [],
+                provider: provider,
+                createdAt: Date.now(),
+                updatedAt: Date.now(),
+              };
+              dispatch({
+                type: "IMPORT_CONVERSATION", // Easier than LOAD_STATE
+                conversation: newConversation,
+              });
+            }
+
+            // User Message
+            const userMessage: Message = {
+              id: uuidv4(),
+              role: "user",
+              content: content.trim(),
+              images,
+              timestamp: Date.now(),
+              provider: provider,
+            };
+            dispatch({
+              type: "ADD_MESSAGE",
+              message: userMessage,
+              conversationId,
+            });
+
+            // Assistant Message
+            const assistantMessage: Message = {
+              id: uuidv4(),
+              role: "assistant",
+              content: "",
+              timestamp: Date.now(),
+              provider: provider,
+            };
+            dispatch({
+              type: "ADD_MESSAGE",
+              message: assistantMessage,
+              conversationId,
+            });
+
+            // Stream
+            try {
+              const cookies = state.cookieConfigs[provider]?.cookies || [];
+              // Need external ID if existing conversation
+              const currentConv = isNew
+                ? null
+                : state.conversations.find((c) => c.id === conversationId);
+              const externalId = currentConv?.externalId;
+
+              const response = await fetch("/api/chat/stream", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  provider,
+                  message: content.trim(),
+                  images,
+                  cookies,
+                  conversationId: externalId,
+                }),
+                // Signal? We'd need individual abort controllers or one big one.
+                // For now, no signal handling for broadcast to keep it simple.
+              });
+
+              if (!response.ok) throw new Error("Connection failed");
+
+              const reader = response.body?.getReader();
+              const decoder = new TextDecoder();
+              let accumulatedContent = "";
+              let sseBuffer = "";
+
+              if (reader) {
+                while (true) {
+                  const { done, value } = await reader.read();
+                  if (done) break;
+
+                  const chunk = decoder.decode(value, { stream: true });
+                  sseBuffer += chunk;
+                  const lines = sseBuffer.split("\n");
+                  sseBuffer = lines.pop() || "";
+
+                  for (const line of lines) {
+                    if (line.startsWith("data: ")) {
+                      try {
+                        const data = JSON.parse(line.substring(6));
+                        if (data.type === "chunk" && data.content) {
+                          accumulatedContent += data.content;
+                          dispatch({
+                            type: "UPDATE_MESSAGE",
+                            id: assistantMessage.id,
+                            content: accumulatedContent,
+                            conversationId,
+                          });
+                        } else if (data.type === "done" && data.success) {
+                          dispatch({
+                            type: "UPDATE_MESSAGE",
+                            id: assistantMessage.id,
+                            content: data.content,
+                            conversationId,
+                          });
+                          // Update external ID
+                          if (data.conversationId) {
+                            dispatch({
+                              type: "UPDATE_CONVERSATION_EXTERNAL_ID",
+                              id: conversationId,
+                              externalId: data.conversationId,
+                            });
+                          }
+                        } else if (data.error) {
+                          dispatch({
+                            type: "UPDATE_MESSAGE",
+                            id: assistantMessage.id,
+                            content: `Error: ${data.error}`,
+                            conversationId,
+                          });
+                        }
+                      } catch {}
+                    }
+                  }
+                }
+              }
+            } catch (err) {
+              dispatch({
+                type: "UPDATE_MESSAGE",
+                id: assistantMessage.id,
+                content: `Error: ${String(err)}`,
+                conversationId,
+              });
+            }
+          }),
+        );
+      } catch (error) {
+        console.error("Broadcast failed", error);
+      } finally {
+        dispatch({ type: "SET_SENDING", isSending: false });
+      }
+    },
+    [
+      state.unifiedProviders,
+      state.conversations,
+      state.isSending,
+      state.cookieConfigs,
+    ],
+  );
+
   const pinMessage = useCallback((messageId: string) => {
     dispatch({ type: "PIN_MESSAGE", messageId });
   }, []);
@@ -1032,6 +1254,9 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     importConversation,
     pinMessage,
     unpinMessage,
+    toggleUnifiedMode, // Kept for interface compatibility but no-op/true
+    toggleUnifiedProvider,
+    broadcastMessage,
   };
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;

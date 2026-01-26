@@ -52,6 +52,8 @@ export default function MessageInput() {
     stopGeneration,
     currentConversation,
     editAndResend,
+    isUnifiedMode,
+    broadcastMessage,
   } = useChatContext();
   const [input, setInput] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -160,7 +162,8 @@ export default function MessageInput() {
       imagesToUpload.map((file) => convertFileToBase64(file)),
     );
 
-    await sendMessage(message, base64Images);
+    // Always broadcast in the new unified-only architecture
+    await broadcastMessage(message, base64Images);
   };
 
   const handleImageGeneration = async () => {
@@ -318,9 +321,7 @@ export default function MessageInput() {
             placeholder={
               isDisabled
                 ? "Configure cookies in settings to start chatting..."
-                : selectedImages.length > 0
-                  ? "Describe this image..."
-                  : `Message ${activeConfig.name}...`
+                : "Broadcast message to all active providers..."
             }
             disabled={isSending || isDisabled}
             rows={1}

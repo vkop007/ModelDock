@@ -9,52 +9,68 @@ declare global {
 }
 
 class BrowserManager {
-  private browser: Browser | null = null;
-  private page: Page | null = null;
+  private browsers: Map<LLMProvider, Browser> = new Map();
   private pages: Map<LLMProvider, Page> = new Map();
   private cookiesInjected: Map<LLMProvider, boolean> = new Map();
   private pagesWarmed: Set<LLMProvider> = new Set(); // Track pre-warmed pages
-  private initializing: Promise<{ browser: Browser; page: Page }> | null = null;
+  private initializing: Map<
+    LLMProvider,
+    Promise<{ browser: Browser; page: Page }>
+  > = new Map();
 
-  async getBrowser(): Promise<Browser> {
+  async getBrowser(provider: LLMProvider): Promise<Browser> {
+    const existingBrowser = this.browsers.get(provider);
+
     // Check if browser is still connected
-    if (this.browser) {
+    if (existingBrowser) {
       try {
         // Test if browser is still responsive
-        if (this.browser.connected) {
-          console.log("[BrowserManager] Reusing existing browser");
-          return this.browser;
+        if (existingBrowser.connected) {
+          console.log(
+            `[BrowserManager] Reusing existing browser for ${provider}`,
+          );
+          return existingBrowser;
         }
       } catch {
-        // Browser disconnected, need to reinitialize
-        console.log("[BrowserManager] Browser disconnected, reinitializing...");
-        this.browser = null;
-        this.page = null;
-        this.pages.clear();
-        this.cookiesInjected.clear();
+        // Browser disconnected, clean up
+        console.log(
+          `[BrowserManager] Browser for ${provider} disconnected, reinitializing...`,
+        );
+        this.browsers.delete(provider);
+        this.pages.delete(provider);
+        this.cookiesInjected.delete(provider);
       }
     }
 
-    // Prevent multiple simultaneous initialization
-    if (this.initializing) {
-      console.log("[BrowserManager] Waiting for existing initialization...");
-      const result = await this.initializing;
+    // Prevent multiple simultaneous initialization for the same provider
+    const activeInit = this.initializing.get(provider);
+    if (activeInit) {
+      console.log(
+        `[BrowserManager] Waiting for existing initialization for ${provider}...`,
+      );
+      const result = await activeInit;
       return result.browser;
     }
 
-    this.initializing = this.initBrowser();
+    const initPromise = this.initBrowser(provider);
+    this.initializing.set(provider, initPromise);
+
     try {
-      const result = await this.initializing;
-      this.browser = result.browser;
-      this.page = result.page;
-      return this.browser;
+      const result = await initPromise;
+      this.browsers.set(provider, result.browser);
+      this.pages.set(provider, result.page); // Store the initial page created with the browser
+      return result.browser;
     } finally {
-      this.initializing = null;
+      this.initializing.delete(provider);
     }
   }
 
-  private async initBrowser(): Promise<{ browser: Browser; page: Page }> {
-    console.log("[BrowserManager] Initializing puppeteer-real-browser...");
+  private async initBrowser(
+    provider: LLMProvider,
+  ): Promise<{ browser: Browser; page: Page }> {
+    console.log(
+      `[BrowserManager] Initializing new browser window for ${provider}...`,
+    );
 
     const response = await connect({
       headless: false, // Use visible browser for reliability (hidden via AppleScript)
@@ -65,6 +81,8 @@ class BrowserManager {
         "--disable-dev-shm-usage",
         "--window-size=390,844", // Mobile viewport size (iPhone 14)
         "--disable-blink-features=AutomationControlled",
+        // Unique user data dir for each provider can ensure total isolation if needed,
+        // but for now separate windows is the key request.
       ],
       connectOption: {
         defaultViewport: {
@@ -77,9 +95,7 @@ class BrowserManager {
       },
     });
 
-    console.log(
-      "[BrowserManager] Browser launched with Cloudflare bypass enabled"
-    );
+    console.log(`[BrowserManager] Browser launched for ${provider}`);
     return {
       browser: response.browser as unknown as Browser,
       page: response.page as unknown as Page,
@@ -89,45 +105,59 @@ class BrowserManager {
   async getPage(provider: LLMProvider): Promise<Page> {
     let page = this.pages.get(provider);
 
-    // Check if existing page is still valid
+    // Check if existing page is valid
     if (page) {
       try {
         if (!page.isClosed()) {
-          console.log(`[BrowserManager] Reusing existing page for ${provider}`);
-          return page;
+          // Verify browser connection too
+          if (page.browser().connected) {
+            console.log(
+              `[BrowserManager] Reusing existing page for ${provider}`,
+            );
+            return page;
+          }
         }
       } catch {
         // Page is invalid, remove it
-        this.pages.delete(provider);
-        this.cookiesInjected.delete(provider);
       }
+      this.pages.delete(provider);
+      this.cookiesInjected.delete(provider);
     }
 
-    const browser = await this.getBrowser();
+    // This will trigger initBrowser if needed
+    const browser = await this.getBrowser(provider);
 
-    // Use the default page for the first provider, create new pages for others
-    if (this.page && !this.page.isClosed() && this.pages.size === 0) {
-      page = this.page;
-      console.log(`[BrowserManager] Using default page for ${provider}`);
-    } else {
-      page = await browser.newPage();
-      console.log(`[BrowserManager] Created new page for ${provider}`);
+    // Retrieve the page...
+    let newPage = this.pages.get(provider);
+
+    // If browser exists but page doesn't (e.g. it was closed manually or invalid), create a new one
+    if (!newPage || newPage.isClosed()) {
+      console.log(
+        `[BrowserManager] Creating new page for existing browser ${provider}`,
+      );
+      newPage = await browser.newPage();
+      this.pages.set(provider, newPage);
     }
 
-    // Set mobile viewport and user agent for faster loading
-    await page.setViewport({
+    if (!newPage) {
+      throw new Error(`Failed to initialize page for ${provider}`);
+    }
+
+    // Set mobile viewport and user agent (idempotent, harmless to redo)
+    await newPage.setViewport({
       width: 390,
       height: 844,
       isMobile: true,
       hasTouch: true,
     });
-    await page.setUserAgent(
-      "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+    await newPage.setUserAgent(
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
     );
 
     // Block unnecessary resources for faster loading
-    await page.setRequestInterception(true);
-    page.on("request", (request) => {
+    await newPage.setRequestInterception(true);
+    newPage.removeAllListeners("request"); // Avoid duplicate listeners
+    newPage.on("request", (request) => {
       const resourceType = request.resourceType();
       const url = request.url();
 
@@ -142,9 +172,7 @@ class BrowserManager {
         url.includes("chat") ||
         url.includes("conversation")
       ) {
-        if (!request.isInterceptResolutionHandled()) {
-          request.continue();
-        }
+        if (!request.isInterceptResolutionHandled()) request.continue();
         return;
       }
 
@@ -180,19 +208,13 @@ class BrowserManager {
         resourceType === "preflight";
 
       if (shouldBlock) {
-        if (!request.isInterceptResolutionHandled()) {
-          request.abort();
-        }
+        if (!request.isInterceptResolutionHandled()) request.abort();
       } else {
-        if (!request.isInterceptResolutionHandled()) {
-          request.continue();
-        }
+        if (!request.isInterceptResolutionHandled()) request.continue();
       }
     });
 
-    this.pages.set(provider, page);
-
-    return page;
+    return newPage;
   }
 
   // Check if page is already warmed up
@@ -209,7 +231,7 @@ class BrowserManager {
   // Pre-warm a page by navigating to the provider URL
   async warmPage(
     provider: LLMProvider,
-    cookies?: CookieEntry[]
+    cookies?: CookieEntry[],
   ): Promise<void> {
     console.log(`[BrowserManager] Warming page for ${provider}...`);
 
@@ -259,15 +281,16 @@ class BrowserManager {
     } catch (error) {
       console.error(
         `[BrowserManager] Failed to warm page for ${provider}:`,
-        error
+        error,
       );
       // Don't throw - warming is best-effort
     }
   }
 
-  // Switch to a provider's tab (bring to front)
+  // Switch to a provider's window (bring to front)
   async switchToPage(provider: LLMProvider): Promise<boolean> {
     const page = this.pages.get(provider);
+    // Since we now have separate browsers/pages, switching basically requires touching the page
     if (!page || page.isClosed()) {
       console.log(`[BrowserManager] No page to switch to for ${provider}`);
       return false;
@@ -285,7 +308,7 @@ class BrowserManager {
 
   async injectCookies(
     provider: LLMProvider,
-    cookies: CookieEntry[]
+    cookies: CookieEntry[],
   ): Promise<void> {
     if (!cookies || cookies.length === 0) {
       console.log(`[BrowserManager] No cookies to inject for ${provider}`);
@@ -295,7 +318,7 @@ class BrowserManager {
     // Check if cookies already injected for this provider
     if (this.cookiesInjected.get(provider)) {
       console.log(
-        `[BrowserManager] Cookies already injected for ${provider}, skipping`
+        `[BrowserManager] Cookies already injected for ${provider}, skipping`,
       );
       return;
     }
@@ -306,16 +329,7 @@ class BrowserManager {
     const puppeteerCookies = cookies
       .filter((cookie) => cookie.name && cookie.value && cookie.domain)
       .map((cookie) => {
-        const puppeteerCookie: {
-          name: string;
-          value: string;
-          domain: string;
-          path: string;
-          expires: number;
-          httpOnly: boolean;
-          secure: boolean;
-          sameSite?: "Strict" | "Lax" | "None";
-        } = {
+        return {
           name: cookie.name,
           value: cookie.value,
           domain: cookie.domain,
@@ -323,18 +337,12 @@ class BrowserManager {
           expires: cookie.expires || Date.now() / 1000 + 86400 * 30, // 30 days default
           httpOnly: cookie.httpOnly ?? false,
           secure: cookie.secure ?? true,
+          sameSite:
+            cookie.sameSite &&
+            ["Strict", "Lax", "None"].includes(cookie.sameSite as string)
+              ? (cookie.sameSite as "Strict" | "Lax" | "None")
+              : undefined,
         };
-
-        // Only add sameSite if it's a valid string value
-        if (
-          cookie.sameSite &&
-          typeof cookie.sameSite === "string" &&
-          ["Strict", "Lax", "None"].includes(cookie.sameSite)
-        ) {
-          puppeteerCookie.sameSite = cookie.sameSite;
-        }
-
-        return puppeteerCookie;
       });
 
     if (puppeteerCookies.length > 0) {
@@ -347,36 +355,34 @@ class BrowserManager {
       await page.setCookie(...puppeteerCookies);
       this.cookiesInjected.set(provider, true);
       console.log(
-        `[BrowserManager] Injected ${cookies.length} cookies for ${provider}`
+        `[BrowserManager] Injected ${cookies.length} cookies for ${provider}`,
       );
     }
   }
 
   async closePage(provider: LLMProvider): Promise<void> {
-    const page = this.pages.get(provider);
-    if (page && !page.isClosed()) {
-      await page.close();
+    const browser = this.browsers.get(provider);
+    if (browser) {
+      await browser.close();
+      this.browsers.delete(provider);
       this.pages.delete(provider);
       this.cookiesInjected.delete(provider);
-      console.log(`[BrowserManager] Closed page for ${provider}`);
+      this.pagesWarmed.delete(provider); // Also clear warmed status
+      console.log(`[BrowserManager] Closed browser for ${provider}`);
     }
   }
 
   async closeAll(): Promise<void> {
-    for (const [provider, page] of this.pages) {
-      if (!page.isClosed()) {
-        await page.close();
-      }
-      this.pages.delete(provider);
-    }
-    this.cookiesInjected.clear();
+    const closePromises = Array.from(this.browsers.values()).map((b) =>
+      b.close(),
+    );
+    await Promise.all(closePromises);
 
-    if (this.browser) {
-      await this.browser.close();
-      this.browser = null;
-      this.page = null;
-      console.log("[BrowserManager] Browser closed");
-    }
+    this.browsers.clear();
+    this.pages.clear();
+    this.cookiesInjected.clear();
+    this.pagesWarmed.clear();
+    console.log("[BrowserManager] All browsers closed");
   }
 
   isPageOpen(provider: LLMProvider): boolean {

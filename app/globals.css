@@ -2258,3 +2258,216 @@ body {
   width: 100%;
 }
 
+
+/* Unified Chat Area */
+.unified-chat-container {
+  display: flex;
+  flex: 1; /* Take available space */
+  height: 100%; /* Respect parent height */
+  overflow-x: auto;
+  overflow-y: hidden;
+  position: relative;
+  background: var(--bg-secondary); /* Changed from primary to secondary to match sidebar */
+}
+
+.unified-chat-column {
+  min-width: 400px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border-color);
+  background: var(--bg-secondary); /* Changed from primary to secondary */
+  height: 100%;
+}
+
+.unified-chat-column:last-child {
+  border-right: none;
+}
+
+.unified-column-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  width: 100%;
+}
+
+.provider-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.provider-name {
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.column-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.column-action-btn {
+  padding: 6px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.column-action-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.unified-messages-area {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 120px; /* Space for input */
+}
+
+/* Tighter styling for unified view */
+.unified-messages-area .message {
+  padding: 16px 12px;
+  max-width: 100%;
+}
+
+.unified-messages-area .message.user .message-content {
+    max-width: 90%;
+}
+
+.empty-column-state {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
+  padding: 20px;
+}
+
+/* Add Column Section */
+.unified-add-column {
+  min-width: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-right: 1px solid var(--border-color); /* Optional: closes the layout */
+  background: var(--bg-secondary);
+}
+
+.add-column-content {
+  position: relative;
+  padding: 0 16px;
+}
+
+.add-column-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: 1px dashed var(--border-color);
+  border-radius: 12px;
+  padding: 16px 24px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 100px;
+}
+
+.add-column-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--text-secondary);
+  color: var(--text-primary);
+  transform: translateY(-2px);
+}
+
+.add-column-btn span {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* Add Provider Menu */
+.add-provider-menu {
+  position: absolute;
+  bottom: 0; /* Position relative to button/content, maybe top? */
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 12px;
+  width: 280px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  z-index: 50;
+  max-height: 400px; /* Prevent going off screen */
+  overflow-y: auto;
+}
+
+/* Fix menu positioning if it goes off bottom - handled by state now */
+
+/* Actually, let's just make it right aligned or center */
+.add-provider-menu h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.provider-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.provider-option-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.provider-option-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--text-muted);
+  color: var(--text-primary);
+}
+
+.provider-option-btn span {
+  font-size: 12px;
+  text-align: center;
+}
+
+.no-providers {
+  font-size: 13px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 12px;
+  grid-column: span 2;
+}
