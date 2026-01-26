@@ -89,10 +89,6 @@ export interface Message {
   isPinned?: boolean;
 }
 
-// ... existing code ...
-
-// Chat context actions
-
 // Conversation structure
 export interface Conversation {
   id: string;
@@ -192,16 +188,16 @@ export type ChatAction =
   | { type: "SET_LOADING"; isLoading: boolean }
   | { type: "SET_SENDING"; isSending: boolean }
   | {
-      type: "SET_SESSION_STATE";
-      provider: LLMProvider;
-      state: Partial<SessionState>;
-    }
+    type: "SET_SESSION_STATE";
+    provider: LLMProvider;
+    state: Partial<SessionState>;
+  }
   | { type: "SET_COOKIES"; provider: LLMProvider; cookies: CookieEntry[] }
   | {
-      type: "SET_SYSTEM_INSTRUCTIONS";
-      provider: LLMProvider;
-      instructions: string;
-    }
+    type: "SET_SYSTEM_INSTRUCTIONS";
+    provider: LLMProvider;
+    instructions: string;
+  }
   | { type: "LOAD_STATE"; state: Partial<ChatState> }
   | { type: "DELETE_CONVERSATION"; id: string }
   | { type: "UPDATE_CONVERSATION_TITLE"; id: string; title: string }
@@ -214,3 +210,21 @@ export type ChatAction =
   | { type: "UNPIN_MESSAGE"; messageId: string }
   | { type: "TOGGLE_UNIFIED_MODE" }
   | { type: "TOGGLE_UNIFIED_PROVIDER"; provider: LLMProvider };
+  | { type: "UNPIN_MESSAGE"; messageId: string };
+
+// Voice settings configuration
+export interface VoiceSettings {
+  speechRecognition: {
+    enabled: boolean;
+    language: string; // e.g., 'en-US', 'es-ES', etc.
+    continuous: boolean;
+  };
+  textToSpeech: {
+    enabled: boolean;
+    autoPlay: boolean; // Auto-play AI responses
+    voiceURI: string | null;
+    rate: number; // 0.5 - 2.0 (speed)
+    pitch: number; // 0 - 2 (tone)
+    volume: number; // 0 - 1
+  };
+}

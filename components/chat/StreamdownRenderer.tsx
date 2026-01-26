@@ -84,7 +84,7 @@ export function StreamdownRenderer({
     <div className="streamdown-wrapper">
       <Streamdown
         mode={isStreaming ? "streaming" : "static"}
-        shikiTheme={["one-dark-pro", "one-dark-pro"]}
+        shikiTheme={["github-dark", "github-light"]}
       >
         {isStreaming ? displayedContent : content}
       </Streamdown>

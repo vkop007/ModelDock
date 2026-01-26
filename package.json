@@ -12,6 +12,7 @@
     "@llm-ui/code": "^0.13.3",
     "@llm-ui/markdown": "^0.13.3",
     "@llm-ui/react": "^0.13.3",
+    "@shikijs/themes": "^3.21.0",
     "@types/react-syntax-highlighter": "^15.5.13",
     "next": "16.1.1",
     "puppeteer": "^24.34.0",
