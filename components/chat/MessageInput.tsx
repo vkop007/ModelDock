@@ -235,7 +235,7 @@ export default function MessageInput() {
   const handleVoiceToggle = () => {
     if (!isVoiceSupported) {
       alert(
-        "Voice input is not supported in your browser. Please use Chrome, Edge, or Safari."
+        "Voice input is not supported in your browser. Please use Chrome, Edge, or Safari.",
       );
       return;
     }
@@ -249,58 +249,66 @@ export default function MessageInput() {
   };
 
   // Voice command detector and processor
-  const processVoiceCommand = useCallback((text: string): { shouldKeep: boolean; newText: string; action?: () => void } => {
-    const lowerText = text.toLowerCase().trim();
+  const processVoiceCommand = useCallback(
+    (
+      text: string,
+    ): { shouldKeep: boolean; newText: string; action?: () => void } => {
+      const lowerText = text.toLowerCase().trim();
 
-    // Command: Send message
-    if (lowerText.includes("send message") || lowerText.includes("send it")) {
-      return {
-        shouldKeep: false,
-        newText: text.replace(/send (message|it)/gi, "").trim(),
-        action: () => {
-          setTimeout(() => handleSubmit(), 100);
-        }
-      };
-    }
+      // Command: Send message
+      if (lowerText.includes("send message") || lowerText.includes("send it")) {
+        return {
+          shouldKeep: false,
+          newText: text.replace(/send (message|it)/gi, "").trim(),
+          action: () => {
+            setTimeout(() => handleSubmit(), 100);
+          },
+        };
+      }
 
-    // Command: New line
-    if (lowerText.includes("new line") || lowerText.includes("newline")) {
-      return {
-        shouldKeep: true,
-        newText: text.replace(/new ?line/gi, "\n"),
-      };
-    }
+      // Command: New line
+      if (lowerText.includes("new line") || lowerText.includes("newline")) {
+        return {
+          shouldKeep: true,
+          newText: text.replace(/new ?line/gi, "\n"),
+        };
+      }
 
-    // Command: Delete last word
-    if (lowerText.includes("delete last word")) {
-      return {
-        shouldKeep: false,
-        newText: "",
-        action: () => {
-          setInput((prev) => {
-            const words = prev.trim().split(/\s+/);
-            words.pop();
-            return words.join(" ") + (words.length > 0 ? " " : "");
-          });
-        }
-      };
-    }
+      // Command: Delete last word
+      if (lowerText.includes("delete last word")) {
+        return {
+          shouldKeep: false,
+          newText: "",
+          action: () => {
+            setInput((prev) => {
+              const words = prev.trim().split(/\s+/);
+              words.pop();
+              return words.join(" ") + (words.length > 0 ? " " : "");
+            });
+          },
+        };
+      }
 
-    // Command: Clear all
-    if (lowerText.includes("clear all") || lowerText.includes("clear everything")) {
-      return {
-        shouldKeep: false,
-        newText: "",
-        action: () => {
-          setInput("");
-          setSelectedImages([]);
-        }
-      };
-    }
+      // Command: Clear all
+      if (
+        lowerText.includes("clear all") ||
+        lowerText.includes("clear everything")
+      ) {
+        return {
+          shouldKeep: false,
+          newText: "",
+          action: () => {
+            setInput("");
+            setSelectedImages([]);
+          },
+        };
+      }
 
-    // No command detected, return text as-is
-    return { shouldKeep: true, newText: text };
-  }, [handleSubmit]);
+      // No command detected, return text as-is
+      return { shouldKeep: true, newText: text };
+    },
+    [handleSubmit],
+  );
 
   // Update input field in real-time as transcript changes
   useEffect(() => {
@@ -326,8 +334,9 @@ export default function MessageInput() {
   return (
     <div className="message-input-container">
       <div
-        className={`message-input-wrapper ${selectedImages.length > 0 ? "has-images" : ""
-          }`}
+        className={`message-input-wrapper ${
+          selectedImages.length > 0 ? "has-images" : ""
+        }`}
         onDragOver={handleDragOver}
         onDrop={handleDrop}
       >
@@ -353,11 +362,7 @@ export default function MessageInput() {
               </div>
             ))}
           </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+        )}
 
         <textarea
           ref={textareaRef}
