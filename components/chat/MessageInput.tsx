@@ -366,64 +366,6 @@ export default function MessageInput() {
 
         {/* Input row */}
         <div className="input-row">
-          <div className="model-selector-inline">
-            <button
-              ref={modelButtonRef}
-              className="model-selector-btn-inline"
-              onClick={() => setShowModelMenu(!showModelMenu)}
-              style={{
-                borderColor: showModelMenu ? activeConfig.color : "transparent",
-                color: activeConfig.color,
-              }}
-            >
-              {getProviderLogo(activeProvider, 14)}
-              <span>{activeConfig.name}</span>
-              <FiChevronDown
-                size={14}
-                style={{
-                  transform: showModelMenu ? "rotate(180deg)" : "rotate(0deg)",
-                  transition: "transform 0.2s",
-                }}
-              />
-            </button>
-
-            {showModelMenu && (
-              <div id="model-menu" className="model-menu">
-                {(Object.keys(PROVIDERS) as LLMProvider[]).map((provider) => {
-                  const config = PROVIDERS[provider];
-                  const isActive = activeProvider === provider;
-                  const hasCookies =
-                    (cookieConfigs[provider]?.cookies?.length ?? 0) > 0;
-
-                  return (
-                    <button
-                      key={provider}
-                      className={`model-menu-item ${isActive ? "active" : ""}`}
-                      onClick={() => {
-                        setProvider(provider);
-                        setShowModelMenu(false);
-                      }}
-                    >
-                      <div
-                        className="model-icon-wrapper"
-                        style={{ color: config.color }}
-                      >
-                        {getProviderLogo(provider, 16)}
-                      </div>
-                      <div className="model-info">
-                        <span className="model-name">{config.name}</span>
-                        <span className="model-status">
-                          {hasCookies ? "Ready" : "Not Configured"}
-                        </span>
-                      </div>
-                      {isActive && <FiCheck size={16} className="check-icon" />}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
           <textarea
             ref={textareaRef}
             className="message-input"

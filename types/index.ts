@@ -176,7 +176,7 @@ export interface ChatState {
 // Chat context actions
 export type ChatAction =
   | { type: "SET_PROVIDER"; provider: LLMProvider }
-  | { type: "NEW_CONVERSATION" }
+  | { type: "NEW_CONVERSATION"; provider?: LLMProvider }
   | { type: "SELECT_CONVERSATION"; id: string }
   | { type: "ADD_MESSAGE"; message: Message; conversationId?: string }
   | {

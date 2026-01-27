@@ -4,3 +4,4 @@ bun.lock
 .env
 .next
 node_modules
+.browser-data

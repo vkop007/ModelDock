@@ -1,5 +1,6 @@
 import { Page } from "puppeteer";
 import { BaseProvider, SendMessageResult } from "./base";
+import { browserManager } from "../browser-manager";
 import {
   waitForCompletionWithStreaming,
   PROVIDER_CONFIGS,
@@ -35,122 +36,136 @@ export class GrokProvider extends BaseProvider {
   async sendMessageWithStreaming(
     message: string,
     onChunk: (chunk: string) => void,
-    conversationId?: string
+    conversationId?: string,
   ): Promise<SendMessageResult> {
     try {
-      const page = await this.getPage();
+      // ----------------------------------------------------------------------
+      // BLOCK 1: INPUT PHASE (Serialized)
+      // ----------------------------------------------------------------------
+      let previousResponseCount = 0;
 
-      // Navigation logic
-      const currentUrl = page.url();
-      const isInConversation =
-        currentUrl.includes("/c/") || currentUrl.includes("/chat/");
+      await browserManager.runTask(this.provider, async () => {
+        const page = await this.getPage();
 
-      if (conversationId) {
-        // Check if we're already in this conversation
-        const alreadyInConversation = currentUrl.includes(conversationId);
-        if (!alreadyInConversation) {
-          console.log(`[Grok] Navigating to conversation: ${conversationId}`);
-          // Try both possible URL patterns
-          await page.goto(`https://grok.com/chat/${conversationId}`, {
+        // Navigation logic
+        const currentUrl = page.url();
+        const isInConversation =
+          currentUrl.includes("/c/") || currentUrl.includes("/chat/");
+
+        if (conversationId) {
+          // Check if we're already in this conversation
+          const alreadyInConversation = currentUrl.includes(conversationId);
+          if (!alreadyInConversation) {
+            console.log(`[Grok] Navigating to conversation: ${conversationId}`);
+            // Try both possible URL patterns
+            await page.goto(`https://grok.com/chat/${conversationId}`, {
+              waitUntil: "domcontentloaded",
+              timeout: 30000,
+            });
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+          } else {
+            console.log(`[Grok] Already in conversation ${conversationId}`);
+          }
+        } else if (isInConversation) {
+          // No conversationId but we're in a chat - start new conversation
+          console.log("[Grok] Starting new chat...");
+          await page.goto("https://grok.com/", {
             waitUntil: "domcontentloaded",
             timeout: 30000,
           });
           await new Promise((resolve) => setTimeout(resolve, 1000));
-        } else {
-          console.log(`[Grok] Already in conversation ${conversationId}`);
+        } else if (!currentUrl.includes("grok.com")) {
+          console.log("[Grok] Navigating to Grok...");
+          await this.navigate();
+          await new Promise((resolve) => setTimeout(resolve, 1000));
         }
-      } else if (isInConversation) {
-        // No conversationId but we're in a chat - start new conversation
-        console.log("[Grok] Starting new chat...");
-        await page.goto("https://grok.com/", {
-          waitUntil: "domcontentloaded",
-          timeout: 30000,
+        // If already on grok.com homepage with no conversation, stay there
+
+        console.log("[Grok] Checking page state...");
+        await new Promise((resolve) => setTimeout(resolve, 500));
+
+        // Wait for the input field - Grok uses textarea
+        const inputSelector = "textarea";
+        await page.waitForSelector(inputSelector, { timeout: 30000 });
+
+        // Focus and type the message
+        const input = await page.$(inputSelector);
+        if (!input) {
+          throw new Error("Could not find input field");
+        }
+
+        await input.click();
+        await page.keyboard.type(message, { delay: 10 });
+
+        // Count existing responses BEFORE clicking send
+        // Grok uses .response-content-markdown for AI responses
+        previousResponseCount = await page.evaluate(() => {
+          const responses = document.querySelectorAll(
+            ".response-content-markdown",
+          );
+          return responses.length;
         });
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-      } else if (!currentUrl.includes("grok.com")) {
-        console.log("[Grok] Navigating to Grok...");
-        await this.navigate();
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-      }
-      // If already on grok.com homepage with no conversation, stay there
 
-      console.log("[Grok] Checking page state...");
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
-      // Wait for the input field - Grok uses textarea
-      const inputSelector = "textarea";
-      await page.waitForSelector(inputSelector, { timeout: 30000 });
-
-      // Focus and type the message
-      const input = await page.$(inputSelector);
-      if (!input) {
-        return { success: false, error: "Could not find input field" };
-      }
-
-      await input.click();
-      await page.keyboard.type(message, { delay: 10 });
-
-      // Count existing responses BEFORE clicking send
-      // Grok uses .response-content-markdown for AI responses
-      const previousResponseCount = await page.evaluate(() => {
-        const responses = document.querySelectorAll(
-          ".response-content-markdown"
+        // Click send button or press Enter
+        // Grok uses a button with aria-label or type submit
+        const sendButton = await page.$(
+          'button[type="submit"], button[aria-label*="Send"]',
         );
-        return responses.length;
+        if (sendButton) {
+          await sendButton.click();
+        } else {
+          await page.keyboard.press("Enter");
+        }
       });
 
-      // Click send button or press Enter
-      // Grok uses a button with aria-label or type submit
-      const sendButton = await page.$(
-        'button[type="submit"], button[aria-label*="Send"]'
-      );
-      if (sendButton) {
-        await sendButton.click();
-      } else {
-        await page.keyboard.press("Enter");
-      }
+      // ----------------------------------------------------------------------
+      // BLOCK 2: OUTPUT PHASE (Serialized)
+      // ----------------------------------------------------------------------
+      return await browserManager.runTask(this.provider, async () => {
+        const page = await this.getPage();
 
-      console.log("[Grok] Waiting for streaming to complete...");
+        console.log("[Grok] Waiting for streaming to complete...");
 
-      // Wait for a NEW response to appear
-      try {
-        await page.waitForFunction(
-          (prevCount: number) => {
-            const responses = document.querySelectorAll(
-              ".response-content-markdown"
-            );
-            return responses.length > prevCount;
-          },
-          { timeout: 15000 },
-          previousResponseCount
+        // Wait for a NEW response to appear
+        try {
+          await page.waitForFunction(
+            (prevCount: number) => {
+              const responses = document.querySelectorAll(
+                ".response-content-markdown",
+              );
+              return responses.length > prevCount;
+            },
+            { timeout: 15000 },
+            previousResponseCount,
+          );
+        } catch {
+          // Continue, might be slow
+        }
+
+        // Fast streaming with 50ms polling
+        const config = PROVIDER_CONFIGS.grok;
+        const result = await waitForCompletionWithStreaming(
+          page,
+          config,
+          onChunk,
+          180000,
         );
-      } catch {
-        // Continue, might be slow
-      }
+        const lastContent = result.content;
 
-      // Fast streaming with 50ms polling
-      const config = PROVIDER_CONFIGS.grok;
-      const result = await waitForCompletionWithStreaming(
-        page,
-        config,
-        onChunk,
-        180000
-      );
-      const lastContent = result.content;
+        // Extract Conversation ID from URL
+        // URL pattern: https://grok.com/c/<id>
+        const finalUrl = page.url();
+        const match = finalUrl.match(/\/c\/([a-zA-Z0-9_-]+)/);
+        const newConversationId = match ? match[1] : undefined;
 
-      // Extract Conversation ID from URL
-      // URL pattern: https://grok.com/c/<id>
-      const finalUrl = page.url();
-      const match = finalUrl.match(/\/c\/([a-zA-Z0-9_-]+)/);
-      const newConversationId = match ? match[1] : undefined;
+        console.log(`[Grok] Done. ID: ${newConversationId}`);
 
-      console.log(`[Grok] Done. ID: ${newConversationId}`);
-
-      return {
-        success: true,
-        content: lastContent,
-        conversationId: newConversationId,
-      };
+        return {
+          success: true,
+          content: lastContent,
+          conversationId: newConversationId,
+        };
+      });
     } catch (error) {
       return { success: false, error: String(error) };
     }
@@ -180,7 +195,7 @@ export class GrokProvider extends BaseProvider {
 
       const currentResponse = await page.evaluate(() => {
         const responses = document.querySelectorAll(
-          ".response-content-markdown"
+          ".response-content-markdown",
         );
         if (responses.length > 0) {
           return responses[responses.length - 1].textContent || "";
@@ -230,7 +245,7 @@ export class GrokProvider extends BaseProvider {
             {
               method: "DELETE",
               credentials: "include",
-            }
+            },
           );
 
           if (response.ok || response.status === 204) {
@@ -266,7 +281,7 @@ export class GrokProvider extends BaseProvider {
    * If no existing prompt, creates a new one with POST.
    */
   async setCustomInstructions(
-    instructions: string
+    instructions: string,
   ): Promise<{ success: boolean; error?: string }> {
     console.log("[Grok] Setting custom instructions via API...");
 
@@ -293,7 +308,7 @@ export class GrokProvider extends BaseProvider {
             {
               method: "GET",
               credentials: "include",
-            }
+            },
           );
 
           let existingPromptId: string | null = null;
@@ -304,7 +319,7 @@ export class GrokProvider extends BaseProvider {
             if (listData && Array.isArray(listData) && listData.length > 0) {
               // Find a Custom prompt or use the first one
               const customPrompt = listData.find(
-                (p: { name?: string }) => p.name === "Custom"
+                (p: { name?: string }) => p.name === "Custom",
               );
               existingPromptId = customPrompt?.id || listData[0]?.id;
             }
@@ -326,7 +341,7 @@ export class GrokProvider extends BaseProvider {
                   name: "Custom",
                   content: [{ text: instructionsText }],
                 }),
-              }
+              },
             );
           } else {
             // Create new prompt with POST
@@ -343,7 +358,7 @@ export class GrokProvider extends BaseProvider {
                   name: "Custom",
                   content: [{ text: instructionsText }],
                 }),
-              }
+              },
             );
           }
 
