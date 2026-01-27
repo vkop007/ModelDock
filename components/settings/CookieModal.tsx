@@ -230,6 +230,7 @@ export default function CookieModal({ onClose }: CookieModalProps) {
                     setCookies(activeTab, data.cookies);
                     setError(null);
                     alert(`Successfully imported cookies for ${activeTab}`);
+                    window.location.reload(); // Reload to apply changes
                   } else {
                     setError(data.error || "Failed to import");
                   }

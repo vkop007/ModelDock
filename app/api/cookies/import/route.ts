@@ -4,6 +4,8 @@ import { LLMProvider } from "@/types";
 // @ts-ignore
 import chrome from "chrome-cookies-secure";
 
+import { getCookiesBatch } from "@/lib/puppeteer/cookie-utils";
+
 export async function POST(req: NextRequest) {
   try {
     const { provider } = await req.json();
@@ -33,7 +35,7 @@ export async function POST(req: NextRequest) {
         value: c.value,
         domain: c.domain,
         path: c.path,
-        expires: c.expirationDate,
+        expires: c.expirationDate || c.expires, // Handle both formats
         httpOnly: c.httpOnly,
         secure: c.secure,
         sameSite: c.sameSite,
@@ -41,27 +43,52 @@ export async function POST(req: NextRequest) {
     };
 
     if (provider === "all") {
-      const results: Record<string, any> = {};
       const providers = Object.keys(PROVIDER_URLS) as LLMProvider[];
+      let results: Record<string, any> = {};
 
-      await Promise.all(
-        providers.map(async (p) => {
-          const url = PROVIDER_URLS[p];
-          if (!url) return;
+      try {
+        console.log("[CookieImport] Attempting batch import...");
+        // Filter out empty URLs
+        const targetUrls: Record<string, string> = {};
+        providers.forEach((p) => {
+          if (PROVIDER_URLS[p]) targetUrls[p] = PROVIDER_URLS[p];
+        });
 
-          try {
-            const cookies = await getCookies(url);
-            if (cookies && cookies.length > 0) {
-              results[p] = formatCookies(cookies);
-              console.log(
-                `[CookieImport] Found ${cookies.length} cookies for ${p}`,
-              );
+        // Use new batch method
+        results = await getCookiesBatch(targetUrls);
+
+        // Log results
+        Object.entries(results).forEach(([p, cookies]) => {
+          console.log(
+            `[CookieImport] Found ${cookies.length} cookies for ${p}`,
+          );
+        });
+      } catch (batchError) {
+        console.error(
+          "[CookieImport] Batch import failed, falling back to sequential:",
+          batchError,
+        );
+
+        // Fallback to sequential if batch fails
+        await Promise.all(
+          providers.map(async (p) => {
+            const url = PROVIDER_URLS[p];
+            if (!url) return;
+
+            try {
+              const cookies = await getCookies(url);
+              if (cookies && cookies.length > 0) {
+                results[p] = formatCookies(cookies);
+                console.log(
+                  `[CookieImport] Found ${cookies.length} cookies for ${p}`,
+                );
+              }
+            } catch (e) {
+              console.error(`[CookieImport] Failed for ${p}:`, e);
             }
-          } catch (e) {
-            console.error(`[CookieImport] Failed for ${p}:`, e);
-          }
-        }),
-      );
+          }),
+        );
+      }
 
       return NextResponse.json({
         success: true,
