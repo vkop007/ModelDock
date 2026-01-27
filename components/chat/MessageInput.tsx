@@ -338,6 +338,10 @@ export default function MessageInput() {
   const showImageUpload =
     activeProvider === "chatgpt" || activeProvider === "gemini";
 
+  // Determine if we should show the attach button (if any provider supports it)
+  // For now, ChatGPT and Gemini support image upload.
+  const canUpload = activeProvider === "chatgpt" || activeProvider === "gemini";
+
   return (
     <div className="message-input-container">
       <div
@@ -347,32 +351,58 @@ export default function MessageInput() {
         onDragOver={handleDragOver}
         onDrop={handleDrop}
       >
-        {/* Image Previews - Inside the input box like ChatGPT */}
-        {selectedImages.length > 0 && (
-          <div className="image-previews-inline">
-            {selectedImages.map((file, index) => (
-              <div key={index} className="image-preview-item-inline">
-                <img
-                  src={URL.createObjectURL(file)}
-                  alt="preview"
-                  className="image-preview-img-inline"
-                />
-                <div className="image-preview-actions">
-                  <button
-                    className="image-action-btn"
-                    onClick={() => removeImage(index)}
-                    title="Remove image"
-                  >
-                    <FiX size={14} />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
+        {/* Left Action: Attachment / Plus */}
+        {canUpload ? (
+          <button
+            className="attach-btn"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isSending || isDisabled}
+            title="Add attachment"
+          >
+            <div className="flex items-center justify-center p-1">
+              <span className="text-xl leading-none" style={{ marginTop: -2 }}>
+                +
+              </span>
+            </div>
+          </button>
+        ) : (
+          <div style={{ width: 12 }}></div> // Spacer if no upload
         )}
 
-        {/* Input row */}
-        <div className="input-row">
+        {/* Hidden File Input */}
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileSelect}
+          accept="image/*"
+          multiple
+          style={{ display: "none" }}
+        />
+
+        {/* Center: Input Area */}
+        <div className="flex-1 flex flex-col gap-2 min-w-0">
+          {selectedImages.length > 0 && (
+            <div className="flex gap-2 overflow-x-auto py-2 px-1">
+              {selectedImages.map((file, index) => (
+                <div key={index} className="relative group shrink-0">
+                  <div className="w-16 h-16 rounded-lg overflow-hidden border border-white/10 bg-white/5">
+                    <img
+                      src={URL.createObjectURL(file)}
+                      alt="preview"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <button
+                    className="absolute -top-1.5 -right-1.5 bg-neutral-800 text-neutral-400 rounded-full p-0.5 border border-white/10 opacity-0 group-hover:opacity-100 transition-opacity hover:text-white"
+                    onClick={() => removeImage(index)}
+                  >
+                    <FiX size={12} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
           <textarea
             ref={textareaRef}
             className="message-input"
@@ -380,84 +410,45 @@ export default function MessageInput() {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={
-              isDisabled
-                ? "Configure cookies in settings to start chatting..."
-                : "Broadcast message to all active providers..."
+              isDisabled ? "Configure cookies to chat..." : "Message..."
             }
             disabled={isSending || isDisabled}
             rows={1}
           />
+        </div>
 
-          {/* Hidden File Input */}
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileSelect}
-            accept="image/*"
-            multiple
-            style={{ display: "none" }}
-          />
-
-          {/* Generate Image Button (Only for supported providers) */}
-          {(activeProvider === "chatgpt" || activeProvider === "gemini") && (
-            <button
-              className="send-btn"
-              onClick={handleImageGeneration}
-              disabled={!input.trim() || isSending || isDisabled}
-              title="Generate Image"
-              style={{
-                marginRight: "4px",
-                backgroundColor: "transparent",
-                color: input.trim() ? activeConfig.color : "inherit",
-                border: "1px solid",
-                borderColor: input.trim() ? activeConfig.color : "#404040",
-              }}
-            >
-              <FiImage size={18} />
-            </button>
-          )}
-
-          {/* Upload Image Button (Only if supported) */}
-          {showImageUpload && (
-            <button
-              className="send-btn"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isSending || isDisabled}
-              title="Upload Image"
-              style={{
-                marginRight: "8px",
-                backgroundColor: "transparent",
-                color: "inherit",
-              }}
-            >
-              <FiPaperclip size={18} />
-            </button>
-          )}
-
+        {/* Right Actions: Voice & Send */}
+        <div className="input-actions">
           {/* Voice Input Button */}
           <button
-            className={`send-btn voice-btn ${isListening ? "listening" : ""}`}
+            className={`icon-btn ${isListening ? "listening" : ""}`}
             onClick={handleVoiceToggle}
             disabled={isSending || isDisabled}
             title={isListening ? "Stop recording" : "Voice input"}
-            style={{
-              marginRight: "8px",
-              backgroundColor: isListening ? "#ef4444" : "transparent",
-              color: isListening ? "white" : "inherit",
-              animation: isListening ? "pulse 1.5s infinite" : "none",
-            }}
           >
-            {isListening ? <FiMicOff size={18} /> : <FiMic size={18} />}
+            {isListening ? <FiMicOff size={20} /> : <FiMic size={20} />}
           </button>
+
+          {/* Generate Image Button (Only for supported providers) */}
+          {(activeProvider === "chatgpt" || activeProvider === "gemini") &&
+            input.trim().length > 0 && (
+              <button
+                className="icon-btn"
+                onClick={handleImageGeneration}
+                disabled={!input.trim() || isSending || isDisabled}
+                title="Generate Image"
+              >
+                <FiImage size={20} />
+              </button>
+            )}
 
           {isSending ? (
             <button
-              className="send-btn stop-btn"
+              className="send-btn stop"
               onClick={stopGeneration}
               title="Stop generating"
-              style={{ backgroundColor: "#ef4444", color: "white" }}
             >
-              <FiSquare size={18} />
+              <FiSquare size={14} fill="currentColor" />
             </button>
           ) : (
             <button
@@ -466,13 +457,8 @@ export default function MessageInput() {
               disabled={
                 (!input.trim() && selectedImages.length === 0) || isDisabled
               }
-              style={
-                (input.trim() || selectedImages.length > 0) && !isDisabled
-                  ? { backgroundColor: activeConfig.color, color: "white" }
-                  : {}
-              }
             >
-              <FiSend size={20} />
+              <FiSend size={18} style={{ marginLeft: -2 }} />
             </button>
           )}
         </div>
