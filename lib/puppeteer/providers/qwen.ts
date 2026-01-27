@@ -37,11 +37,10 @@ export class QwenProvider extends BaseProvider {
     message: string,
     onChunk: (chunk: string) => void,
     conversationId?: string,
+    imagePaths?: string[],
+    signal?: AbortSignal,
   ): Promise<SendMessageResult> {
     try {
-      // ----------------------------------------------------------------------
-      // BLOCK 1: INPUT PHASE (Serialized)
-      // ----------------------------------------------------------------------
       let previousResponseCount = 0;
 
       await browserManager.runTask(this.provider, async () => {
@@ -151,7 +150,6 @@ export class QwenProvider extends BaseProvider {
           // Continue, might be slow
         }
 
-        // Fast streaming with 50ms polling
         const config = PROVIDER_CONFIGS.qwen;
         const result = await waitForCompletionWithStreaming(
           page,
@@ -161,8 +159,6 @@ export class QwenProvider extends BaseProvider {
         );
         const lastContent = result.content;
 
-        // Extract Conversation ID from URL
-        // URL pattern: https://chat.qwen.ai/c/<id>
         const finalUrl = page.url();
         const match = finalUrl.match(/\/c\/([a-zA-Z0-9_-]+)/);
         const newConversationId = match ? match[1] : undefined;

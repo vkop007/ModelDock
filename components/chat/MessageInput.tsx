@@ -57,6 +57,7 @@ export default function MessageInput() {
     editAndResend,
     isUnifiedMode,
     broadcastMessage,
+    setCookies,
   } = useChatContext();
   const [input, setInput] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -159,8 +160,14 @@ export default function MessageInput() {
       (!input.trim() && selectedImages.length === 0) ||
       isSending ||
       isDisabled
-    )
+    ) {
       return;
+    }
+
+    // Removed /login and /import slash commands as they are no longer needed
+    // UI prompts handle this now.
+
+    if (isDisabled) return;
 
     const message = input;
     const imagesToUpload = [...selectedImages];

@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     if (!provider || (!message && (!images || images.length === 0))) {
       return NextResponse.json(
         { success: false, error: "Provider and message/images are required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
       async start(controller) {
         try {
           controller.enqueue(
-            encoder.encode(`data: ${JSON.stringify({ type: "start" })}\n\n`)
+            encoder.encode(`data: ${JSON.stringify({ type: "start" })}\n\n`),
           );
 
           const providerWithStreaming = llmProvider as unknown as {
@@ -78,7 +78,8 @@ export async function POST(request: NextRequest) {
               message: string,
               onChunk: (chunk: string) => void,
               conversationId?: string,
-              imagePaths?: string[]
+              imagePaths?: string[],
+              signal?: AbortSignal,
             ) => Promise<{
               success: boolean;
               content?: string;
@@ -95,12 +96,13 @@ export async function POST(request: NextRequest) {
                   `data: ${JSON.stringify({
                     type: "chunk",
                     content: chunk,
-                  })}\n\n`
-                )
+                  })}\n\n`,
+                ),
               );
             },
             conversationId,
-            imagePaths
+            imagePaths,
+            request.signal,
           );
 
           controller.enqueue(
@@ -111,8 +113,8 @@ export async function POST(request: NextRequest) {
                 content: result.content,
                 error: result.error,
                 conversationId: result.conversationId,
-              })}\n\n`
-            )
+              })}\n\n`,
+            ),
           );
 
           controller.close();
@@ -122,8 +124,8 @@ export async function POST(request: NextRequest) {
               `data: ${JSON.stringify({
                 type: "error",
                 error: String(error),
-              })}\n\n`
-            )
+              })}\n\n`,
+            ),
           );
           controller.close();
         }
@@ -137,7 +139,13 @@ export async function POST(request: NextRequest) {
         Connection: "keep-alive",
       },
     });
-  } catch (error) {
+  } catch (error: any) {
+    if (error.name === "AbortError" || error.message === "AbortError") {
+      console.log("[Stream API] Stream aborted by client");
+      return new Response(JSON.stringify({ error: "Aborted" }), {
+        status: 499,
+      });
+    }
     console.error("[Stream API] Error:", error);
     return new Response(JSON.stringify({ error: String(error) }), {
       status: 500,

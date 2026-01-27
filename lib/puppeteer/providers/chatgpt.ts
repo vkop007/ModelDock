@@ -555,6 +555,7 @@ export class ChatGPTProvider extends BaseProvider {
     onChunk: (chunk: string) => void,
     conversationId?: string,
     imagePaths?: string[],
+    signal?: AbortSignal,
   ): Promise<SendMessageResult> {
     console.log("[ChatGPT] Using browser streaming...");
 
@@ -562,8 +563,14 @@ export class ChatGPTProvider extends BaseProvider {
       // ----------------------------------------------------------------------
       // BLOCK 1: INPUT PHASE (Serialized)
       // ----------------------------------------------------------------------
+      // Check signal before starting
+      if (signal?.aborted) throw new Error("AbortError");
+
       await browserManager.runTask(this.provider, async () => {
         const page = await this.getPage();
+
+        // Check signal inside task
+        if (signal?.aborted) throw new Error("AbortError");
 
         // Navigation logic
         const currentUrl = page.url();
@@ -599,6 +606,8 @@ export class ChatGPTProvider extends BaseProvider {
         } else {
           await new Promise((resolve) => setTimeout(resolve, 300));
         }
+
+        if (signal?.aborted) throw new Error("AbortError");
 
         // Handle Image Uploads
         if (imagePaths && imagePaths.length > 0) {
@@ -653,6 +662,8 @@ export class ChatGPTProvider extends BaseProvider {
           }
         }
 
+        if (signal?.aborted) throw new Error("AbortError");
+
         // Wait for input - reduced timeouts
         try {
           await page.waitForSelector("#prompt-textarea", { timeout: 20000 });
@@ -706,11 +717,15 @@ export class ChatGPTProvider extends BaseProvider {
         console.log("[ChatGPT] Message sent, waiting for response...");
       });
 
+      if (signal?.aborted) throw new Error("AbortError");
+
       // ----------------------------------------------------------------------
       // BLOCK 2: OUTPUT PHASE (Serialized)
       // ----------------------------------------------------------------------
       return await browserManager.runTask(this.provider, async () => {
         const page = await this.getPage();
+
+        if (signal?.aborted) throw new Error("AbortError");
 
         // Setup passive network monitoring - moved here to ensure listeners are active during wait
         // Note: Ideally network monitoring starts *before* send, but strict serialization might prevent
@@ -752,6 +767,7 @@ export class ChatGPTProvider extends BaseProvider {
             }
           },
           180000,
+          signal, // Pass signal to break polling
         );
 
         // Cleanup CDP session
@@ -776,6 +792,25 @@ export class ChatGPTProvider extends BaseProvider {
         };
       });
     } catch (error) {
+      if (error instanceof Error && error.message === "AbortError") {
+        console.log(
+          "[ChatGPT] Request aborted, attempting to stop generation in browser...",
+        );
+        // Best-effort attempt to stop the browser generation
+        await browserManager
+          .runTask(this.provider, async () => {
+            const page = await this.getPage();
+            // Try common stop button selectors
+            const stopSelector =
+              'button[aria-label="Stop generating"], button[aria-label="Stop response"]';
+            const stopBtn = await page.$(stopSelector);
+            if (stopBtn) {
+              await stopBtn.click();
+              console.log("[ChatGPT] Clicked stop button in browser");
+            }
+          })
+          .catch((e) => console.error("[ChatGPT] Failed to click stop", e));
+      }
       console.error("[ChatGPT] Streaming error:", error);
       return { success: false, error: String(error) };
     }

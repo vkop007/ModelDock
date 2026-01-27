@@ -6,6 +6,17 @@ import fs from "fs";
 
 const USER_DATA_ROOT = path.join(process.cwd(), ".browser-data");
 
+export const PROVIDER_URLS: Record<LLMProvider, string> = {
+  chatgpt: "https://chatgpt.com",
+  claude: "https://claude.ai",
+  gemini: "https://gemini.google.com",
+  zai: "https://chat.z.ai",
+  grok: "https://grok.com",
+  qwen: "https://chat.qwenlm.ai",
+  mistral: "https://chat.mistral.ai",
+  ollama: "http://localhost:11434",
+};
+
 // Global state to persist across Next.js hot reloads
 declare global {
   // eslint-disable-next-line no-var
@@ -255,18 +266,7 @@ class BrowserManager {
       const page = await this.getPage(provider);
 
       // Provider URL mapping
-      const providerUrls: Record<LLMProvider, string> = {
-        chatgpt: "https://chatgpt.com",
-        claude: "https://claude.ai",
-        gemini: "https://gemini.google.com",
-        zai: "https://chat.z.ai",
-        grok: "https://grok.com",
-        qwen: "https://chat.qwenlm.ai",
-        mistral: "https://chat.mistral.ai",
-        ollama: "http://localhost:11434",
-      };
-
-      const targetUrl = providerUrls[provider];
+      const targetUrl = PROVIDER_URLS[provider];
       const currentUrl = page.url();
 
       // Only navigate if not already on the provider's site
@@ -362,6 +362,16 @@ class BrowserManager {
       console.log(
         `[BrowserManager] Injected ${cookies.length} cookies for ${provider}`,
       );
+
+      // Force reload to apply cookies
+      try {
+        console.log(
+          `[BrowserManager] Reloading page for ${provider} to apply cookies...`,
+        );
+        await page.reload({ waitUntil: "domcontentloaded" });
+      } catch (e) {
+        console.error(`[BrowserManager] Reload failed: ${e}`);
+      }
     }
   }
 
@@ -455,13 +465,33 @@ class BrowserManager {
    * This queue strictly serializes all browser interactions to prevent race conditions
    * and ensuring that the active tab is always the one performing work.
    */
-  async runTask<T>(provider: LLMProvider, task: () => Promise<T>): Promise<T> {
-    // We implicitly chain onto the executionQueue
-    const taskPromise = this.executionQueue.then(async () => {
-      try {
-        console.log(`[BrowserManager] Starting task for ${provider}`);
+  async runTask<T>(
+    provider: LLMProvider,
+    task: () => Promise<T>,
+    signal?: AbortSignal,
+  ): Promise<T> {
+    // If already aborted, reject immediately
+    if (signal?.aborted) {
+      return Promise.reject(new Error("AbortError"));
+    }
 
-        // 1. Ensure the page is focused
+    // Capture the current tail of the queue
+    const previousTaskPromise = this.executionQueue;
+
+    // Create a new promise that represents THIS task's completion (or failure/abort)
+    const currentTaskPromise = (async () => {
+      // 1. Wait for previous task
+      await previousTaskPromise.catch(() => {});
+
+      // 2. Check abort again after waiting
+      if (signal?.aborted) {
+        throw new Error("AbortError");
+      }
+
+      console.log(`[BrowserManager] Starting task for ${provider}`);
+
+      try {
+        // 3. Ensure the page is focused
         const switched = await this.switchToPage(provider);
         if (!switched) {
           console.warn(
@@ -472,21 +502,39 @@ class BrowserManager {
           await new Promise((resolve) => setTimeout(resolve, 100));
         }
 
-        // 2. Run the task
-        return await task();
+        // Check abort before running actual task
+        if (signal?.aborted) {
+          throw new Error("AbortError");
+        }
+
+        // 4. Run the task
+        // We do NOT race the task itself with the signal here because
+        // we can't easily cancel the task function from the outside
+        // unless it also respects the signal internally (which we updated providers to do).
+        // However, we CAN wrap it to at least return early if aborted during execution.
+        const result = await task();
+        return result;
       } catch (error) {
-        console.error(`[BrowserManager] Task error for ${provider}:`, error);
+        // If it's an abort error, log it gently
+        if (
+          error instanceof Error &&
+          (error.name === "AbortError" || error.message === "AbortError")
+        ) {
+          console.log(`[BrowserManager] Task for ${provider} aborted`);
+        } else {
+          console.error(`[BrowserManager] Task error for ${provider}:`, error);
+        }
         throw error;
       }
-    });
+    })();
 
-    // Update the queue tail, catching errors so the queue doesn't stall
-    this.executionQueue = taskPromise.then(
+    // Update the queue tail prevents stalling
+    this.executionQueue = currentTaskPromise.then(
       () => {},
       () => {},
     );
 
-    return taskPromise;
+    return currentTaskPromise;
   }
 }
 

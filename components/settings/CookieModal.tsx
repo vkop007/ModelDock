@@ -216,6 +216,35 @@ export default function CookieModal({ onClose }: CookieModalProps) {
             >
               Save Cookies
             </button>
+            <button
+              className="secondary-btn"
+              onClick={async () => {
+                try {
+                  setTesting(true);
+                  const res = await fetch("/api/cookies/import", {
+                    method: "POST",
+                    body: JSON.stringify({ provider: activeTab }),
+                  });
+                  const data = await res.json();
+                  if (data.success && data.cookies) {
+                    setCookies(activeTab, data.cookies);
+                    setError(null);
+                    alert(`Successfully imported cookies for ${activeTab}`);
+                  } else {
+                    setError(data.error || "Failed to import");
+                  }
+                } catch (e) {
+                  setError(String(e));
+                } finally {
+                  setTesting(false);
+                }
+              }}
+              disabled={testing}
+              title="Try to import cookies from default Chrome browser"
+              style={{ marginLeft: "8px" }}
+            >
+              Import from Chrome
+            </button>
           </div>
         </div>
       </div>

@@ -39,7 +39,11 @@ export default function UnifiedChatArea() {
     isSending,
     toggleUnifiedProvider,
     deleteConversation,
+    activeProvider, // Added for sorting logic
   } = useChatContext();
+
+  // Debug sorting
+  // console.log("Sort Debug:", { activeProvider, unifiedProviders });
 
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
@@ -79,8 +83,34 @@ export default function UnifiedChatArea() {
     document.body.style.cursor = "col-resize";
   };
 
-  // Find latest conversation for each provider
-  const providerConversations = unifiedProviders.map((provider) => {
+  // Sort providers according to user preference: ChatGPT -> Gemini -> Active -> Others
+  // Sort providers according to user preference: ChatGPT -> Gemini -> Active -> Others
+  const combinedProviders = Array.from(
+    new Set([...unifiedProviders, activeProvider]),
+  );
+  const sortedProviders = combinedProviders.filter(Boolean).sort((a, b) => {
+    const priority = ["chatgpt", "gemini"];
+
+    // Add active provider to priority if not already there, after Gemini
+    if (activeProvider && !priority.includes(activeProvider)) {
+      priority.push(activeProvider);
+    }
+
+    const idxA = priority.indexOf(a);
+    const idxB = priority.indexOf(b);
+
+    // If both are in priority list, sort by priority index
+    if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+    // If only A is in priority, it comes first
+    if (idxA !== -1) return -1;
+    // If only B is in priority, it comes first
+    if (idxB !== -1) return 1;
+
+    // Default to alphabetical or keep original for others
+    return a.localeCompare(b);
+  });
+
+  const providerConversations = sortedProviders.map((provider) => {
     // Filter conversations for this provider
     const providerConvos = conversations.filter((c) => c.provider === provider);
     // Sort by updatedAt desc

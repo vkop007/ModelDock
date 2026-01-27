@@ -366,6 +366,8 @@ interface ChatContextValue extends ChatState {
   toggleUnifiedMode: () => void;
   toggleUnifiedProvider: (provider: LLMProvider) => void;
   broadcastMessage: (content: string, images?: string[]) => Promise<void>;
+  showCookiePrompt: boolean;
+  setShowCookiePrompt: (show: boolean) => void;
 }
 
 const ChatContext = createContext<ChatContextValue | null>(null);
@@ -465,19 +467,41 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     [state.cookieConfigs],
   );
 
+  // Prompt logic
+  const [showCookiePrompt, setShowCookiePrompt] = React.useState(false);
+  const hasPromptedRef = useRef(false);
+
   // Initial warmup on mount for default unified providers + active
   useEffect(() => {
     if (isInitializedRef.current) {
       // Warmup all unified providers (defaults to chatgpt, gemini) plus current active one
       const providersToWarm = [...state.unifiedProviders, state.activeProvider];
       warmupProviders(providersToWarm);
+
+      // Check if we need to show cookie prompt for active provider
+      const activeCookies =
+        state.cookieConfigs[state.activeProvider]?.cookies || [];
+      if (activeCookies.length === 0 && !hasPromptedRef.current) {
+        // Only prompt once per session
+        setShowCookiePrompt(true);
+        hasPromptedRef.current = true;
+      }
     }
   }, [isInitializedRef.current, warmupProviders]); // Depend on initialization
 
   // Keep the active provider warmup on change if needed, but the above covers initial load
   useEffect(() => {
-    if (isInitializedRef.current && activeProviderCookies) {
-      warmupProviders([state.activeProvider]);
+    if (isInitializedRef.current) {
+      const activeCookies =
+        state.cookieConfigs[state.activeProvider]?.cookies || [];
+      if (activeCookies.length > 0) {
+        warmupProviders([state.activeProvider]);
+        setShowCookiePrompt(false); // Hide prompt if cookies appear (e.g. manual add)
+      } else if (!hasPromptedRef.current) {
+        // Also check on provider switch? Maybe annoying. Let's stick to mount for now or explicit user action.
+        // Actually user might switch to empty provider. Let's show prompt then too?
+        // User said "when user load the website first time". Stick to that.
+      }
     }
   }, [state.activeProvider, activeProviderCookies, warmupProviders]);
 
@@ -1077,7 +1101,10 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
       dispatch({ type: "SET_SENDING", isSending: true });
 
-      const providersToCall = state.unifiedProviders;
+      // Always include active provider in broadcast
+      const providersToCall = Array.from(
+        new Set([...state.unifiedProviders, state.activeProvider]),
+      );
 
       try {
         await Promise.all(
@@ -1272,6 +1299,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     toggleUnifiedMode, // Kept for interface compatibility but no-op/true
     toggleUnifiedProvider,
     broadcastMessage,
+    showCookiePrompt,
+    setShowCookiePrompt,
   };
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;

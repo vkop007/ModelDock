@@ -13,8 +13,6 @@ export class ZaiProvider extends BaseProvider {
 
   async checkAuthentication(page: Page): Promise<boolean> {
     try {
-      // Check for presence of chat interface elements
-      // We look for either the input or the send button
       await page.waitForSelector("#chat-input, #send-message-button", {
         timeout: 15000,
       });
@@ -45,6 +43,8 @@ export class ZaiProvider extends BaseProvider {
     message: string,
     onChunk: (chunk: string) => void,
     conversationId?: string,
+    imagePaths?: string[],
+    signal?: AbortSignal,
   ): Promise<SendMessageResult> {
     console.log("[Z.ai] Sending message with streaming...");
 
