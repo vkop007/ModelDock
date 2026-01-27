@@ -66,11 +66,14 @@ export default function CookiePrompt() {
 
           const count = Object.keys(data.cookies).length;
           // Notify user briefly? Or just close
+          setShowCookiePrompt(false);
+          window.location.reload(); // Reload to refresh sessions
         } else {
           // Fallback for single import (shouldn't happen with 'all' param but safe to keep)
           setCookies(activeProvider, data.cookies);
+          setShowCookiePrompt(false);
+          window.location.reload(); // Reload here too
         }
-        setShowCookiePrompt(false);
       } else {
         setError(data.error || "Failed to import cookies.");
       }

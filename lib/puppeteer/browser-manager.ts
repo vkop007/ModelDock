@@ -17,9 +17,7 @@ export const PROVIDER_URLS: Record<LLMProvider, string> = {
   ollama: "http://localhost:11434",
 };
 
-// Global state to persist across Next.js hot reloads
 declare global {
-  // eslint-disable-next-line no-var
   var __browserManager_v3: BrowserManager | undefined;
 }
 
@@ -28,16 +26,14 @@ class BrowserManager {
   private pages: Map<LLMProvider, Page> = new Map();
   private pendingPages: Map<LLMProvider, Promise<Page>> = new Map();
   private cookiesInjected: Map<LLMProvider, boolean> = new Map();
-  private pagesWarmed: Set<LLMProvider> = new Set(); // Track pre-warmed pages
+  private pagesWarmed: Set<LLMProvider> = new Set();
   private initializing: Promise<Browser> | null = null;
 
   async getBrowser(): Promise<Browser> {
-    // Check if browser is still connected
     if (this.sharedBrowser) {
       if (this.sharedBrowser.connected) {
         return this.sharedBrowser;
       }
-      // Browser disconnected, clean up
       console.log(
         `[BrowserManager] Shared browser disconnected, reinitializing...`,
       );
@@ -47,7 +43,6 @@ class BrowserManager {
       this.pagesWarmed.clear();
     }
 
-    // Prevent multiple simultaneous initialization
     if (this.initializing) {
       console.log(`[BrowserManager] Waiting for browser initialization...`);
       return this.initializing;
@@ -65,10 +60,7 @@ class BrowserManager {
 
   private async initSharedBrowser(): Promise<Browser> {
     console.log(`[BrowserManager] Initializing shared browser...`);
-
-    // Detect platform for platform-specific configurations
     const platform = process.platform;
-
     if (platform === "win32") {
       console.log(
         "[BrowserManager] Detected Windows platform - Chrome will be auto-detected",
@@ -83,11 +75,9 @@ class BrowserManager {
       );
     }
 
-    // Clean data before launch to ensure fresh state (except Local Storage)
     this.cleanSharedBrowserData();
 
     const userDataDir = path.join(USER_DATA_ROOT, "shared");
-    // Ensure directory exists
     if (!fs.existsSync(userDataDir)) {
       fs.mkdirSync(userDataDir, { recursive: true });
     }
@@ -102,7 +92,6 @@ class BrowserManager {
         "--window-size=1024,844", // Larger window for multiple tabs
         "--disable-blink-features=AutomationControlled",
         `--user-data-dir=${userDataDir}`,
-        // Concurrency flags to prevent background throttling
         "--disable-background-timer-throttling",
         "--disable-backgrounding-occluded-windows",
         "--disable-renderer-backgrounding",
@@ -124,11 +113,9 @@ class BrowserManager {
   async getPage(provider: LLMProvider): Promise<Page> {
     let page = this.pages.get(provider);
 
-    // Check if existing page is valid
     if (page) {
       try {
         if (!page.isClosed()) {
-          // Verify browser connection too
           if (page.browser().connected) {
             console.log(
               `[BrowserManager] Reusing existing page for ${provider}`,
@@ -136,14 +123,11 @@ class BrowserManager {
             return page;
           }
         }
-      } catch {
-        // Page is invalid, remove it
-      }
+      } catch {}
       this.pages.delete(provider);
       this.cookiesInjected.delete(provider);
     }
 
-    // Check for pending initialization for this provider
     if (this.pendingPages.has(provider)) {
       console.log(
         `[BrowserManager] Waiting for pending page creation for ${provider}...`,
@@ -151,20 +135,15 @@ class BrowserManager {
       return this.pendingPages.get(provider)!;
     }
 
-    // This will trigger initBrowser if needed
     const browserPromise = this.getBrowser();
 
-    // Create a promise for the new page creation
     const pagePromise = (async () => {
       const browser = await browserPromise;
 
-      // Double check if page was created while waiting for browser
       const existingPage = this.pages.get(provider);
       if (existingPage && !existingPage.isClosed()) {
         return existingPage;
       }
-
-      // Create a new page (tab) for this provider
       console.log(`[BrowserManager] Creating new page for ${provider}`);
       let newPage: Page;
       try {
@@ -192,8 +171,6 @@ class BrowserManager {
         "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
       );
 
-      // Hack: Override Page Visibility API to ensure the page always thinks it is visible
-      // This prevents web apps from pausing streaming/rendering when in a background tab
       await newPage.evaluateOnNewDocument(() => {
         Object.defineProperty(document, "visibilityState", {
           get: () => "visible",
@@ -288,14 +265,12 @@ class BrowserManager {
         `[BrowserManager] Failed to warm page for ${provider}:`,
         error,
       );
-      // Don't throw - warming is best-effort
     }
   }
 
   // Switch to a provider's window (bring to front)
   async switchToPage(provider: LLMProvider): Promise<boolean> {
     const page = this.pages.get(provider);
-    // Since we now have separate browsers/pages, switching basically requires touching the page
     if (!page || page.isClosed()) {
       console.log(`[BrowserManager] No page to switch to for ${provider}`);
       return false;
@@ -320,7 +295,6 @@ class BrowserManager {
       return;
     }
 
-    // Check if cookies already injected for this provider
     if (this.cookiesInjected.get(provider)) {
       console.log(
         `[BrowserManager] Cookies already injected for ${provider}, skipping`,
@@ -330,7 +304,6 @@ class BrowserManager {
 
     const page = await this.getPage(provider);
 
-    // Convert cookies to Puppeteer format, filtering out invalid values
     const puppeteerCookies = cookies
       .filter((cookie) => cookie.name && cookie.value && cookie.domain)
       .map((cookie) => {
@@ -351,7 +324,6 @@ class BrowserManager {
       });
 
     if (puppeteerCookies.length > 0) {
-      // Debug: log cookie names and domains
       console.log(`[BrowserManager] Cookie details for ${provider}:`);
       puppeteerCookies.forEach((c) => {
         console.log(`  - ${c.name}: domain=${c.domain}, path=${c.path}`);
@@ -363,7 +335,6 @@ class BrowserManager {
         `[BrowserManager] Injected ${cookies.length} cookies for ${provider}`,
       );
 
-      // Force reload to apply cookies
       try {
         console.log(
           `[BrowserManager] Reloading page for ${provider} to apply cookies...`,
@@ -381,9 +352,7 @@ class BrowserManager {
       if (!page.isClosed()) {
         try {
           await page.close();
-        } catch (e) {
-          // Ignore if already closed
-        }
+        } catch (e) {}
       }
       this.pages.delete(provider);
       this.cookiesInjected.delete(provider);
@@ -393,7 +362,6 @@ class BrowserManager {
   }
 
   async closeAll(): Promise<void> {
-    // Close all pages
     const closePagePromises = Array.from(this.pages.values()).map((p) => {
       if (!p.isClosed()) return p.close().catch(() => {});
       return Promise.resolve();
@@ -404,14 +372,12 @@ class BrowserManager {
     this.cookiesInjected.clear();
     this.pagesWarmed.clear();
 
-    // Close shared browser
     if (this.sharedBrowser && this.sharedBrowser.connected) {
       await this.sharedBrowser.close();
       console.log("[BrowserManager] Closed shared browser");
     }
     this.sharedBrowser = null;
 
-    // Clean up data
     this.cleanSharedBrowserData();
     console.log("[BrowserManager] Cleaned shared browser data");
   }
@@ -431,8 +397,6 @@ class BrowserManager {
       const items = fs.readdirSync(userDataDir);
       for (const item of items) {
         const itemPath = path.join(userDataDir, item);
-
-        // Preserve 'Local Storage' directory, delete everything else
         if (item === "Local Storage") {
           continue;
         }
@@ -440,7 +404,6 @@ class BrowserManager {
         const stat = fs.statSync(itemPath);
 
         if (item === "Default" && stat.isDirectory()) {
-          // Go inside Default
           const defaultItems = fs.readdirSync(itemPath);
           for (const defaultItem of defaultItems) {
             const defaultItemPath = path.join(itemPath, defaultItem);
@@ -457,33 +420,22 @@ class BrowserManager {
     }
   }
 
-  // Execution Queue for enforcing strict sequential interaction
   private executionQueue: Promise<void> = Promise.resolve();
 
-  /**
-   * Execute a task for a provider ensuring it is the focused tab.
-   * This queue strictly serializes all browser interactions to prevent race conditions
-   * and ensuring that the active tab is always the one performing work.
-   */
   async runTask<T>(
     provider: LLMProvider,
     task: () => Promise<T>,
     signal?: AbortSignal,
   ): Promise<T> {
-    // If already aborted, reject immediately
     if (signal?.aborted) {
       return Promise.reject(new Error("AbortError"));
     }
 
-    // Capture the current tail of the queue
     const previousTaskPromise = this.executionQueue;
 
-    // Create a new promise that represents THIS task's completion (or failure/abort)
     const currentTaskPromise = (async () => {
-      // 1. Wait for previous task
       await previousTaskPromise.catch(() => {});
 
-      // 2. Check abort again after waiting
       if (signal?.aborted) {
         throw new Error("AbortError");
       }
@@ -491,31 +443,22 @@ class BrowserManager {
       console.log(`[BrowserManager] Starting task for ${provider}`);
 
       try {
-        // 3. Ensure the page is focused
         const switched = await this.switchToPage(provider);
         if (!switched) {
           console.warn(
             `[BrowserManager] Could not switch to ${provider}, task might fail`,
           );
         } else {
-          // Small delay to let browser handle focus event
           await new Promise((resolve) => setTimeout(resolve, 100));
         }
 
-        // Check abort before running actual task
         if (signal?.aborted) {
           throw new Error("AbortError");
         }
 
-        // 4. Run the task
-        // We do NOT race the task itself with the signal here because
-        // we can't easily cancel the task function from the outside
-        // unless it also respects the signal internally (which we updated providers to do).
-        // However, we CAN wrap it to at least return early if aborted during execution.
         const result = await task();
         return result;
       } catch (error) {
-        // If it's an abort error, log it gently
         if (
           error instanceof Error &&
           (error.name === "AbortError" || error.message === "AbortError")
@@ -538,8 +481,6 @@ class BrowserManager {
   }
 }
 
-// Use global to persist across hot reloads in development
-// Use global to persist across hot reloads in development
 export const browserManager: BrowserManager =
   global.__browserManager_v3 ||
   (global.__browserManager_v3 = new BrowserManager());
