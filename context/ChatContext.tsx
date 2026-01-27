@@ -10,12 +10,12 @@ import React, {
 } from "react";
 import { v4 as uuidv4 } from "uuid";
 import {
-  ChatState,
   ChatAction,
-  LLMProvider,
-  Message,
+  ChatState,
   Conversation,
   CookieEntry,
+  LLMProvider,
+  Message,
   SessionState,
 } from "@/types";
 import {
@@ -97,14 +97,16 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
     }
 
     case "NEW_CONVERSATION": {
+      const provider = action.provider || state.activeProvider;
       const newConversation: Conversation = {
         id: uuidv4(),
         title: "New Chat",
         messages: [],
-        provider: state.activeProvider,
+        provider,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
+
       return {
         ...state,
         conversations: [newConversation, ...state.conversations],
@@ -486,8 +488,21 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
   // Actions
   const newChat = useCallback(() => {
-    dispatch({ type: "NEW_CONVERSATION" });
-  }, []);
+    if (state.isUnifiedMode) {
+      // In unified mode, create new chats for ALL unified providers
+      // We iterate and dispatch for each to ensure state consistency
+      state.unifiedProviders.forEach((provider) => {
+        dispatch({ type: "NEW_CONVERSATION", provider });
+      });
+      // Also ensure the active provider gets one if it's not in the unified list (edge case)
+      if (!state.unifiedProviders.includes(state.activeProvider)) {
+        dispatch({ type: "NEW_CONVERSATION", provider: state.activeProvider });
+      }
+    } else {
+      // Single mode - just reset current
+      dispatch({ type: "NEW_CONVERSATION" });
+    }
+  }, [state.isUnifiedMode, state.unifiedProviders, state.activeProvider]);
 
   const selectConversation = useCallback((id: string) => {
     dispatch({ type: "SELECT_CONVERSATION", id });
