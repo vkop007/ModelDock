@@ -1,5 +1,6 @@
 import { Page } from "puppeteer";
 import { BaseProvider, SendMessageResult } from "./base";
+import { browserManager } from "../browser-manager";
 import {
   waitForCompletionWithStreaming,
   PROVIDER_CONFIGS,
@@ -45,151 +46,167 @@ export class ClaudeProvider extends BaseProvider {
     conversationId?: string,
   ): Promise<SendMessageResult> {
     try {
-      const page = await this.getPage();
+      // ----------------------------------------------------------------------
+      // BLOCK 1: INPUT PHASE (Serialized)
+      // ----------------------------------------------------------------------
+      let previousResponseCount = 0;
 
-      // Navigation logic
-      const currentUrl = page.url();
-      const isInConversation =
-        currentUrl.includes("/chat/") && !currentUrl.includes("/new");
+      await browserManager.runTask(this.provider, async () => {
+        const page = await this.getPage();
 
-      if (conversationId && !currentUrl.includes(conversationId)) {
-        // Navigate to specific conversation
-        console.log(`[Claude] Navigating to conversation: ${conversationId}`);
-        await page.goto(`https://claude.ai/chat/${conversationId}`, {
-          waitUntil: "domcontentloaded",
-          timeout: 30000,
-        });
-        await new Promise((resolve) => setTimeout(resolve, 500));
-      } else if (!conversationId && isInConversation) {
-        // No conversation ID but we're in an existing chat - start new conversation
-        console.log("[Claude] Starting new conversation - navigating to /new");
-        await page.goto("https://claude.ai/new", {
-          waitUntil: "domcontentloaded",
-          timeout: 30000,
-        });
-        await new Promise((resolve) => setTimeout(resolve, 500));
-      } else if (!currentUrl.includes("claude.ai")) {
-        // Not on Claude at all, navigate to new chat
-        await this.navigate();
-        await new Promise((resolve) => setTimeout(resolve, 500));
-      }
-      // If already on claude.ai/new or homepage, stay on current page
+        // Navigation logic
+        const currentUrl = page.url();
+        const isInConversation =
+          currentUrl.includes("/chat/") && !currentUrl.includes("/new");
 
-      // Wait for the input field
-      const inputSelector =
-        '[data-testid="composer-input"], div[contenteditable="true"].ProseMirror';
-      await page.waitForSelector(inputSelector, { timeout: 30000 });
+        if (conversationId && !currentUrl.includes(conversationId)) {
+          // Navigate to specific conversation
+          console.log(`[Claude] Navigating to conversation: ${conversationId}`);
+          await page.goto(`https://claude.ai/chat/${conversationId}`, {
+            waitUntil: "domcontentloaded",
+            timeout: 30000,
+          });
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        } else if (!conversationId && isInConversation) {
+          // No conversation ID but we're in an existing chat - start new conversation
+          console.log(
+            "[Claude] Starting new conversation - navigating to /new",
+          );
+          await page.goto("https://claude.ai/new", {
+            waitUntil: "domcontentloaded",
+            timeout: 30000,
+          });
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        } else if (!currentUrl.includes("claude.ai")) {
+          // Not on Claude at all, navigate to new chat
+          await this.navigate();
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        }
+        // If already on claude.ai/new or homepage, stay on current page
 
-      // Focus and type the message
-      const input = await page.$(inputSelector);
-      if (!input) {
-        return { success: false, error: "Could not find input field" };
-      }
+        // Wait for the input field
+        const inputSelector =
+          '[data-testid="composer-input"], div[contenteditable="true"].ProseMirror';
+        await page.waitForSelector(inputSelector, { timeout: 30000 });
 
-      await input.click();
-      // Use direct value setting for speed
-      await page.evaluate(
-        (selector, text) => {
-          const el = document.querySelector(selector) as HTMLElement;
-          if (el) {
-            // Claude uses ProseMirror - use DOM methods instead of innerHTML to avoid Trusted Types errors
-            el.replaceChildren();
-            const p = document.createElement("p");
-            p.textContent = text;
-            el.appendChild(p);
-            el.dispatchEvent(new Event("input", { bubbles: true }));
-          }
-        },
-        inputSelector,
-        message,
-      );
-      await new Promise((resolve) => setTimeout(resolve, 500));
+        // Focus and type the message
+        const input = await page.$(inputSelector);
+        if (!input) {
+          throw new Error("Could not find input field");
+        }
 
-      // Count existing responses BEFORE clicking send
-      const previousResponseCount = await page.evaluate(() => {
-        const responses = document.querySelectorAll(
-          ".font-claude-response .standard-markdown, .font-claude-response .progressive-markdown",
+        await input.click();
+        // Use direct value setting for speed
+        await page.evaluate(
+          (selector, text) => {
+            const el = document.querySelector(selector) as HTMLElement;
+            if (el) {
+              // Claude uses ProseMirror - use DOM methods instead of innerHTML to avoid Trusted Types errors
+              el.replaceChildren();
+              const p = document.createElement("p");
+              p.textContent = text;
+              el.appendChild(p);
+              el.dispatchEvent(new Event("input", { bubbles: true }));
+            }
+          },
+          inputSelector,
+          message,
         );
-        return responses.length;
+        await new Promise((resolve) => setTimeout(resolve, 500));
+
+        // Count existing responses BEFORE clicking send
+        previousResponseCount = await page.evaluate(() => {
+          const responses = document.querySelectorAll(
+            ".font-claude-response .standard-markdown, .font-claude-response .progressive-markdown",
+          );
+          return responses.length;
+        });
+
+        // Click send button or press Enter
+        const sendButton = await page.$(
+          '[data-testid="submit-button"], button[aria-label="Send message"]',
+        );
+        if (sendButton) {
+          await sendButton.click();
+        } else {
+          await page.keyboard.press("Enter");
+        }
       });
 
-      // Setup network interception (passive)
-      console.log("[Claude] Setting up passive network monitoring...");
+      // ----------------------------------------------------------------------
+      // BLOCK 2: OUTPUT PHASE (Serialized)
+      // ----------------------------------------------------------------------
+      return await browserManager.runTask(this.provider, async () => {
+        const page = await this.getPage();
 
-      let networkContent = "";
-      const { client, cleanup } = await setupNetworkMonitoring(
-        page,
-        "chat_conversations",
-        (chunk) => {
-          if (chunk) {
-            console.log(`[Claude] Network chunk (${chunk.length} chars)`);
-            onChunk(chunk);
-            networkContent += chunk;
-          }
-        },
-        StreamParsers.sse,
-      );
+        // Setup network interception (passive)
+        console.log("[Claude] Setting up passive network monitoring...");
 
-      // Click send button or press Enter
-      const sendButton = await page.$(
-        '[data-testid="submit-button"], button[aria-label="Send message"]',
-      );
-      if (sendButton) {
-        await sendButton.click();
-      } else {
-        await page.keyboard.press("Enter");
-      }
-
-      // Wait for response with streaming
-      console.log("[Claude] Waiting for streaming to complete...");
-
-      // Wait for a NEW response to appear
-      try {
-        await page.waitForFunction(
-          (prevCount: number) => {
-            const responses = document.querySelectorAll(
-              ".font-claude-response .standard-markdown, .font-claude-response .progressive-markdown",
-            );
-            return responses.length > prevCount;
+        let networkContent = "";
+        const { client, cleanup } = await setupNetworkMonitoring(
+          page,
+          "chat_conversations",
+          (chunk) => {
+            if (chunk) {
+              console.log(`[Claude] Network chunk (${chunk.length} chars)`);
+              onChunk(chunk);
+              networkContent += chunk;
+            }
           },
-          { timeout: 15000 },
-          previousResponseCount,
+          StreamParsers.sse,
         );
-      } catch {
-        // Continue, might be slow or network might have finished it already
-      }
 
-      // Fast streaming with 50ms polling (fallback)
-      const config = PROVIDER_CONFIGS.claude;
-      const result = await waitForCompletionWithStreaming(
-        page,
-        config,
-        (chunk) => {
-          if (!networkContent.includes(chunk)) {
-            onChunk(chunk);
-          }
-        },
-        180000,
-      );
+        // Wait for response with streaming
+        console.log("[Claude] Waiting for streaming to complete...");
 
-      // Cleanup
-      await cleanup();
+        // Wait for a NEW response to appear
+        try {
+          await page.waitForFunction(
+            (prevCount: number) => {
+              const responses = document.querySelectorAll(
+                ".font-claude-response .standard-markdown, .font-claude-response .progressive-markdown",
+              );
+              return responses.length > prevCount;
+            },
+            { timeout: 15000 },
+            previousResponseCount,
+          );
+        } catch {
+          // Continue, might be slow or network might have finished it already
+        }
 
-      const lastContent = result.content || networkContent;
+        // Fast streaming with 50ms polling (fallback)
+        const config = PROVIDER_CONFIGS.claude;
+        const result = await waitForCompletionWithStreaming(
+          page,
+          config,
+          (chunk) => {
+            if (!networkContent.includes(chunk)) {
+              onChunk(chunk);
+            }
+          },
+          180000,
+        );
 
-      // Extract Conversation ID
-      const finalUrl = page.url();
-      // URL pattern: https://claude.ai/chat/([a-zA-Z0-9-]+)
-      const match = finalUrl.match(/\/chat\/([a-zA-Z0-9-]+)/);
-      const newConversationId = match ? match[1] : undefined;
+        // Cleanup
+        await cleanup();
 
-      console.log(`[Claude] Done. ID: ${newConversationId}`);
+        const lastContent = result.content || networkContent;
 
-      return {
-        success: true,
-        content: lastContent,
-        conversationId: newConversationId,
-      };
+        // Extract Conversation ID
+        const finalUrl = page.url();
+        // URL pattern: https://claude.ai/chat/([a-zA-Z0-9-]+)
+        const match = finalUrl.match(/\/chat\/([a-zA-Z0-9-]+)/);
+        const newConversationId = match ? match[1] : undefined;
+
+        console.log(`[Claude] Done. ID: ${newConversationId}`);
+
+        return {
+          success: true,
+          content: lastContent,
+          conversationId: newConversationId,
+        };
+      });
     } catch (error) {
       return { success: false, error: String(error) };
     }

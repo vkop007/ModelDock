@@ -1,5 +1,6 @@
 import { Page } from "puppeteer";
 import { BaseProvider, SendMessageResult } from "./base";
+import { browserManager } from "../browser-manager";
 import {
   waitForCompletionWithStreaming,
   PROVIDER_CONFIGS,
@@ -558,208 +559,222 @@ export class ChatGPTProvider extends BaseProvider {
     console.log("[ChatGPT] Using browser streaming...");
 
     try {
-      const page = await this.getPage();
+      // ----------------------------------------------------------------------
+      // BLOCK 1: INPUT PHASE (Serialized)
+      // ----------------------------------------------------------------------
+      await browserManager.runTask(this.provider, async () => {
+        const page = await this.getPage();
 
-      // Navigation logic
-      const currentUrl = page.url();
-      const targetUrl = conversationId
-        ? `https://chatgpt.com/c/${conversationId}`
-        : null;
+        // Navigation logic
+        const currentUrl = page.url();
+        const targetUrl = conversationId
+          ? `https://chatgpt.com/c/${conversationId}`
+          : null;
 
-      if (targetUrl && !currentUrl.includes(conversationId!)) {
-        console.log(
-          `[ChatGPT] Navigating to specific conversation: ${conversationId}`,
-        );
-        await page.goto(targetUrl, {
-          waitUntil: "domcontentloaded",
-          timeout: 60000,
-        });
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-      } else if (!conversationId && currentUrl.includes("/c/")) {
-        // If no conversation ID provided but we are in a conversation, go to new chat
-        console.log("[ChatGPT] Starting new conversation - navigating to root");
-        await this.navigate();
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-      } else if (!currentUrl.includes("chatgpt.com")) {
-        console.log("[ChatGPT] First time - navigating to ChatGPT");
-        await this.navigate();
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-        try {
-          await page.waitForNetworkIdle({ timeout: 3000 });
-        } catch {
-          // Continue anyway
-        }
-      } else {
-        await new Promise((resolve) => setTimeout(resolve, 300));
-      }
-
-      // Handle Image Uploads
-      if (imagePaths && imagePaths.length > 0) {
-        console.log(`[ChatGPT] Uploading ${imagePaths.length} images...`);
-
-        try {
-          // 1. Locate file input
-          // ChatGPT usually has a hidden file input. If not found, we might need to click the plus button to insert it into DOM.
-          let fileInput = await page.$('input[type="file"]');
-
-          if (!fileInput) {
-            console.log(
-              "[ChatGPT] File input not found, clicking plus button...",
-            );
-            try {
-              await page.waitForSelector('[data-testid="composer-plus-btn"]', {
-                timeout: 2000,
-              });
-              await page.click('[data-testid="composer-plus-btn"]');
-              await new Promise((resolve) => setTimeout(resolve, 500));
-              fileInput = await page.$('input[type="file"]');
-            } catch (e) {
-              console.log("[ChatGPT] Plus button interaction failed", e);
-            }
+        if (targetUrl && !currentUrl.includes(conversationId!)) {
+          console.log(
+            `[ChatGPT] Navigating to specific conversation: ${conversationId}`,
+          );
+          await page.goto(targetUrl, {
+            waitUntil: "domcontentloaded",
+            timeout: 60000,
+          });
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        } else if (!conversationId && currentUrl.includes("/c/")) {
+          // If no conversation ID provided but we are in a conversation, go to new chat
+          console.log(
+            "[ChatGPT] Starting new conversation - navigating to root",
+          );
+          await this.navigate();
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        } else if (!currentUrl.includes("chatgpt.com")) {
+          console.log("[ChatGPT] First time - navigating to ChatGPT");
+          await this.navigate();
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+          try {
+            await page.waitForNetworkIdle({ timeout: 3000 });
+          } catch {
+            // Continue anyway
           }
+        } else {
+          await new Promise((resolve) => setTimeout(resolve, 300));
+        }
 
-          if (fileInput) {
-            // 2. Upload files
-            await fileInput.uploadFile(...imagePaths);
-            console.log("[ChatGPT] Files assigned to input");
+        // Handle Image Uploads
+        if (imagePaths && imagePaths.length > 0) {
+          console.log(`[ChatGPT] Uploading ${imagePaths.length} images...`);
 
-            // 3. Wait for upload to complete
-            // Look for the preview image container or file attachment
-            try {
-              await page.waitForSelector(
-                'button[aria-label="Remove attachment"], [data-testid="file-attachment"], img[alt="Uploaded image"], .group.relative img',
-                { timeout: 10000 },
-              );
-              console.log("[ChatGPT] Upload previews detected");
-            } catch (e) {
+          try {
+            // 1. Locate file input
+            let fileInput = await page.$('input[type="file"]');
+
+            if (!fileInput) {
               console.log(
-                "[ChatGPT] Warning: Could not detect upload preview, but continuing...",
+                "[ChatGPT] File input not found, clicking plus button...",
               );
+              try {
+                await page.waitForSelector(
+                  '[data-testid="composer-plus-btn"]',
+                  {
+                    timeout: 2000,
+                  },
+                );
+                await page.click('[data-testid="composer-plus-btn"]');
+                await new Promise((resolve) => setTimeout(resolve, 500));
+                fileInput = await page.$('input[type="file"]');
+              } catch (e) {
+                console.log("[ChatGPT] Plus button interaction failed", e);
+              }
             }
 
-            // Wait a bit more for processing (important for image analysis)
-            await new Promise((resolve) => setTimeout(resolve, 3000));
-          } else {
-            console.error("[ChatGPT] Could not find file input for upload");
-          }
-        } catch (uploadError) {
-          console.error("[ChatGPT] Upload failed:", uploadError);
-          // Continue to send message anyway, or maybe throw?
-          // Prefer continuing but logging error
-        }
-      }
+            if (fileInput) {
+              // 2. Upload files
+              await fileInput.uploadFile(...imagePaths);
+              console.log("[ChatGPT] Files assigned to input");
 
-      // Wait for input - reduced timeouts
-      try {
-        await page.waitForSelector("#prompt-textarea", { timeout: 20000 });
-      } catch {
-        await page.waitForSelector('div[contenteditable="true"], textarea', {
-          timeout: 15000,
+              // 3. Wait for upload to complete
+              try {
+                await page.waitForSelector(
+                  'button[aria-label="Remove attachment"], [data-testid="file-attachment"], img[alt="Uploaded image"], .group.relative img',
+                  { timeout: 10000 },
+                );
+                console.log("[ChatGPT] Upload previews detected");
+              } catch (e) {
+                console.log(
+                  "[ChatGPT] Warning: Could not detect upload preview, but continuing...",
+                );
+              }
+              await new Promise((resolve) => setTimeout(resolve, 3000));
+            } else {
+              console.error("[ChatGPT] Could not find file input for upload");
+            }
+          } catch (uploadError) {
+            console.error("[ChatGPT] Upload failed:", uploadError);
+          }
+        }
+
+        // Wait for input - reduced timeouts
+        try {
+          await page.waitForSelector("#prompt-textarea", { timeout: 20000 });
+        } catch {
+          await page.waitForSelector('div[contenteditable="true"], textarea', {
+            timeout: 15000,
+          });
+        }
+
+        // Type and send message
+        const inputEl =
+          (await page.$("#prompt-textarea")) ||
+          (await page.$('div[contenteditable="true"]')) ||
+          (await page.$("textarea"));
+
+        if (!inputEl) {
+          throw new Error("Could not find input element");
+        }
+
+        await inputEl.click();
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        await page.keyboard.type(message, { delay: 10 });
+        await new Promise((resolve) => setTimeout(resolve, 200));
+
+        // NOW click send button
+        const sendButtonClicked = await page.evaluate(() => {
+          const btn = document.querySelector(
+            '[data-testid="send-button"]',
+          ) as HTMLButtonElement;
+          if (btn && !btn.disabled) {
+            btn.click();
+            return true;
+          }
+          const form = document.querySelector("form");
+          if (form) {
+            const buttons = form.querySelectorAll("button");
+            for (const b of buttons) {
+              if (b.querySelector("svg") && !b.disabled) {
+                b.click();
+                return true;
+              }
+            }
+          }
+          return false;
         });
-      }
 
-      // Type and send message
-      const inputEl =
-        (await page.$("#prompt-textarea")) ||
-        (await page.$('div[contenteditable="true"]')) ||
-        (await page.$("textarea"));
-
-      if (!inputEl) {
-        return { success: false, error: "Could not find input element" };
-      }
-
-      await inputEl.click();
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      await page.keyboard.type(message, { delay: 10 });
-      await new Promise((resolve) => setTimeout(resolve, 200));
-
-      // Setup network interception (passive)
-      console.log("[ChatGPT] Setting up passive network monitoring...");
-
-      let networkContent = "";
-      const { client, cleanup } = await setupNetworkMonitoring(
-        page,
-        "backend-api/conversation",
-        (chunk) => {
-          console.log(`[ChatGPT] Network chunk (${chunk.length} chars)`);
-          onChunk(chunk);
-          networkContent += chunk;
-        },
-        StreamParsers.sse,
-      );
-
-      // NOW click send button
-      const sendButtonClicked = await page.evaluate(() => {
-        const btn = document.querySelector(
-          '[data-testid="send-button"]',
-        ) as HTMLButtonElement;
-        if (btn && !btn.disabled) {
-          btn.click();
-          return true;
+        if (!sendButtonClicked) {
+          await page.keyboard.press("Enter");
         }
-        const form = document.querySelector("form");
-        if (form) {
-          const buttons = form.querySelectorAll("button");
-          for (const b of buttons) {
-            if (b.querySelector("svg") && !b.disabled) {
-              b.click();
-              return true;
-            }
-          }
-        }
-        return false;
+
+        console.log("[ChatGPT] Message sent, waiting for response...");
       });
 
-      if (!sendButtonClicked) {
-        await page.keyboard.press("Enter");
-      }
+      // ----------------------------------------------------------------------
+      // BLOCK 2: OUTPUT PHASE (Serialized)
+      // ----------------------------------------------------------------------
+      return await browserManager.runTask(this.provider, async () => {
+        const page = await this.getPage();
 
-      console.log("[ChatGPT] Message sent, waiting for response...");
+        // Setup passive network monitoring - moved here to ensure listeners are active during wait
+        // Note: Ideally network monitoring starts *before* send, but strict serialization might prevent
+        // events from firing if we are not focused. However, Network events fire even in background usually.
+        // But since we are strictly serialized, we re-focus here.
 
-      // Wait for assistant message to appear
-      try {
-        await page.waitForSelector('[data-message-author-role="assistant"]', {
-          timeout: 30000,
-        });
-      } catch {
-        await cleanup();
-        return { success: false, error: "No response received" };
-      }
-
-      // Use DOM polling as backup (deduplicated)
-      const config = PROVIDER_CONFIGS.chatgpt;
-      const result = await waitForCompletionWithStreaming(
-        page,
-        config,
-        (chunk) => {
-          // Only emit if not already covered by network
-          if (!networkContent.includes(chunk)) {
+        console.log("[ChatGPT] Setting up passive network monitoring...");
+        let networkContent = "";
+        const { client, cleanup } = await setupNetworkMonitoring(
+          page,
+          "backend-api/conversation",
+          (chunk) => {
+            console.log(`[ChatGPT] Network chunk (${chunk.length} chars)`);
             onChunk(chunk);
-          }
-        },
-        180000,
-      );
+            networkContent += chunk;
+          },
+          StreamParsers.sse,
+        );
 
-      // Cleanup CDP session
-      await cleanup();
+        // Wait for assistant message to appear
+        try {
+          await page.waitForSelector('[data-message-author-role="assistant"]', {
+            timeout: 30000,
+          });
+        } catch {
+          await cleanup();
+          return { success: false, error: "No response received" };
+        }
 
-      this.hasActiveConversation = true;
+        // Use DOM polling as backup (deduplicated)
+        const config = PROVIDER_CONFIGS.chatgpt;
+        const result = await waitForCompletionWithStreaming(
+          page,
+          config,
+          (chunk) => {
+            // Only emit if not already covered by network
+            if (!networkContent.includes(chunk)) {
+              onChunk(chunk);
+            }
+          },
+          180000,
+        );
 
-      const finalText = result.content || networkContent;
-      const finalUrl = page.url();
-      const match = finalUrl.match(/\/c\/([a-zA-Z0-9-]+)/);
-      const newConversationId = match ? match[1] : undefined;
+        // Cleanup CDP session
+        await cleanup();
 
-      console.log(
-        `[ChatGPT] Streaming complete. Text length: ${finalText.length}. ConvID: ${newConversationId}`,
-      );
-      console.log("[ChatGPT] Response content:", finalText);
+        this.hasActiveConversation = true;
 
-      return {
-        success: true,
-        content: finalText,
-        conversationId: newConversationId,
-      };
+        const finalText = result.content || networkContent;
+        const finalUrl = page.url();
+        const match = finalUrl.match(/\/c\/([a-zA-Z0-9-]+)/);
+        const newConversationId = match ? match[1] : undefined;
+
+        console.log(
+          `[ChatGPT] Streaming complete. Text length: ${finalText.length}. ConvID: ${newConversationId}`,
+        );
+        console.log("[ChatGPT] Response content:", finalText);
+
+        return {
+          success: true,
+          content: finalText,
+          conversationId: newConversationId,
+        };
+      });
     } catch (error) {
       console.error("[ChatGPT] Streaming error:", error);
       return { success: false, error: String(error) };

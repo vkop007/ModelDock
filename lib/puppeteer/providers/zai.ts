@@ -1,5 +1,6 @@
 import { Page } from "puppeteer";
 import { BaseProvider, SendMessageResult } from "./base";
+import { browserManager } from "../browser-manager";
 import {
   waitForCompletionWithStreaming,
   PROVIDER_CONFIGS,
@@ -20,7 +21,7 @@ export class ZaiProvider extends BaseProvider {
       return true;
     } catch {
       console.log(
-        "[Z.ai] Authentication check failed: Input or Send button not found."
+        "[Z.ai] Authentication check failed: Input or Send button not found.",
       );
       try {
         const title = await page.title();
@@ -43,148 +44,161 @@ export class ZaiProvider extends BaseProvider {
   async sendMessageWithStreaming(
     message: string,
     onChunk: (chunk: string) => void,
-    conversationId?: string
+    conversationId?: string,
   ): Promise<SendMessageResult> {
     console.log("[Z.ai] Sending message with streaming...");
 
     try {
-      const page = await this.getPage();
+      // ----------------------------------------------------------------------
+      // BLOCK 1: INPUT PHASE (Serialized)
+      // ----------------------------------------------------------------------
+      await browserManager.runTask(this.provider, async () => {
+        const page = await this.getPage();
 
-      // Navigation logic
-      const currentUrl = page.url();
-      const targetUrl = conversationId
-        ? `https://chat.z.ai/c/${conversationId}`
-        : "https://chat.z.ai";
+        // Navigation logic
+        const currentUrl = page.url();
+        const targetUrl = conversationId
+          ? `https://chat.z.ai/c/${conversationId}`
+          : "https://chat.z.ai";
 
-      if (conversationId && !currentUrl.includes(conversationId)) {
-        console.log(`[Z.ai] Navigating to conversation: ${conversationId}`);
-        await page.goto(targetUrl, {
-          waitUntil: "domcontentloaded",
-          timeout: 30000,
-        });
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-      } else if (!conversationId && currentUrl.includes("/c/")) {
-        // If no ID but we are in a chat, go to root for new chat
-        console.log("[Z.ai] Navigating to new chat");
-        await page.goto("https://chat.z.ai", { waitUntil: "domcontentloaded" });
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-      } else if (!currentUrl.includes("chat.z.ai")) {
-        await this.navigate();
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-      }
+        if (conversationId && !currentUrl.includes(conversationId)) {
+          console.log(`[Z.ai] Navigating to conversation: ${conversationId}`);
+          await page.goto(targetUrl, {
+            waitUntil: "domcontentloaded",
+            timeout: 30000,
+          });
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        } else if (!conversationId && currentUrl.includes("/c/")) {
+          // If no ID but we are in a chat, go to root for new chat
+          console.log("[Z.ai] Navigating to new chat");
+          await page.goto("https://chat.z.ai", {
+            waitUntil: "domcontentloaded",
+          });
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        } else if (!currentUrl.includes("chat.z.ai")) {
+          await this.navigate();
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        }
 
-      // Wait for input
-      const inputSelector = "#chat-input";
-      try {
-        await page.waitForSelector(inputSelector, { timeout: 20000 });
-      } catch {
-        return {
-          success: false,
-          error: "Could not find input element (#chat-input)",
-        };
-      }
-
-      // Focus and type
-      const inputEl = await page.$(inputSelector);
-      if (!inputEl) {
-        return { success: false, error: "Input element not found" };
-      }
-
-      await inputEl.click();
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      // Check and disable "Deep Think" if enabled
-      try {
-        await page.evaluate(() => {
-          const deepThinkBtn = document.querySelector(
-            'button[data-autothink="true"]'
-          );
-          if (deepThinkBtn) {
-            (deepThinkBtn as HTMLElement).click();
-          }
-        });
-      } catch (e) {
-        console.log("[Z.ai] Error checking Deep Think button:", e);
-      }
-
-      // Use direct value setting for speed
-      await page.evaluate(
-        (selector, text) => {
-          const el = document.querySelector(selector) as HTMLTextAreaElement;
-          if (el) {
-            el.value = text;
-            el.dispatchEvent(new Event("input", { bubbles: true }));
-            el.dispatchEvent(new Event("change", { bubbles: true }));
-          }
-        },
-        inputSelector,
-        message
-      );
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      await new Promise((resolve) => setTimeout(resolve, 200));
-
-      // Click send button
-      try {
-        await page.waitForSelector("#send-message-button", { timeout: 5000 });
-        await page.click("#send-message-button");
-      } catch (e) {
-        console.log("[Z.ai] Send button not found or clickable, trying Enter");
-        await page.keyboard.press("Enter");
-      }
-
-      console.log("[Z.ai] Message sent, waiting for response...");
-
-      // Wait for response to start (any likely container)
-      try {
-        await page.waitForSelector(
-          "div[class*='message'], div[class*='response'], .markdown, .prose, .chat-assistant",
-          { timeout: 20000 }
-        );
-      } catch {
-        // Continue anyway, might be slow
-      }
-
-      // Fast streaming with 50ms polling
-      const config = PROVIDER_CONFIGS.zai;
-      const result = await waitForCompletionWithStreaming(
-        page,
-        config,
-        onChunk,
-        90000
-      );
-      const lastContent = result.content;
-
-      if (lastContent.length === 0) {
-        return { success: false, error: "No response text detected" };
-      }
-
-      // Extract Conversation ID from URL
-      // Sometimes the URL update is delayed. Wait for it if we are at root.
-      if (!page.url().includes("/c/")) {
+        // Wait for input
+        const inputSelector = "#chat-input";
         try {
-          await page.waitForFunction(
-            () => window.location.href.includes("/c/"),
-            {
-              timeout: 5000,
+          await page.waitForSelector(inputSelector, { timeout: 20000 });
+        } catch {
+          throw new Error("Could not find input element (#chat-input)");
+        }
+
+        // Focus and type
+        const inputEl = await page.$(inputSelector);
+        if (!inputEl) {
+          throw new Error("Input element not found");
+        }
+
+        await inputEl.click();
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
+        // Check and disable "Deep Think" if enabled
+        try {
+          await page.evaluate(() => {
+            const deepThinkBtn = document.querySelector(
+              'button[data-autothink="true"]',
+            );
+            if (deepThinkBtn) {
+              (deepThinkBtn as HTMLElement).click();
             }
+          });
+        } catch (e) {
+          console.log("[Z.ai] Error checking Deep Think button:", e);
+        }
+
+        // Use direct value setting for speed
+        await page.evaluate(
+          (selector, text) => {
+            const el = document.querySelector(selector) as HTMLTextAreaElement;
+            if (el) {
+              el.value = text;
+              el.dispatchEvent(new Event("input", { bubbles: true }));
+              el.dispatchEvent(new Event("change", { bubbles: true }));
+            }
+          },
+          inputSelector,
+          message,
+        );
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        await new Promise((resolve) => setTimeout(resolve, 200));
+
+        // Click send button
+        try {
+          await page.waitForSelector("#send-message-button", { timeout: 5000 });
+          await page.click("#send-message-button");
+        } catch (e) {
+          console.log(
+            "[Z.ai] Send button not found or clickable, trying Enter",
+          );
+          await page.keyboard.press("Enter");
+        }
+
+        console.log("[Z.ai] Message sent, waiting for response...");
+      });
+
+      // ----------------------------------------------------------------------
+      // BLOCK 2: OUTPUT PHASE (Serialized)
+      // ----------------------------------------------------------------------
+      return await browserManager.runTask(this.provider, async () => {
+        const page = await this.getPage();
+
+        // Wait for response to start (any likely container)
+        try {
+          await page.waitForSelector(
+            "div[class*='message'], div[class*='response'], .markdown, .prose, .chat-assistant",
+            { timeout: 20000 },
           );
         } catch {
-          console.log("[Z.ai] Timeout waiting for URL to update to /c/");
+          // Continue anyway, might be slow
         }
-      }
 
-      const finalUrl = page.url();
-      // URL pattern: https://chat.z.ai/c/<UUID>
-      const match = finalUrl.match(/\/c\/([a-zA-Z0-9-]+)/);
-      const newConversationId = match ? match[1] : undefined;
+        // Fast streaming with 50ms polling
+        const config = PROVIDER_CONFIGS.zai;
+        const result = await waitForCompletionWithStreaming(
+          page,
+          config,
+          onChunk,
+          90000,
+        );
+        const lastContent = result.content;
 
-      console.log(`[Z.ai] Finished. ID: ${newConversationId}`);
+        if (lastContent.length === 0) {
+          return { success: false, error: "No response text detected" };
+        }
 
-      return {
-        success: true,
-        content: lastContent,
-        conversationId: newConversationId,
-      };
+        // Extract Conversation ID from URL
+        // Sometimes the URL update is delayed. Wait for it if we are at root.
+        if (!page.url().includes("/c/")) {
+          try {
+            await page.waitForFunction(
+              () => window.location.href.includes("/c/"),
+              {
+                timeout: 5000,
+              },
+            );
+          } catch {
+            console.log("[Z.ai] Timeout waiting for URL to update to /c/");
+          }
+        }
+
+        const finalUrl = page.url();
+        // URL pattern: https://chat.z.ai/c/<UUID>
+        const match = finalUrl.match(/\/c\/([a-zA-Z0-9-]+)/);
+        const newConversationId = match ? match[1] : undefined;
+
+        console.log(`[Z.ai] Finished. ID: ${newConversationId}`);
+
+        return {
+          success: true,
+          content: lastContent,
+          conversationId: newConversationId,
+        };
+      });
     } catch (error) {
       console.error("[Z.ai] Error:", error);
       return { success: false, error: String(error) };
@@ -216,7 +230,7 @@ export class ZaiProvider extends BaseProvider {
       const isGenerating = await page.evaluate(() => {
         // Standard checks
         const stopBtn = document.querySelector(
-          'button[aria-label="Stop generating"], button[aria-label="Stop response"], [class*="stop-button"]'
+          'button[aria-label="Stop generating"], button[aria-label="Stop response"], [class*="stop-button"]',
         );
         if (stopBtn) return true;
 
@@ -255,7 +269,7 @@ export class ZaiProvider extends BaseProvider {
         if (!assistantMessage) return "";
 
         const container = assistantMessage.querySelector(
-          "#response-content-container"
+          "#response-content-container",
         );
         if (!container) return "";
 
@@ -322,7 +336,7 @@ export class ZaiProvider extends BaseProvider {
         }
 
         console.error(
-          `[Z.ai] Delete failed: ${response.status} ${response.statusText}`
+          `[Z.ai] Delete failed: ${response.status} ${response.statusText}`,
         );
         return false;
       }, conversationId);

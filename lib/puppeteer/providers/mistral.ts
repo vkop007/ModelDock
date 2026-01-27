@@ -1,5 +1,6 @@
 import { Page } from "puppeteer";
 import { BaseProvider, SendMessageResult } from "./base";
+import { browserManager } from "../browser-manager";
 import {
   waitForCompletionWithStreaming,
   PROVIDER_CONFIGS,
@@ -40,122 +41,136 @@ export class MistralProvider extends BaseProvider {
     conversationId?: string,
   ): Promise<SendMessageResult> {
     try {
-      const page = await this.getPage();
-      const currentUrl = page.url();
+      // ----------------------------------------------------------------------
+      // BLOCK 1: INPUT PHASE (Serialized)
+      // ----------------------------------------------------------------------
+      let previousResponseCount = 0;
 
-      if (conversationId) {
-        if (!currentUrl.includes(`/chat/${conversationId}`)) {
-          console.log(
-            `[Mistral] Navigating to conversation: ${conversationId}`,
-          );
-          await page.goto(`https://chat.mistral.ai/chat/${conversationId}`, {
-            waitUntil: "domcontentloaded",
-            timeout: 30000,
-          });
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-        }
-      } else {
-        if (currentUrl.includes("/chat/")) {
-          console.log("[Mistral] Starting new chat...");
-          await page.goto("https://chat.mistral.ai/", {
-            waitUntil: "domcontentloaded",
-            timeout: 30000,
-          });
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-        } else if (!currentUrl.includes("chat.mistral.ai")) {
-          console.log("[Mistral] Navigating to Mistral...");
-          await this.navigate();
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-        }
-      }
+      await browserManager.runTask(this.provider, async () => {
+        const page = await this.getPage();
+        const currentUrl = page.url();
 
-      console.log("[Mistral] Checking page state...");
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
-      const inputSelector = '.ProseMirror, div[contenteditable="true"]';
-      await page.waitForSelector(inputSelector, { timeout: 30000 });
-
-      const input = await page.$(inputSelector);
-      if (!input) {
-        return { success: false, error: "Could not find input field" };
-      }
-
-      // Use direct value setting for speed (ProseMirror / contenteditable)
-      await page.evaluate(
-        (selector, text) => {
-          const el = document.querySelector(selector) as HTMLElement;
-          if (el) {
-            // Mistral uses ProseMirror - use DOM methods instead of innerHTML to avoid Trusted Types errors
-            el.replaceChildren();
-            const p = document.createElement("p");
-            p.textContent = text;
-            el.appendChild(p);
-            el.dispatchEvent(new Event("input", { bubbles: true }));
+        if (conversationId) {
+          if (!currentUrl.includes(`/chat/${conversationId}`)) {
+            console.log(
+              `[Mistral] Navigating to conversation: ${conversationId}`,
+            );
+            await page.goto(`https://chat.mistral.ai/chat/${conversationId}`, {
+              waitUntil: "domcontentloaded",
+              timeout: 30000,
+            });
+            await new Promise((resolve) => setTimeout(resolve, 1000));
           }
-        },
-        inputSelector,
-        message,
-      );
-      await new Promise((resolve) => setTimeout(resolve, 300));
+        } else {
+          if (currentUrl.includes("/chat/")) {
+            console.log("[Mistral] Starting new chat...");
+            await page.goto("https://chat.mistral.ai/", {
+              waitUntil: "domcontentloaded",
+              timeout: 30000,
+            });
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+          } else if (!currentUrl.includes("chat.mistral.ai")) {
+            console.log("[Mistral] Navigating to Mistral...");
+            await this.navigate();
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+          }
+        }
 
-      // Count existing assistant messages
-      const previousResponseCount = await page.evaluate(() => {
-        const responses = document.querySelectorAll(
-          '[data-message-author-role="assistant"]',
+        console.log("[Mistral] Checking page state...");
+        await new Promise((resolve) => setTimeout(resolve, 500));
+
+        const inputSelector = '.ProseMirror, div[contenteditable="true"]';
+        await page.waitForSelector(inputSelector, { timeout: 30000 });
+
+        const input = await page.$(inputSelector);
+        if (!input) {
+          throw new Error("Could not find input field");
+        }
+
+        // Use direct value setting for speed (ProseMirror / contenteditable)
+        await page.evaluate(
+          (selector, text) => {
+            const el = document.querySelector(selector) as HTMLElement;
+            if (el) {
+              // Mistral uses ProseMirror - use DOM methods instead of innerHTML to avoid Trusted Types errors
+              el.replaceChildren();
+              const p = document.createElement("p");
+              p.textContent = text;
+              el.appendChild(p);
+              el.dispatchEvent(new Event("input", { bubbles: true }));
+            }
+          },
+          inputSelector,
+          message,
         );
-        return responses.length;
+        await new Promise((resolve) => setTimeout(resolve, 300));
+
+        // Count existing assistant messages
+        previousResponseCount = await page.evaluate(() => {
+          const responses = document.querySelectorAll(
+            '[data-message-author-role="assistant"]',
+          );
+          return responses.length;
+        });
+
+        // Click send or press Enter
+        const sendButton = await page.$(
+          'button[type="submit"], button[aria-label*="Send"]',
+        );
+        if (sendButton) {
+          await sendButton.click();
+        } else {
+          await page.keyboard.press("Enter");
+        }
       });
 
-      // Click send or press Enter
-      const sendButton = await page.$(
-        'button[type="submit"], button[aria-label*="Send"]',
-      );
-      if (sendButton) {
-        await sendButton.click();
-      } else {
-        await page.keyboard.press("Enter");
-      }
+      // ----------------------------------------------------------------------
+      // BLOCK 2: OUTPUT PHASE (Serialized)
+      // ----------------------------------------------------------------------
+      return await browserManager.runTask(this.provider, async () => {
+        const page = await this.getPage();
 
-      console.log("[Mistral] Waiting for streaming to complete...");
+        console.log("[Mistral] Waiting for streaming to complete...");
 
-      // Wait for new response
-      try {
-        await page.waitForFunction(
-          (prevCount: number) => {
-            const responses = document.querySelectorAll(
-              '[data-message-author-role="assistant"]',
-            );
-            return responses.length > prevCount;
-          },
-          { timeout: 15000 },
-          previousResponseCount,
+        // Wait for new response
+        try {
+          await page.waitForFunction(
+            (prevCount: number) => {
+              const responses = document.querySelectorAll(
+                '[data-message-author-role="assistant"]',
+              );
+              return responses.length > prevCount;
+            },
+            { timeout: 15000 },
+            previousResponseCount,
+          );
+        } catch {
+          // Continue
+        }
+
+        // Fast streaming with 50ms polling
+        const config = PROVIDER_CONFIGS.mistral;
+        const result = await waitForCompletionWithStreaming(
+          page,
+          config,
+          onChunk,
+          180000,
         );
-      } catch {
-        // Continue
-      }
+        const lastContent = result.content;
 
-      // Fast streaming with 50ms polling
-      const config = PROVIDER_CONFIGS.mistral;
-      const result = await waitForCompletionWithStreaming(
-        page,
-        config,
-        onChunk,
-        180000,
-      );
-      const lastContent = result.content;
+        // Extract conversation ID from URL: https://chat.mistral.ai/chat/{id}
+        const finalUrl = page.url();
+        const match = finalUrl.match(/\/chat\/([a-zA-Z0-9_-]+)/);
+        const newConversationId = match ? match[1] : undefined;
 
-      // Extract conversation ID from URL: https://chat.mistral.ai/chat/{id}
-      const finalUrl = page.url();
-      const match = finalUrl.match(/\/chat\/([a-zA-Z0-9_-]+)/);
-      const newConversationId = match ? match[1] : undefined;
+        console.log(`[Mistral] Done. ID: ${newConversationId}`);
 
-      console.log(`[Mistral] Done. ID: ${newConversationId}`);
-
-      return {
-        success: true,
-        content: lastContent,
-        conversationId: newConversationId,
-      };
+        return {
+          success: true,
+          content: lastContent,
+          conversationId: newConversationId,
+        };
+      });
     } catch (error) {
       return { success: false, error: String(error) };
     }

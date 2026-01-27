@@ -1,5 +1,6 @@
 import { Page } from "puppeteer";
 import { BaseProvider, SendMessageResult } from "./base";
+import { browserManager } from "../browser-manager";
 import {
   waitForCompletionWithStreaming,
   PROVIDER_CONFIGS,
@@ -35,131 +36,145 @@ export class QwenProvider extends BaseProvider {
   async sendMessageWithStreaming(
     message: string,
     onChunk: (chunk: string) => void,
-    conversationId?: string
+    conversationId?: string,
   ): Promise<SendMessageResult> {
     try {
-      const page = await this.getPage();
+      // ----------------------------------------------------------------------
+      // BLOCK 1: INPUT PHASE (Serialized)
+      // ----------------------------------------------------------------------
+      let previousResponseCount = 0;
 
-      // Navigation logic
-      const currentUrl = page.url();
-      const isInConversation = currentUrl.includes("/c/");
+      await browserManager.runTask(this.provider, async () => {
+        const page = await this.getPage();
 
-      if (conversationId) {
-        // Check if already in this conversation
-        const alreadyInConversation = currentUrl.includes(conversationId);
-        if (!alreadyInConversation) {
-          console.log(`[Qwen] Navigating to conversation: ${conversationId}`);
-          await page.goto(`https://chat.qwen.ai/c/${conversationId}`, {
+        // Navigation logic
+        const currentUrl = page.url();
+        const isInConversation = currentUrl.includes("/c/");
+
+        if (conversationId) {
+          // Check if already in this conversation
+          const alreadyInConversation = currentUrl.includes(conversationId);
+          if (!alreadyInConversation) {
+            console.log(`[Qwen] Navigating to conversation: ${conversationId}`);
+            await page.goto(`https://chat.qwen.ai/c/${conversationId}`, {
+              waitUntil: "domcontentloaded",
+              timeout: 30000,
+            });
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+          } else {
+            console.log(`[Qwen] Already in conversation ${conversationId}`);
+          }
+        } else if (isInConversation) {
+          // No conversationId but we're in a chat - start new conversation
+          console.log("[Qwen] Starting new chat...");
+          await page.goto("https://chat.qwen.ai/", {
             waitUntil: "domcontentloaded",
             timeout: 30000,
           });
-          await new Promise((resolve) => setTimeout(resolve, 2000));
-        } else {
-          console.log(`[Qwen] Already in conversation ${conversationId}`);
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        } else if (!currentUrl.includes("chat.qwen.ai")) {
+          console.log("[Qwen] Navigating to Qwen...");
+          await this.navigate();
+          await new Promise((resolve) => setTimeout(resolve, 1000));
         }
-      } else if (isInConversation) {
-        // No conversationId but we're in a chat - start new conversation
-        console.log("[Qwen] Starting new chat...");
-        await page.goto("https://chat.qwen.ai/", {
-          waitUntil: "domcontentloaded",
-          timeout: 30000,
-        });
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-      } else if (!currentUrl.includes("chat.qwen.ai")) {
-        console.log("[Qwen] Navigating to Qwen...");
-        await this.navigate();
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-      }
 
-      console.log("[Qwen] Checking page state...");
-      await new Promise((resolve) => setTimeout(resolve, 500));
+        console.log("[Qwen] Checking page state...");
+        await new Promise((resolve) => setTimeout(resolve, 500));
 
-      // Wait for the input field - Qwen uses textarea
-      const inputSelector = "textarea";
-      await page.waitForSelector(inputSelector, { timeout: 30000 });
+        // Wait for the input field - Qwen uses textarea
+        const inputSelector = "textarea";
+        await page.waitForSelector(inputSelector, { timeout: 30000 });
 
-      // Focus and type the message
-      const input = await page.$(inputSelector);
-      if (!input) {
-        return { success: false, error: "Could not find input field" };
-      }
+        // Focus and type the message
+        const input = await page.$(inputSelector);
+        if (!input) {
+          throw new Error("Could not find input field");
+        }
 
-      await input.click();
-      // Use direct value setting for speed
-      await page.evaluate(
-        (selector, text) => {
-          const el = document.querySelector(selector) as HTMLTextAreaElement;
-          if (el) {
-            el.value = text;
-            el.dispatchEvent(new Event("input", { bubbles: true }));
-            el.dispatchEvent(new Event("change", { bubbles: true }));
-          }
-        },
-        inputSelector,
-        message
-      );
-      await new Promise((resolve) => setTimeout(resolve, 300));
-
-      // Count existing responses BEFORE clicking send
-      // Qwen uses .qwen-chat-message-assistant for AI responses
-      const previousResponseCount = await page.evaluate(() => {
-        const responses = document.querySelectorAll(
-          ".qwen-chat-message-assistant"
+        await input.click();
+        // Use direct value setting for speed
+        await page.evaluate(
+          (selector, text) => {
+            const el = document.querySelector(selector) as HTMLTextAreaElement;
+            if (el) {
+              el.value = text;
+              el.dispatchEvent(new Event("input", { bubbles: true }));
+              el.dispatchEvent(new Event("change", { bubbles: true }));
+            }
+          },
+          inputSelector,
+          message,
         );
-        return responses.length;
+        await new Promise((resolve) => setTimeout(resolve, 300));
+
+        // Count existing responses BEFORE clicking send
+        // Qwen uses .qwen-chat-message-assistant for AI responses
+        previousResponseCount = await page.evaluate(() => {
+          const responses = document.querySelectorAll(
+            ".qwen-chat-message-assistant",
+          );
+          return responses.length;
+        });
+
+        // Click send button or press Enter
+        const sendButton = await page.$(
+          'button[type="submit"], button[aria-label*="Send"], button[class*="send"]',
+        );
+        if (sendButton) {
+          await sendButton.click();
+        } else {
+          await page.keyboard.press("Enter");
+        }
       });
 
-      // Click send button or press Enter
-      const sendButton = await page.$(
-        'button[type="submit"], button[aria-label*="Send"], button[class*="send"]'
-      );
-      if (sendButton) {
-        await sendButton.click();
-      } else {
-        await page.keyboard.press("Enter");
-      }
+      // ----------------------------------------------------------------------
+      // BLOCK 2: OUTPUT PHASE (Serialized)
+      // ----------------------------------------------------------------------
+      return await browserManager.runTask(this.provider, async () => {
+        const page = await this.getPage();
 
-      console.log("[Qwen] Waiting for streaming to complete...");
+        console.log("[Qwen] Waiting for streaming to complete...");
 
-      // Wait for a NEW response to appear
-      try {
-        await page.waitForFunction(
-          (prevCount: number) => {
-            const responses = document.querySelectorAll(
-              ".qwen-chat-message-assistant"
-            );
-            return responses.length > prevCount;
-          },
-          { timeout: 15000 },
-          previousResponseCount
+        // Wait for a NEW response to appear
+        try {
+          await page.waitForFunction(
+            (prevCount: number) => {
+              const responses = document.querySelectorAll(
+                ".qwen-chat-message-assistant",
+              );
+              return responses.length > prevCount;
+            },
+            { timeout: 15000 },
+            previousResponseCount,
+          );
+        } catch {
+          // Continue, might be slow
+        }
+
+        // Fast streaming with 50ms polling
+        const config = PROVIDER_CONFIGS.qwen;
+        const result = await waitForCompletionWithStreaming(
+          page,
+          config,
+          onChunk,
+          180000,
         );
-      } catch {
-        // Continue, might be slow
-      }
+        const lastContent = result.content;
 
-      // Fast streaming with 50ms polling
-      const config = PROVIDER_CONFIGS.qwen;
-      const result = await waitForCompletionWithStreaming(
-        page,
-        config,
-        onChunk,
-        180000
-      );
-      const lastContent = result.content;
+        // Extract Conversation ID from URL
+        // URL pattern: https://chat.qwen.ai/c/<id>
+        const finalUrl = page.url();
+        const match = finalUrl.match(/\/c\/([a-zA-Z0-9_-]+)/);
+        const newConversationId = match ? match[1] : undefined;
 
-      // Extract Conversation ID from URL
-      // URL pattern: https://chat.qwen.ai/c/<id>
-      const finalUrl = page.url();
-      const match = finalUrl.match(/\/c\/([a-zA-Z0-9_-]+)/);
-      const newConversationId = match ? match[1] : undefined;
+        console.log(`[Qwen] Done. ID: ${newConversationId}`);
 
-      console.log(`[Qwen] Done. ID: ${newConversationId}`);
-
-      return {
-        success: true,
-        content: lastContent,
-        conversationId: newConversationId,
-      };
+        return {
+          success: true,
+          content: lastContent,
+          conversationId: newConversationId,
+        };
+      });
     } catch (error) {
       return { success: false, error: String(error) };
     }
@@ -189,13 +204,13 @@ export class QwenProvider extends BaseProvider {
 
       const currentResponse = await page.evaluate(() => {
         const responses = document.querySelectorAll(
-          ".qwen-chat-message-assistant"
+          ".qwen-chat-message-assistant",
         );
         if (responses.length > 0) {
           const lastResponse = responses[responses.length - 1];
           // Target only the markdown inside response-message-content to avoid model name/time
           const markdown = lastResponse.querySelector(
-            ".response-message-content .qwen-markdown"
+            ".response-message-content .qwen-markdown",
           );
           return markdown?.textContent || "";
         }
@@ -215,13 +230,13 @@ export class QwenProvider extends BaseProvider {
 
     const response = await page.evaluate(() => {
       const responses = document.querySelectorAll(
-        ".qwen-chat-message-assistant"
+        ".qwen-chat-message-assistant",
       );
       if (responses.length > 0) {
         const lastResponse = responses[responses.length - 1];
         // Target only the markdown inside response-message-content to avoid model name/time
         const markdown = lastResponse.querySelector(
-          ".response-message-content .qwen-markdown"
+          ".response-message-content .qwen-markdown",
         );
         return markdown?.textContent || "";
       }
@@ -258,7 +273,7 @@ export class QwenProvider extends BaseProvider {
                 accept: "application/json, text/plain, */*",
                 source: "web",
               },
-            }
+            },
           );
           return { success: response.ok, status: response.status };
         } catch (error) {
@@ -268,12 +283,12 @@ export class QwenProvider extends BaseProvider {
 
       if (result.success) {
         console.log(
-          `[Qwen] Successfully deleted conversation: ${conversationId}`
+          `[Qwen] Successfully deleted conversation: ${conversationId}`,
         );
         return true;
       } else {
         console.log(
-          `[Qwen] Failed to delete conversation: ${JSON.stringify(result)}`
+          `[Qwen] Failed to delete conversation: ${JSON.stringify(result)}`,
         );
         return false;
       }
@@ -288,7 +303,7 @@ export class QwenProvider extends BaseProvider {
    * Uses Qwen's user settings API directly.
    */
   async setCustomInstructions(
-    instructions: string
+    instructions: string,
   ): Promise<{ success: boolean; error?: string }> {
     console.log("[Qwen] Setting custom instructions via API...");
 
@@ -326,7 +341,7 @@ export class QwenProvider extends BaseProvider {
                   instruction: instructionsText,
                 },
               }),
-            }
+            },
           );
 
           if (!response.ok) {

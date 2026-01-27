@@ -446,6 +446,48 @@ class BrowserManager {
       console.error(`[BrowserManager] Failed to clean shared data:`, error);
     }
   }
+
+  // Execution Queue for enforcing strict sequential interaction
+  private executionQueue: Promise<void> = Promise.resolve();
+
+  /**
+   * Execute a task for a provider ensuring it is the focused tab.
+   * This queue strictly serializes all browser interactions to prevent race conditions
+   * and ensuring that the active tab is always the one performing work.
+   */
+  async runTask<T>(provider: LLMProvider, task: () => Promise<T>): Promise<T> {
+    // We implicitly chain onto the executionQueue
+    const taskPromise = this.executionQueue.then(async () => {
+      try {
+        console.log(`[BrowserManager] Starting task for ${provider}`);
+
+        // 1. Ensure the page is focused
+        const switched = await this.switchToPage(provider);
+        if (!switched) {
+          console.warn(
+            `[BrowserManager] Could not switch to ${provider}, task might fail`,
+          );
+        } else {
+          // Small delay to let browser handle focus event
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+
+        // 2. Run the task
+        return await task();
+      } catch (error) {
+        console.error(`[BrowserManager] Task error for ${provider}:`, error);
+        throw error;
+      }
+    });
+
+    // Update the queue tail, catching errors so the queue doesn't stall
+    this.executionQueue = taskPromise.then(
+      () => {},
+      () => {},
+    );
+
+    return taskPromise;
+  }
 }
 
 // Use global to persist across hot reloads in development
