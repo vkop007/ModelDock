@@ -59,7 +59,8 @@ export abstract class BaseProvider {
     message: string,
     onChunk: (chunk: string) => void,
     conversationId?: string,
-    imagePaths?: string[]
+    imagePaths?: string[],
+    signal?: AbortSignal,
   ): Promise<SendMessageResult> {
     // Default implementation falls back to non-streaming
     return this.sendMessage(message);

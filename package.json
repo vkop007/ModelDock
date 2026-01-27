@@ -14,6 +14,8 @@
     "@llm-ui/react": "^0.13.3",
     "@shikijs/themes": "^3.21.0",
     "@types/react-syntax-highlighter": "^15.5.13",
+    "chrome-cookies-secure": "^3.0.1",
+    "keytar": "^7.9.0",
     "next": "16.1.1",
     "puppeteer": "^24.34.0",
     "puppeteer-extra": "^3.3.6",
@@ -26,6 +28,7 @@
     "react-syntax-highlighter": "^16.1.0",
     "remark-gfm": "^4.0.1",
     "shiki": "1",
+    "sqlite3": "^5.1.7",
     "streamdown": "^1.6.11",
     "uuid": "^13.0.0"
   },

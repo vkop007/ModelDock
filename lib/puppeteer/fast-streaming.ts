@@ -27,7 +27,7 @@ export type StreamCallback = (chunk: string) => void;
 export async function setupStreamCallback(
   page: Page,
   callbackName: string,
-  callback: StreamCallback
+  callback: StreamCallback,
 ): Promise<void> {
   try {
     // Check if already exposed
@@ -52,7 +52,7 @@ export async function setupStreamCallback(
 export async function injectStreamingObserver(
   page: Page,
   config: StreamingConfig,
-  callbackName: string
+  callbackName: string,
 ): Promise<string> {
   const observerId = `__streamObserver_${Date.now()}`;
 
@@ -132,7 +132,7 @@ export async function injectStreamingObserver(
     },
     observerId,
     config.responseSelectors,
-    callbackName
+    callbackName,
   );
 
   return observerId;
@@ -143,7 +143,7 @@ export async function injectStreamingObserver(
  */
 export async function resetObserverState(
   page: Page,
-  observerId: string
+  observerId: string,
 ): Promise<void> {
   await page.evaluate((observerId) => {
     const win = window as unknown as Record<string, unknown>;
@@ -163,7 +163,7 @@ export async function resetObserverState(
 export async function setObserverBaseline(
   page: Page,
   observerId: string,
-  baselineLength: number
+  baselineLength: number,
 ): Promise<void> {
   await page.evaluate(
     (observerId, baseline) => {
@@ -176,7 +176,7 @@ export async function setObserverBaseline(
       }
     },
     observerId,
-    baselineLength
+    baselineLength,
   );
 }
 
@@ -185,7 +185,7 @@ export async function setObserverBaseline(
  */
 export async function cleanupObserver(
   page: Page,
-  observerId: string
+  observerId: string,
 ): Promise<void> {
   await page.evaluate((observerId) => {
     const win = window as unknown as Record<string, unknown>;
@@ -204,7 +204,7 @@ export async function cleanupObserver(
  */
 export async function isGenerating(
   page: Page,
-  generatingSelectors: string[]
+  generatingSelectors: string[],
 ): Promise<boolean> {
   return await page.evaluate((selectors) => {
     for (const selector of selectors) {
@@ -221,7 +221,7 @@ export async function isGenerating(
  */
 export async function getResponseLength(
   page: Page,
-  responseSelectors: string[]
+  responseSelectors: string[],
 ): Promise<number> {
   return await page.evaluate((selectors) => {
     for (const selector of selectors) {
@@ -240,7 +240,7 @@ export async function getResponseLength(
  */
 export async function getResponseContent(
   page: Page,
-  responseSelectors: string[]
+  responseSelectors: string[],
 ): Promise<string> {
   return await page.evaluate((selectors) => {
     for (const selector of selectors) {
@@ -263,7 +263,8 @@ export async function waitForCompletionWithStreaming(
   page: Page,
   config: StreamingConfig,
   onChunk: StreamCallback,
-  maxWaitMs: number = 180000
+  maxWaitMs: number = 180000,
+  signal?: AbortSignal,
 ): Promise<{ completed: boolean; content: string }> {
   const startTime = Date.now();
   let lastContent = "";
@@ -272,16 +273,21 @@ export async function waitForCompletionWithStreaming(
   const pollInterval = 25; // Ultra-fast 25ms polling for responsive streaming
 
   console.log(
-    `[${config.providerName}] Waiting for completion with streaming...`
+    `[${config.providerName}] Waiting for completion with streaming...`,
   );
 
   while (Date.now() - startTime < maxWaitMs) {
+    if (signal?.aborted) {
+      console.log(`[${config.providerName}] Stream aborted by signal`);
+      throw new Error("AbortError");
+    }
+
     await new Promise((resolve) => setTimeout(resolve, pollInterval));
 
     const generating = await isGenerating(page, config.generatingSelectors);
     const currentContent = await getResponseContent(
       page,
-      config.responseSelectors
+      config.responseSelectors,
     );
     const currentLength = currentContent.length;
 
@@ -306,7 +312,7 @@ export async function waitForCompletionWithStreaming(
       stableTime += pollInterval;
       if (stableTime >= config.stabilityThreshold) {
         console.log(
-          `[${config.providerName}] Response stable for ${stableTime}ms, completing`
+          `[${config.providerName}] Response stable for ${stableTime}ms, completing`,
         );
         break;
       }
@@ -327,7 +333,7 @@ export async function waitForCompletionWithStreaming(
 export async function waitForCompletion(
   page: Page,
   config: StreamingConfig,
-  maxWaitMs: number = 180000
+  maxWaitMs: number = 180000,
 ): Promise<{ completed: boolean; content: string }> {
   const startTime = Date.now();
   let lastLength = 0;
@@ -342,7 +348,7 @@ export async function waitForCompletion(
     const generating = await isGenerating(page, config.generatingSelectors);
     const currentLength = await getResponseLength(
       page,
-      config.responseSelectors
+      config.responseSelectors,
     );
 
     if (generating) {
@@ -355,7 +361,7 @@ export async function waitForCompletion(
       stableTime += pollInterval;
       if (stableTime >= config.stabilityThreshold) {
         console.log(
-          `[${config.providerName}] Response stable for ${stableTime}ms, completing`
+          `[${config.providerName}] Response stable for ${stableTime}ms, completing`,
         );
         break;
       }
@@ -381,7 +387,7 @@ export async function streamResponse(
   config: StreamingConfig,
   onChunk: StreamCallback,
   previousContentLength: number = 0,
-  maxWaitMs: number = 180000
+  maxWaitMs: number = 180000,
 ): Promise<{ success: boolean; content: string }> {
   const callbackName = `__onStreamChunk_${config.providerName}`;
   const observerId = `__observer_${config.providerName}`;
@@ -424,7 +430,7 @@ export async function setupNetworkMonitoring(
   page: Page,
   urlPattern: string,
   onChunk: StreamCallback,
-  parser: (text: string) => string | null
+  parser: (text: string) => string | null,
 ): Promise<{ client: any; cleanup: () => Promise<void> }> {
   let fullResponseText = "";
   let targetRequestId = "";

@@ -41,8 +41,12 @@ export class GeminiProvider extends BaseProvider {
     onChunk: (chunk: string) => void,
     conversationId?: string,
     imagePaths?: string[],
+    signal?: AbortSignal,
   ): Promise<SendMessageResult> {
     try {
+      // Check signal before starting
+      if (signal?.aborted) throw new Error("AbortError");
+
       // ----------------------------------------------------------------------
       // BLOCK 1: INPUT PHASE (Serialized)
       // ----------------------------------------------------------------------
@@ -50,6 +54,8 @@ export class GeminiProvider extends BaseProvider {
 
       await browserManager.runTask(this.provider, async () => {
         const page = await this.getPage();
+
+        if (signal?.aborted) throw new Error("AbortError");
 
         // Navigation logic
         const currentUrl = page.url();
@@ -80,6 +86,8 @@ export class GeminiProvider extends BaseProvider {
           await this.navigate();
           await new Promise((resolve) => setTimeout(resolve, 500));
         }
+
+        if (signal?.aborted) throw new Error("AbortError");
 
         // Handle Image Uploads
         if (imagePaths && imagePaths.length > 0) {
@@ -124,9 +132,12 @@ export class GeminiProvider extends BaseProvider {
           }
         }
 
-        // Wait for the input field
+        if (signal?.aborted) throw new Error("AbortError");
+
+        // Wait for the input field - Updated selectors for 2024 Gemini UI
+        // Priorities: specific rich textarea -> contenteditable textbox -> generic contenteditable
         const inputSelector =
-          'rich-textarea .ql-editor, .text-input-field, [contenteditable="true"]';
+          'rich-textarea [contenteditable="true"], .ql-editor, div[role="textbox"][contenteditable="true"], [contenteditable="true"]';
         await page.waitForSelector(inputSelector, { timeout: 30000 });
 
         // Focus and type the message
@@ -137,7 +148,7 @@ export class GeminiProvider extends BaseProvider {
 
         // Click to focus and clear any existing content
         await input.click();
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 500)); // Increased wait for focus
 
         // Select all and delete any existing content
         await page.keyboard.down("Meta"); // Cmd on Mac
@@ -146,11 +157,25 @@ export class GeminiProvider extends BaseProvider {
         await page.keyboard.press("Backspace");
         await new Promise((resolve) => setTimeout(resolve, 100));
 
-        // Type the message using keyboard - Quill.js requires actual keyboard events
-        await page.keyboard.type(message, { delay: 5 });
+        // Type the message using keyboard
+        await page.keyboard.type(message, { delay: 10 }); // Slightly slower typing
+
+        // Verification: Check if text was actually typed
+        const typedValue = await page.evaluate((sel) => {
+          const el = document.querySelector(sel) as HTMLElement;
+          return el?.textContent || "";
+        }, inputSelector);
+
+        // Fallback: If typing failed (e.g. lost focus), try one more time or direct injection (risky for complex editors)
+        if (!typedValue || typedValue.trim() === "") {
+          console.log("[Gemini] Typing verification failed, retrying...");
+          await input.click();
+          await new Promise((resolve) => setTimeout(resolve, 300));
+          await page.keyboard.type(message, { delay: 15 });
+        }
 
         // Small delay for UI to update
-        await new Promise((resolve) => setTimeout(resolve, 300));
+        await new Promise((resolve) => setTimeout(resolve, 500));
 
         // Count existing responses BEFORE sending so we can detect the new one
         previousResponseCount = await page.evaluate(() => {
@@ -172,11 +197,15 @@ export class GeminiProvider extends BaseProvider {
         }
       });
 
+      if (signal?.aborted) throw new Error("AbortError");
+
       // ----------------------------------------------------------------------
       // BLOCK 2: OUTPUT PHASE (Serialized)
       // ----------------------------------------------------------------------
       return await browserManager.runTask(this.provider, async () => {
         const page = await this.getPage();
+
+        if (signal?.aborted) throw new Error("AbortError");
 
         // Wait for response with streaming
         console.log("[Gemini] Waiting for response to start streaming...");
@@ -206,6 +235,7 @@ export class GeminiProvider extends BaseProvider {
           config,
           onChunk,
           180000,
+          signal, // Pass signal to break polling
         );
         const lastContent = result.content;
 
@@ -224,6 +254,26 @@ export class GeminiProvider extends BaseProvider {
         };
       });
     } catch (error) {
+      if (error instanceof Error && error.message === "AbortError") {
+        console.log(
+          "[Gemini] Request aborted, attempting to stop generation in browser...",
+        );
+        // Best-effort attempt to stop the browser generation
+        await browserManager
+          .runTask(this.provider, async () => {
+            const page = await this.getPage();
+            // Try common stop button selectors
+            // Gemini uses multiple aria labels
+            const stopSelector =
+              'button[aria-label="Stop response"], button[aria-label="Stop generating"], .stop-button, [data-testid="stop-button"]';
+            const stopBtn = await page.$(stopSelector);
+            if (stopBtn) {
+              await stopBtn.click();
+              console.log("[Gemini] Clicked stop button in browser");
+            }
+          })
+          .catch((e) => console.error("[Gemini] Failed to click stop", e));
+      }
       return { success: false, error: String(error) };
     }
   }

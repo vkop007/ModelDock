@@ -44,6 +44,8 @@ export class ClaudeProvider extends BaseProvider {
     message: string,
     onChunk: (chunk: string) => void,
     conversationId?: string,
+    imagePaths?: string[],
+    signal?: AbortSignal,
   ): Promise<SendMessageResult> {
     try {
       // ----------------------------------------------------------------------
