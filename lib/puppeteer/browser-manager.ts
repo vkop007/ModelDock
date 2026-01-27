@@ -1,6 +1,10 @@
 import { connect } from "puppeteer-real-browser";
 import { Browser, Page } from "puppeteer";
 import { LLMProvider, CookieEntry } from "@/types";
+import path from "path";
+import fs from "fs";
+
+const USER_DATA_ROOT = path.join(process.cwd(), ".browser-data");
 
 // Global state to persist across Next.js hot reloads
 declare global {
@@ -76,11 +80,26 @@ class BrowserManager {
     const platform = process.platform;
 
     if (platform === "win32") {
-      console.log("[BrowserManager] Detected Windows platform - Chrome will be auto-detected");
+      console.log(
+        "[BrowserManager] Detected Windows platform - Chrome will be auto-detected",
+      );
     } else if (platform === "darwin") {
-      console.log("[BrowserManager] Detected macOS platform - Chrome will be auto-detected");
+      console.log(
+        "[BrowserManager] Detected macOS platform - Chrome will be auto-detected",
+      );
     } else if (platform === "linux") {
-      console.log("[BrowserManager] Detected Linux platform - Chrome will be auto-detected");
+      console.log(
+        "[BrowserManager] Detected Linux platform - Chrome will be auto-detected",
+      );
+    }
+
+    // Clean data before launch to ensure fresh state (except Local Storage)
+    this.cleanBrowserData(provider);
+
+    const userDataDir = path.join(USER_DATA_ROOT, provider);
+    // Ensure directory exists
+    if (!fs.existsSync(userDataDir)) {
+      fs.mkdirSync(userDataDir, { recursive: true });
     }
 
     const response = await connect({
@@ -92,8 +111,7 @@ class BrowserManager {
         "--disable-dev-shm-usage",
         "--window-size=390,844", // Mobile viewport size (iPhone 14)
         "--disable-blink-features=AutomationControlled",
-        // Unique user data dir for each provider can ensure total isolation if needed,
-        // but for now separate windows is the key request.
+        `--user-data-dir=${userDataDir}`,
       ],
       connectOption: {
         defaultViewport: {
@@ -108,7 +126,7 @@ class BrowserManager {
 
     console.log(`[BrowserManager] Browser launched for ${provider}`);
     console.log(
-      `[BrowserManager] Browser launched on ${process.platform} with Cloudflare bypass enabled`
+      `[BrowserManager] Browser launched on ${process.platform} with Cloudflare bypass enabled`,
     );
     return {
       browser: response.browser as unknown as Browser,
@@ -383,6 +401,9 @@ class BrowserManager {
       this.cookiesInjected.delete(provider);
       this.pagesWarmed.delete(provider); // Also clear warmed status
       console.log(`[BrowserManager] Closed browser for ${provider}`);
+
+      // Clean up data after closing to save space
+      this.cleanBrowserData(provider);
     }
   }
 
@@ -396,12 +417,88 @@ class BrowserManager {
     this.pages.clear();
     this.cookiesInjected.clear();
     this.pagesWarmed.clear();
-    console.log("[BrowserManager] All browsers closed");
+
+    // Clean up all data directories
+    const providers = Object.keys(this.browsers) as LLMProvider[];
+    providers.forEach((p) => this.cleanBrowserData(p));
+
+    console.log("[BrowserManager] All browsers closed and data cleaned");
   }
 
   isPageOpen(provider: LLMProvider): boolean {
     const page = this.pages.get(provider);
     return page !== undefined && !page.isClosed();
+  }
+
+  private cleanBrowserData(provider: LLMProvider) {
+    const userDataDir = path.join(USER_DATA_ROOT, provider);
+    if (!fs.existsSync(userDataDir)) return;
+
+    console.log(`[BrowserManager] Cleaning data for ${provider}...`);
+
+    try {
+      const items = fs.readdirSync(userDataDir);
+      for (const item of items) {
+        const itemPath = path.join(userDataDir, item);
+        // Preserve 'Local Storage' directory, delete everything else
+        if (item === "Local Storage") {
+          continue;
+        }
+
+        // Also strictly preserve 'Default/Local Storage' if the structure is nested (Chrome default)
+        // Usually it's in Default/Local Storage but with custom userDataDir it might be at root or Default
+        // Let's be safer: Only delete known cache directories or delete everything EXCEPT Local Storage
+
+        // Strategy: Delete specific cache folders to be safe, or everything else?
+        // User asked for "Fresh" state. "only local storage data will be persistant"
+        // Chrome structure:
+        // User Data/
+        //   Default/
+        //     Local Storage/
+        //     Cache/
+        //     Code Cache/
+        //     Service Worker/
+
+        // We are setting --user-data-dir to `userDataDir`.
+        // Chrome usually creates a 'Default' profile inside, or uses the root if it's a specific profile dir.
+        // Actually for puppeteer connect/launch with user-data-dir:
+        // It uses that dir as the User Data Directory. Inside it, there will be 'Default' (or 'Profile X').
+
+        // Let's do a recursive check? No, simple strings first.
+
+        // If we delete 'Default', we lose Local Storage inside it.
+        // We need to look INSIDE Default if it exists.
+
+        const stat = fs.statSync(itemPath);
+
+        if (item === "Default" && stat.isDirectory()) {
+          // Go inside Default
+          const defaultItems = fs.readdirSync(itemPath);
+          for (const defaultItem of defaultItems) {
+            const defaultItemPath = path.join(itemPath, defaultItem);
+            if (defaultItem === "Local Storage") continue;
+            // Keep Preferences? existing cookies? User said "when close data all data or caches removed except local storage"
+            // So maybe keep just Local Storage.
+
+            // If we delete 'Cookies', we lose cookies. User said "Cookies (injected by the app)" can persist or be re-injected.
+            // Plan said: "Only Local Storage and Cookies (injected by the app) will persist."
+            // Re-injection happens in warmPage.
+
+            fs.rmSync(defaultItemPath, { recursive: true, force: true });
+          }
+        } else {
+          // If it's not Default, it's likely safe to delete (Safe Browsing, etc),
+          // UNLESS the structure is flat (headless sometimes flat? no usually adheres to chrome)
+          fs.rmSync(itemPath, { recursive: true, force: true });
+        }
+      }
+      console.log(`[BrowserManager] Cleaned data for ${provider}`);
+    } catch (error) {
+      console.error(
+        `[BrowserManager] Failed to clean data for ${provider}:`,
+        error,
+      );
+    }
   }
 }
 
