@@ -27,19 +27,49 @@ export default function CookiePrompt() {
 
   const config = PROVIDERS[activeProvider];
 
+  // Calculate all missing providers for display
+  const missingProviders = (
+    Object.keys(PROVIDERS) as (keyof typeof PROVIDERS)[]
+  )
+    .filter((p) => (cookieConfigs[p]?.cookies?.length ?? 0) === 0)
+    .map((p) => PROVIDERS[p].name);
+
+  // Format list: "ChatGPT, Gemini, and Claude"
+  const missingString =
+    missingProviders.length > 0
+      ? missingProviders.length === 1
+        ? missingProviders[0]
+        : missingProviders.slice(0, -1).join(", ") +
+          " and " +
+          missingProviders[missingProviders.length - 1]
+      : config.name;
+
   const handleImport = async () => {
     setImporting(true);
     setError(null);
 
     try {
+      // Always try to import ALL cookies for convenience
       const res = await fetch("/api/cookies/import", {
         method: "POST",
-        body: JSON.stringify({ provider: activeProvider }),
+        body: JSON.stringify({ provider: "all" }),
       });
       const data = await res.json();
 
       if (data.success && data.cookies) {
-        setCookies(activeProvider, data.cookies);
+        if (data.isBulk) {
+          // Handle bulk import
+          Object.entries(data.cookies).forEach(([provider, cookies]) => {
+            // @ts-ignore
+            setCookies(provider as any, cookies as any);
+          });
+
+          const count = Object.keys(data.cookies).length;
+          // Notify user briefly? Or just close
+        } else {
+          // Fallback for single import (shouldn't happen with 'all' param but safe to keep)
+          setCookies(activeProvider, data.cookies);
+        }
         setShowCookiePrompt(false);
       } else {
         setError(data.error || "Failed to import cookies.");
@@ -53,7 +83,6 @@ export default function CookiePrompt() {
 
   const handleDismiss = () => {
     setShowCookiePrompt(false);
-    // You might want to save a preference "don't ask again" here if desired
   };
 
   return (
@@ -71,11 +100,11 @@ export default function CookiePrompt() {
 
         <div className="prompt-content">
           <p>
-            No cookies found for <strong>{config.name}</strong>.
+            No cookies found for <strong>{missingString}</strong>.
           </p>
           <p className="subtext">
-            Import cookies from your local Chrome browser to start chatting
-            immediately?
+            Import cookies from Chrome for <strong>all providers</strong> to
+            start chatting immediately?
           </p>
 
           {error && <div className="error-msg">{error}</div>}
@@ -91,16 +120,8 @@ export default function CookiePrompt() {
             disabled={importing}
             style={{ backgroundColor: config.color }}
           >
-            {importing ? (
-              <FiLoader className="spin" />
-            ) : activeProvider === "chatgpt" ? (
-              <SiOpenai />
-            ) : activeProvider === "gemini" ? (
-              <SiGoogle />
-            ) : (
-              <FiCheck />
-            )}
-            <span>{importing ? "Importing..." : "Import from Chrome"}</span>
+            {importing ? <FiLoader className="spin" /> : <FiCheck />}
+            <span>{importing ? "Importing All..." : "Import All Cookies"}</span>
           </button>
         </div>
       </div>

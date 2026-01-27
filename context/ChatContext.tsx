@@ -1101,7 +1101,10 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
       dispatch({ type: "SET_SENDING", isSending: true });
 
-      const providersToCall = state.unifiedProviders;
+      // Always include active provider in broadcast
+      const providersToCall = Array.from(
+        new Set([...state.unifiedProviders, state.activeProvider]),
+      );
 
       try {
         await Promise.all(
