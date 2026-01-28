@@ -14,6 +14,7 @@ import { BsPinAngle, BsPinAngleFill } from "react-icons/bs";
 import Image from "next/image";
 import { getRelativeTime, getFormattedTime } from "@/lib/utils/time";
 import { useTextToSpeech } from "@/hooks/useTextToSpeech";
+import { useSmartRelativeTime } from "@/hooks/useSmartRelativeTime";
 
 // Logo paths for each provider
 const PROVIDER_LOGOS: Record<LLMProvider, string> = {
@@ -57,9 +58,7 @@ export default function MessageBubble({
   const [copied, setCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(message.content);
-  const [relativeTime, setRelativeTime] = useState(
-    getRelativeTime(message.timestamp),
-  );
+  const relativeTime = useSmartRelativeTime(message.timestamp);
   const editTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   // TTS for assistant messages
@@ -77,21 +76,13 @@ export default function MessageBubble({
   const isLoading =
     message.role === "assistant" && !message.content && isLast && isSending;
 
-  // Update relative time every minute
-  useEffect(() => {
-    const updateTime = () =>
-      setRelativeTime(getRelativeTime(message.timestamp));
-    const interval = setInterval(updateTime, 60000);
-    return () => clearInterval(interval);
-  }, [message.timestamp]);
-
   // Auto-focus and auto-resize textarea when editing
   useEffect(() => {
     if (isEditing && editTextareaRef.current) {
       editTextareaRef.current.focus();
       editTextareaRef.current.style.height = "auto";
       editTextareaRef.current.style.height =
-        Math.min(editTextareaRef.current.scrollHeight, 200) + "px";
+        Math.min(editTextareaRef.current.scrollHeight, 300) + "px";
     }
   }, [isEditing, editContent]);
 
@@ -190,28 +181,28 @@ export default function MessageBubble({
           <>
             {isUser ? (
               isEditing ? (
-                <div className="edit-mode">
+                <div className="flex flex-col gap-3 bg-neutral-800/80 p-3 rounded-2xl border border-neutral-700/50 backdrop-blur-sm w-full max-w-2xl">
                   <textarea
                     ref={editTextareaRef}
-                    className="edit-textarea"
+                    className="w-full bg-transparent text-neutral-200 text-sm resize-none outline-none p-1 min-h-[60px]"
                     value={editContent}
                     onChange={(e) => setEditContent(e.target.value)}
                     onKeyDown={handleEditKeyDown}
                     rows={1}
                   />
-                  <div className="edit-actions">
+                  <div className="flex items-center justify-end gap-2 border-t border-neutral-700/50 pt-2">
                     <button
-                      className="edit-save-btn"
-                      onClick={handleEditSubmit}
-                      disabled={!editContent.trim()}
-                    >
-                      Save & Resend
-                    </button>
-                    <button
-                      className="edit-cancel-btn"
+                      className="px-3 py-1.5 text-xs font-medium text-neutral-400 hover:text-white hover:bg-neutral-700/50 rounded-lg transition-colors"
                       onClick={handleEditCancel}
                     >
                       Cancel
+                    </button>
+                    <button
+                      className="px-3 py-1.5 text-xs font-medium text-white bg-green-600 hover:bg-green-500 rounded-lg transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                      onClick={handleEditSubmit}
+                      disabled={!editContent.trim()}
+                    >
+                      Save
                     </button>
                   </div>
                 </div>
