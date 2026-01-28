@@ -380,10 +380,6 @@ export class ClaudeProvider extends BaseProvider {
     }
   }
 
-  /**
-   * Set custom instructions in Claude's account profile settings.
-   * Uses Claude's account_profile API directly.
-   */
   async setCustomInstructions(
     instructions: string,
   ): Promise<{ success: boolean; error?: string }> {

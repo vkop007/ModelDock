@@ -25,6 +25,28 @@ interface OllamaStreamResponse {
 export class OllamaProvider extends BaseProvider {
   private model: string = "llama3";
 
+  private async ensureModel(): Promise<void> {
+    try {
+      const response = await fetch(`${this.url}/api/tags`);
+      if (!response.ok) return;
+
+      const data = (await response.json()) as { models: { name: string }[] };
+      const models = data.models || [];
+
+      // If we have models, check if our current one exists
+      const hasCurrent = models.some((m) => m.name.includes(this.model));
+      if (!hasCurrent && models.length > 0) {
+        // Fallback to the first available model
+        console.log(
+          `[Ollama] Model '${this.model}' not found, falling back to '${models[0].name}'`,
+        );
+        this.model = models[0].name;
+      }
+    } catch (e) {
+      console.error("[Ollama] Failed to fetch models:", e);
+    }
+  }
+
   constructor() {
     super("ollama", "http://localhost:11434");
   }
@@ -52,6 +74,7 @@ export class OllamaProvider extends BaseProvider {
 
   async sendMessage(message: string): Promise<SendMessageResult> {
     try {
+      await this.ensureModel();
       const response = await fetch(`${this.url}/api/chat`, {
         method: "POST",
         headers: {
@@ -93,9 +116,10 @@ export class OllamaProvider extends BaseProvider {
   async sendMessageWithStreaming(
     message: string,
     onChunk: (chunk: string) => void,
-    conversationId?: string
+    conversationId?: string,
   ): Promise<SendMessageResult> {
     try {
+      await this.ensureModel();
       const response = await fetch(`${this.url}/api/chat`, {
         method: "POST",
         headers: {
