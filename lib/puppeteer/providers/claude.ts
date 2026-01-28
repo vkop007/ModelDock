@@ -142,9 +142,12 @@ export class ClaudeProvider extends BaseProvider {
         const page = await this.getPage();
 
         // Setup network interception (passive)
-        console.log("[Claude] Setting up passive network monitoring...");
+        console.log(
+          "[Claude] Setting up passive network monitoring... (DISABLED - Using DOM)",
+        );
 
         let networkContent = "";
+        /*
         const { client, cleanup } = await setupNetworkMonitoring(
           page,
           "chat_conversations",
@@ -157,6 +160,8 @@ export class ClaudeProvider extends BaseProvider {
           },
           StreamParsers.sse,
         );
+        */
+        const cleanup = async () => {}; // Dummy cleanup
 
         // Wait for response with streaming
         console.log("[Claude] Waiting for streaming to complete...");

@@ -2,10 +2,16 @@
 
 import { Message, PROVIDERS, LLMProvider } from "@/types";
 import { useState, useRef, useEffect } from "react";
-import { FiCopy, FiCheck, FiRefreshCw, FiEdit2, FiVolume2, FiVolumeX } from "react-icons/fi";
+import {
+  FiCopy,
+  FiCheck,
+  FiRefreshCw,
+  FiEdit2,
+  FiVolume2,
+  FiVolumeX,
+} from "react-icons/fi";
 import { BsPinAngle, BsPinAngleFill } from "react-icons/bs";
 import Image from "next/image";
-import { StreamdownRenderer } from "./StreamdownRenderer";
 import { getRelativeTime, getFormattedTime } from "@/lib/utils/time";
 import { useTextToSpeech } from "@/hooks/useTextToSpeech";
 
@@ -132,9 +138,9 @@ export default function MessageBubble({
     } else {
       // Strip markdown and speak plain text
       const plainText = message.content
-        .replace(/```[\s\S]*?```/g, '')
-        .replace(/`([^`]+)`/g, '$1')
-        .replace(/[*_~#\[\]]/g, '')
+        .replace(/```[\s\S]*?```/g, "")
+        .replace(/`([^`]+)`/g, "$1")
+        .replace(/[*_~#\[\]]/g, "")
         .trim();
       speak(plainText);
     }
@@ -225,12 +231,7 @@ export default function MessageBubble({
                 />
               </div>
             ) : (
-              <div className="message-text">
-                <StreamdownRenderer
-                  content={message.content}
-                  isStreaming={isLast && !!isSending}
-                />
-              </div>
+              <div className="message-text">{message.content}</div>
             )}
 
             {/* Message Footer with Timestamp and Actions */}
@@ -279,9 +280,19 @@ export default function MessageBubble({
                     <button
                       className={`action-btn ${isSpeaking ? "speaking" : ""}`}
                       onClick={handleTTSToggle}
-                      title={isSpeaking ? (isPaused ? "Resume" : "Pause") : "Read aloud"}
+                      title={
+                        isSpeaking
+                          ? isPaused
+                            ? "Resume"
+                            : "Pause"
+                          : "Read aloud"
+                      }
                     >
-                      {isSpeaking ? <FiVolumeX size={14} /> : <FiVolume2 size={14} />}
+                      {isSpeaking ? (
+                        <FiVolumeX size={14} />
+                      ) : (
+                        <FiVolume2 size={14} />
+                      )}
                     </button>
                     {isSpeaking && (
                       <button
