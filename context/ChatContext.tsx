@@ -29,6 +29,8 @@ import {
   loadCurrentConversation,
   saveSystemInstructions,
   loadSystemInstructions,
+  saveUnifiedProviders,
+  loadUnifiedProviders,
 } from "@/lib/storage";
 
 // Initial state
@@ -384,6 +386,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     const systemInstructions = loadSystemInstructions();
     const activeProvider = loadActiveProvider();
     const currentConversationId = loadCurrentConversation();
+    const unifiedProviders = loadUnifiedProviders();
 
     dispatch({
       type: "LOAD_STATE",
@@ -393,6 +396,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         systemInstructions,
         activeProvider,
         currentConversationId,
+        unifiedProviders,
       },
     });
 
@@ -430,6 +434,12 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       saveCurrentConversation(state.currentConversationId);
     }
   }, [state.currentConversationId]);
+
+  useEffect(() => {
+    if (isInitializedRef.current) {
+      saveUnifiedProviders(state.unifiedProviders);
+    }
+  }, [state.unifiedProviders]);
 
   // Warmup browser page for active provider and unified providers
   const activeProviderCookies =
