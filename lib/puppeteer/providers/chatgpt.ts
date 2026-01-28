@@ -727,23 +727,13 @@ export class ChatGPTProvider extends BaseProvider {
 
         if (signal?.aborted) throw new Error("AbortError");
 
-        // Setup passive network monitoring - moved here to ensure listeners are active during wait
-        // Note: Ideally network monitoring starts *before* send, but strict serialization might prevent
-        // events from firing if we are not focused. However, Network events fire even in background usually.
-        // But since we are strictly serialized, we re-focus here.
-
         console.log("[ChatGPT] Setting up passive network monitoring...");
-        let networkContent = "";
-        const { client, cleanup } = await setupNetworkMonitoring(
-          page,
-          "backend-api/conversation",
-          (chunk) => {
-            console.log(`[ChatGPT] Network chunk (${chunk.length} chars)`);
-            onChunk(chunk);
-            networkContent += chunk;
-          },
-          StreamParsers.sse,
+        console.log(
+          "[ChatGPT] Setting up passive network monitoring... (DISABLED - Using DOM)",
         );
+        const networkContent = "";
+
+        const cleanup = async () => {}; // Dummy cleanup
 
         // Wait for assistant message to appear
         try {

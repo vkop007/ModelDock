@@ -80,8 +80,9 @@ export async function injectStreamingObserver(
         for (const selector of selectors) {
           const elements = document.querySelectorAll(selector);
           if (elements.length > 0) {
-            const lastElement = elements[elements.length - 1];
-            return lastElement.textContent || "";
+            // Use innerText to preserve formatting/newlines
+            const lastElement = elements[elements.length - 1] as HTMLElement;
+            return lastElement.innerText || "";
           }
         }
         return "";
@@ -227,8 +228,8 @@ export async function getResponseLength(
     for (const selector of selectors) {
       const elements = document.querySelectorAll(selector);
       if (elements.length > 0) {
-        const lastElement = elements[elements.length - 1];
-        return (lastElement.textContent || "").length;
+        const lastElement = elements[elements.length - 1] as HTMLElement;
+        return (lastElement.innerText || "").length;
       }
     }
     return 0;
@@ -246,8 +247,8 @@ export async function getResponseContent(
     for (const selector of selectors) {
       const elements = document.querySelectorAll(selector);
       if (elements.length > 0) {
-        const lastElement = elements[elements.length - 1];
-        return lastElement.textContent || "";
+        const lastElement = elements[elements.length - 1] as HTMLElement;
+        return lastElement.innerText || "";
       }
     }
     return "";
@@ -461,22 +462,37 @@ export async function setupNetworkMonitoring(
 
       if (response && response.body) {
         // Naive diffing: verify length increased
-        if (response.body.length > fullResponseText.length) {
-          const newData = response.body;
+        const newData = response.body;
 
-          // Re-parse the full body or diff?
-          // For safety with different streaming formats, we often re-parse or use the diff.
-          // Let's pass the FULL body to the parser if provided, or handle diff logic here.
-          // For SSE, it's safer to re-scan the whole thing for new messages since we track 'fullResponseText' state externally usually.
+        // Re-parse the full body or diff?
+        // For safety with different streaming formats, we often re-parse or use the diff.
+        // Let's pass the FULL body to the parser if provided, or handle diff logic here.
+        // For SSE, it's safer to re-scan the whole thing for new messages since we track 'fullResponseText' state externally usually.
 
-          // Actually, let's just pass the NEW text to the parser if possible, but SSE requires full lines.
-          // Let's pass the FULL body to the parser, and let the parser determine the *cumulative* content.
-
-          const newContent = parser(newData);
-          if (newContent && newContent.length > fullResponseText.length) {
+        const newContent = parser(newData);
+        if (newContent && newContent.length > 0) {
+          if (
+            newContent.startsWith(fullResponseText) &&
+            newContent.length >= fullResponseText.length
+          ) {
+            // Standard append - clean growth
             const chunk = newContent.substring(fullResponseText.length);
             if (chunk) {
               onChunk(chunk);
+              fullResponseText = newContent;
+            }
+          } else {
+            // Divergence or Shrinkage (e.g. Thinking -> Response, or correction)
+            console.log(
+              `[FastStreaming] Content divergence. Old: ${fullResponseText.length}, New: ${newContent.length}`,
+            );
+            // If the content changed correctly (not a prefix), we must emit the new content.
+            // We emit the FULL new content to ensure the user sees the latest text,
+            // even if it causes duplication with the old stale text (better than corrupted substrings).
+            if (newContent !== fullResponseText) {
+              // Determine if we should clear? We can't clear nicely.
+              // Just emit the new content.
+              onChunk(newContent);
               fullResponseText = newContent;
             }
           }
@@ -511,18 +527,24 @@ export const StreamParsers = {
           const data = JSON.parse(jsonStr);
 
           // Handle ChatGPT format
-          const contentGPT =
-            data?.message?.content?.parts?.[0] ||
-            data?.choices?.[0]?.delta?.content;
+          let contentGPT;
+          if (data?.message) {
+            // Strict check for ChatGPT backend-api structure
+            const role = data.message.author?.role;
+            const contentType = data.message.content?.content_type;
+
+            // Only accept text from assistant, ignore tools/system/etc
+            if (role === "assistant" && contentType === "text") {
+              contentGPT = data.message.content.parts?.[0];
+            }
+          } else {
+            // Fallback for API format (OpenAI compatible)
+            contentGPT = data?.choices?.[0]?.delta?.content;
+          }
 
           // Handle Claude format (if different, usually standard SSE too but check data structure)
           // Claude often sends event: completion ... data: {"completion": "..."}
           const contentClaude = data?.completion || data?.delta?.text;
-
-          if (contentGPT) fullText = contentGPT; // ChatGPT sends full text sometimes or delta?
-          // ChatGPT sends delta in some endpoints, full text in others.
-          // Actually ChatGPT web sends FULL text in `message.content.parts[0]` updates usually.
-          // Wait, earlier code assumed `content` was full text. Let's stick to that assumption for now.
 
           if (contentGPT) fullText = contentGPT;
           else if (contentClaude) fullText += contentClaude; // Claude usually sends deltas
@@ -538,7 +560,7 @@ export const StreamParsers = {
  */
 export const PROVIDER_CONFIGS: Record<string, StreamingConfig> = {
   chatgpt: {
-    responseSelectors: ['[data-message-author-role="assistant"]'],
+    responseSelectors: [".markdown", '[data-message-author-role="assistant"]'],
     generatingSelectors: ['button[aria-label="Stop generating"]'],
     stabilityThreshold: 500,
     providerName: "ChatGPT",

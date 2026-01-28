@@ -648,14 +648,9 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       )
         return;
 
-      // Track the actual conversation ID we're using
-      // This is needed because dispatch is async and state.currentConversationId
-      // may not be updated immediately after NEW_CONVERSATION dispatch
       let activeConversationId = state.currentConversationId;
 
-      // Create new conversation if none exists
       if (!activeConversationId) {
-        // Generate ID here to track it immediately
         const newConvId = uuidv4();
         activeConversationId = newConvId;
 
@@ -668,7 +663,6 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           updatedAt: Date.now(),
         };
 
-        // Dispatch with the new conversation directly
         dispatch({
           type: "LOAD_STATE",
           state: {
@@ -969,14 +963,11 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
     const lastUserMessage = messages[lastUserMessageIndex];
 
-    // Remove all messages after the last user message (including assistant responses)
     dispatch({ type: "DELETE_MESSAGES_AFTER", messageId: lastUserMessage.id });
 
-    // Resend the user message
     await sendMessage(lastUserMessage.content, lastUserMessage.images);
   }, [currentConversation, state.isSending, sendMessage]);
 
-  // Edit and resend - edits a user message and regenerates from that point
   const editAndResend = useCallback(
     async (messageId: string, newContent: string) => {
       if (!currentConversation || state.isSending) return;
