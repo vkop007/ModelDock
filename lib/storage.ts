@@ -11,6 +11,7 @@ const STORAGE_KEYS = {
   SYSTEM_INSTRUCTIONS: "llm-chat-system-instructions",
   ACTIVE_PROVIDER: "llm-chat-active-provider",
   CURRENT_CONVERSATION: "llm-chat-current-conversation",
+  UNIFIED_PROVIDERS: "llm-chat-unified-providers",
 };
 
 // Check if we're in browser environment
@@ -22,7 +23,7 @@ export function saveConversations(conversations: Conversation[]): void {
   try {
     localStorage.setItem(
       STORAGE_KEYS.CONVERSATIONS,
-      JSON.stringify(conversations)
+      JSON.stringify(conversations),
     );
   } catch (error) {
     console.error("Failed to save conversations:", error);
@@ -42,7 +43,7 @@ export function loadConversations(): Conversation[] {
 
 // Cookie configs
 export function saveCookieConfigs(
-  configs: Record<LLMProvider, CookieConfig | null>
+  configs: Record<LLMProvider, CookieConfig | null>,
 ): void {
   if (!isBrowser) return;
   try {
@@ -156,13 +157,13 @@ export function parseCookiesFromJSON(jsonString: string): {
 
 // System Instructions
 export function saveSystemInstructions(
-  configs: Record<LLMProvider, SystemInstructions | null>
+  configs: Record<LLMProvider, SystemInstructions | null>,
 ): void {
   if (!isBrowser) return;
   try {
     localStorage.setItem(
       STORAGE_KEYS.SYSTEM_INSTRUCTIONS,
-      JSON.stringify(configs)
+      JSON.stringify(configs),
     );
   } catch (error) {
     console.error("Failed to save system instructions:", error);
@@ -196,5 +197,29 @@ export function loadSystemInstructions(): Record<
   } catch (error) {
     console.error("Failed to load system instructions:", error);
     return defaults;
+  }
+}
+
+// Unified Providers
+export function saveUnifiedProviders(providers: LLMProvider[]): void {
+  if (!isBrowser) return;
+  try {
+    localStorage.setItem(
+      STORAGE_KEYS.UNIFIED_PROVIDERS,
+      JSON.stringify(providers),
+    );
+  } catch (error) {
+    console.error("Failed to save unified providers:", error);
+  }
+}
+
+export function loadUnifiedProviders(): LLMProvider[] {
+  if (!isBrowser) return ["chatgpt", "gemini"]; // Default
+  try {
+    const data = localStorage.getItem(STORAGE_KEYS.UNIFIED_PROVIDERS);
+    return data ? JSON.parse(data) : ["chatgpt", "gemini"];
+  } catch (error) {
+    console.error("Failed to load unified providers:", error);
+    return ["chatgpt", "gemini"];
   }
 }
