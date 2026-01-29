@@ -524,14 +524,26 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const newChat = useCallback(() => {
     if (state.isUnifiedMode) {
       // In unified mode, create new chats for ALL unified providers
-      // We iterate and dispatch for each to ensure state consistency
-      state.unifiedProviders.forEach((provider) => {
+      // CRITICAL: We must ensure the ACTIVE provider is processed LAST
+      // so that its new conversation becomes the currentConversationId.
+
+      const providersToCreate = [...state.unifiedProviders];
+
+      // If active provider is in the list, move it to the end
+      if (providersToCreate.includes(state.activeProvider)) {
+        providersToCreate.splice(
+          providersToCreate.indexOf(state.activeProvider),
+          1,
+        );
+        providersToCreate.push(state.activeProvider);
+      } else {
+        // If not in the list, just add it to the end
+        providersToCreate.push(state.activeProvider);
+      }
+
+      providersToCreate.forEach((provider) => {
         dispatch({ type: "NEW_CONVERSATION", provider });
       });
-      // Also ensure the active provider gets one if it's not in the unified list (edge case)
-      if (!state.unifiedProviders.includes(state.activeProvider)) {
-        dispatch({ type: "NEW_CONVERSATION", provider: state.activeProvider });
-      }
     } else {
       // Single mode - just reset current
       dispatch({ type: "NEW_CONVERSATION" });
@@ -649,6 +661,30 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         return;
 
       let activeConversationId = state.currentConversationId;
+
+      // Safety check: Ensure currentConversationId belongs to the activeProvider
+      // This fixes the glitch where typing in ChatGPT would send to a Gemini conversation
+      if (activeConversationId) {
+        const currentConv = state.conversations.find(
+          (c) => c.id === activeConversationId,
+        );
+        if (currentConv && currentConv.provider !== state.activeProvider) {
+          // Mismatch detected! Find the correct conversation for the active provider
+          const activeProviderConv = state.conversations.find(
+            (c) => c.provider === state.activeProvider,
+          );
+          if (activeProviderConv) {
+            console.log(
+              `[ChatContext] Auto-switched conversation from ${currentConv.provider} to ${state.activeProvider}`,
+            );
+            activeConversationId = activeProviderConv.id;
+            dispatch({ type: "SELECT_CONVERSATION", id: activeConversationId });
+          } else {
+            // No conversation exists for active provider? Should be rare, but let's clear ID so a new one is created
+            activeConversationId = null;
+          }
+        }
+      }
 
       if (!activeConversationId) {
         const newConvId = uuidv4();
