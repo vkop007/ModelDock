@@ -1,7 +1,7 @@
 "use client";
 
 import { useChatContext } from "@/context/ChatContext";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { FiAlertCircle, FiCheck, FiLoader, FiX } from "react-icons/fi";
 import { SiGoogle, SiOpenai } from "react-icons/si";
 import { PROVIDERS } from "@/types";
@@ -17,11 +17,16 @@ export default function CookiePrompt() {
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Double check if we actually have cookies (in case they were added in background)
+  useEffect(() => {
+    if ((cookieConfigs[activeProvider]?.cookies?.length ?? 0) > 0) {
+      if (showCookiePrompt) setShowCookiePrompt(false);
+    }
+  }, [cookieConfigs, activeProvider, showCookiePrompt, setShowCookiePrompt]);
+
   if (!showCookiePrompt) return null;
 
-  // Double check if we actually have cookies (in case they were added in background)
   if ((cookieConfigs[activeProvider]?.cookies?.length ?? 0) > 0) {
-    if (showCookiePrompt) setShowCookiePrompt(false);
     return null;
   }
 
