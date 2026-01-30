@@ -15,14 +15,14 @@ export class ClaudeProvider extends BaseProvider {
     try {
       // Check for presence of chat interface elements
       await page.waitForSelector(
-        '[data-testid="composer-input"], div[contenteditable="true"]',
+        PROVIDER_CONFIGS.claude.loginSelectors.join(", "),
         { timeout: 10000 },
       );
       return true;
     } catch {
       // Check for login elements
       const loginElement = await page.$(
-        'button:has-text("Log in"), a:has-text("Sign in")',
+        PROVIDER_CONFIGS.claude.loginButtonSelectors.join(", "),
       );
       return !loginElement;
     }
@@ -66,7 +66,6 @@ export class ClaudeProvider extends BaseProvider {
             waitUntil: "domcontentloaded",
             timeout: 30000,
           });
-          await new Promise((resolve) => setTimeout(resolve, 500));
         } else if (!conversationId && isInConversation) {
           // No conversation ID but we're in an existing chat - start new conversation
           console.log(
@@ -76,17 +75,14 @@ export class ClaudeProvider extends BaseProvider {
             waitUntil: "domcontentloaded",
             timeout: 30000,
           });
-          await new Promise((resolve) => setTimeout(resolve, 500));
         } else if (!currentUrl.includes("claude.ai")) {
           // Not on Claude at all, navigate to new chat
           await this.navigate();
-          await new Promise((resolve) => setTimeout(resolve, 500));
         }
         // If already on claude.ai/new or homepage, stay on current page
 
         // Wait for the input field
-        const inputSelector =
-          '[data-testid="composer-input"], div[contenteditable="true"].ProseMirror';
+        const inputSelector = PROVIDER_CONFIGS.claude.inputSelectors.join(", ");
         await page.waitForSelector(inputSelector, { timeout: 30000 });
 
         // Focus and type the message
@@ -112,19 +108,16 @@ export class ClaudeProvider extends BaseProvider {
           inputSelector,
           message,
         );
-        await new Promise((resolve) => setTimeout(resolve, 500));
 
         // Count existing responses BEFORE clicking send
-        previousResponseCount = await page.evaluate(() => {
-          const responses = document.querySelectorAll(
-            ".font-claude-response .standard-markdown, .font-claude-response .progressive-markdown",
-          );
+        previousResponseCount = await page.evaluate((selectors: string[]) => {
+          const responses = document.querySelectorAll(selectors.join(", "));
           return responses.length;
-        });
+        }, PROVIDER_CONFIGS.claude.responseSelectors);
 
         // Click send button or press Enter
         const sendButton = await page.$(
-          '[data-testid="submit-button"], button[aria-label="Send message"]',
+          PROVIDER_CONFIGS.claude.sendButtonSelectors.join(", "),
         );
         if (sendButton) {
           await sendButton.click();
@@ -145,14 +138,13 @@ export class ClaudeProvider extends BaseProvider {
         // Wait for a NEW response to appear
         try {
           await page.waitForFunction(
-            (prevCount: number) => {
-              const responses = document.querySelectorAll(
-                ".font-claude-response .standard-markdown, .font-claude-response .progressive-markdown",
-              );
+            (prevCount: number, selectors: string[]) => {
+              const responses = document.querySelectorAll(selectors.join(", "));
               return responses.length > prevCount;
             },
             { timeout: 15000 },
             previousResponseCount,
+            PROVIDER_CONFIGS.claude.responseSelectors,
           );
         } catch {
           // Continue, might be slow or network might have finished it already
@@ -195,7 +187,7 @@ export class ClaudeProvider extends BaseProvider {
     // Wait for initial response
     try {
       await page.waitForSelector(
-        '.font-claude-response .standard-markdown, .font-claude-response .progressive-markdown, [data-testid="assistant-message"]',
+        PROVIDER_CONFIGS.claude.responseSelectors.join(", "),
         { timeout: 15000 },
       );
     } catch {
@@ -213,12 +205,12 @@ export class ClaudeProvider extends BaseProvider {
       await new Promise((resolve) => setTimeout(resolve, 500));
 
       // Check for stop button (indicates still generating)
-      const isGenerating = await page.evaluate(() => {
-        const stopBtn = document.querySelector(
-          'button[aria-label="Stop response"], [data-testid="stop-button"]',
-        );
-        return stopBtn !== null;
-      });
+      const isGenerating = await page.evaluate((selectors: string[]) => {
+        for (const selector of selectors) {
+          if (document.querySelector(selector)) return true;
+        }
+        return false;
+      }, PROVIDER_CONFIGS.claude.generatingSelectors);
 
       if (isGenerating) {
         stableCount = 0;
@@ -226,23 +218,18 @@ export class ClaudeProvider extends BaseProvider {
       }
 
       // Check content stability
-      const currentResponse = await page.evaluate(() => {
-        const responses = document.querySelectorAll(
-          ".font-claude-response .standard-markdown, .font-claude-response .progressive-markdown",
-        );
+      const currentResponse = await page.evaluate((selectors: string[]) => {
+        const responses = document.querySelectorAll(selectors.join(", "));
         if (responses.length > 0) {
           return responses[responses.length - 1].textContent || "";
         }
-        const messages = document.querySelectorAll(
-          '[data-testid="assistant-message"], .assistant-message',
-        );
-        if (messages.length > 0) {
-          return messages[messages.length - 1].textContent || "";
-        }
         return "";
-      });
+      }, PROVIDER_CONFIGS.claude.responseSelectors);
 
-      if (currentResponse.length === lastLength && currentResponse.length > 0) {
+      if (
+        (currentResponse as string).length === lastLength &&
+        (currentResponse as string).length > 0
+      ) {
         stableCount++;
         if (stableCount >= 4) {
           console.log("[Claude] Response stable and generation stopped.");
@@ -250,29 +237,21 @@ export class ClaudeProvider extends BaseProvider {
         }
       } else {
         stableCount = 0;
-        lastLength = currentResponse.length;
+        lastLength = (currentResponse as string).length;
       }
     }
 
     await new Promise((resolve) => setTimeout(resolve, 500));
 
-    const response = await page.evaluate(() => {
-      const responses = document.querySelectorAll(
-        ".font-claude-response .standard-markdown, .font-claude-response .progressive-markdown",
-      );
+    const response = await page.evaluate((selectors: string[]) => {
+      const responses = document.querySelectorAll(selectors.join(", "));
       if (responses.length > 0) {
         return responses[responses.length - 1].textContent || "";
       }
-      const messages = document.querySelectorAll(
-        '[data-testid="assistant-message"], .assistant-message',
-      );
-      if (messages.length > 0) {
-        return messages[messages.length - 1].textContent || "";
-      }
       return "";
-    });
+    }, PROVIDER_CONFIGS.claude.responseSelectors);
 
-    return response;
+    return response as string;
   }
   async deleteConversation(conversationId: string): Promise<boolean> {
     console.log(`[Claude] Deleting conversation via API: ${conversationId}`);

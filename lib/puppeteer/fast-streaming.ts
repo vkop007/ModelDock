@@ -16,6 +16,14 @@ export interface StreamingConfig {
   stabilityThreshold: number;
   /** Provider name for logging */
   providerName: string;
+  /** Selectors to find the input text area */
+  inputSelectors: string[];
+  /** Selectors for the send button */
+  sendButtonSelectors: string[];
+  /** Selectors to verify we are logged in (usually the chat interface) */
+  loginSelectors: string[];
+  /** Selectors to find login buttons checking if we are NOT logged in */
+  loginButtonSelectors: string[];
 }
 
 export type StreamCallback = (chunk: string) => void;
@@ -426,30 +434,79 @@ export async function streamResponse(
 /**
  * Provider-specific configurations
  */
+// ----------------------------------------------------------------------
+// Centralized Provider Configurations
+// ----------------------------------------------------------------------
+
 export const PROVIDER_CONFIGS: Record<string, StreamingConfig> = {
   chatgpt: {
-    responseSelectors: [".markdown", '[data-message-author-role="assistant"]'],
+    providerName: "ChatGPT",
+    responseSelectors: [
+      '[data-message-author-role="assistant"]',
+      ".markdown",
+      ".prose",
+      '[class*="message"]',
+    ],
     generatingSelectors: ['button[aria-label="Stop generating"]'],
     stabilityThreshold: 500,
-    providerName: "ChatGPT",
+    inputSelectors: [
+      "#prompt-textarea",
+      '[data-testid="composer-input"]',
+      'div[contenteditable="true"].ProseMirror',
+      'div[contenteditable="true"]',
+      "textarea",
+    ],
+    sendButtonSelectors: [
+      '[data-testid="send-button"]',
+      'button[aria-label="Send prompt"]',
+      "form button:has(svg):not([disabled])",
+    ],
+    loginSelectors: [
+      "#prompt-textarea",
+      '[data-testid="send-button"]',
+      "textarea",
+    ],
+    loginButtonSelectors: ['button:has-text("Log in")', 'a[href*="login"]'],
   },
   claude: {
+    providerName: "Claude",
     responseSelectors: [
       ".font-claude-response .standard-markdown",
       ".font-claude-response .progressive-markdown",
+      '[data-testid="assistant-message"]',
+      ".assistant-message",
     ],
     generatingSelectors: [
       'button[aria-label="Stop response"]',
       '[data-testid="stop-button"]',
     ],
     stabilityThreshold: 500,
-    providerName: "Claude",
+    inputSelectors: [
+      '[data-testid="composer-input"]',
+      'div[contenteditable="true"].ProseMirror',
+      'div[contenteditable="true"]',
+    ],
+    sendButtonSelectors: [
+      '[data-testid="submit-button"]',
+      'button[aria-label="Send message"]',
+    ],
+    loginSelectors: [
+      '[data-testid="composer-input"]',
+      'div[contenteditable="true"]',
+    ],
+    loginButtonSelectors: [
+      'button:has-text("Log in")',
+      'a:has-text("Sign in")',
+    ],
   },
   gemini: {
+    providerName: "Gemini",
     responseSelectors: [
       ".response-content",
       ".model-response-text",
       "message-content",
+      ".markdown-content",
+      ".response-text",
     ],
     generatingSelectors: [
       'button[aria-label="Stop response"]',
@@ -457,29 +514,64 @@ export const PROVIDER_CONFIGS: Record<string, StreamingConfig> = {
       '[data-testid="stop-button"]',
       ".loading-indicator",
       ".thinking-indicator",
+      '[aria-label="Loading"]',
     ],
     stabilityThreshold: 500,
-    providerName: "Gemini",
+    inputSelectors: [
+      'rich-textarea [contenteditable="true"]',
+      ".ql-editor",
+      'div[role="textbox"][contenteditable="true"]',
+      '[contenteditable="true"]',
+      "rich-textarea",
+      ".text-input-field",
+    ],
+    sendButtonSelectors: [
+      'button.send-button[aria-label="Send message"]',
+      'button[aria-label="Send message"]',
+      ".send-button",
+      'mat-icon[data-mat-icon-name="send"]',
+    ],
+    loginSelectors: ["rich-textarea", ".ql-editor", "[data-placeholder]"],
+    loginButtonSelectors: [
+      'a[href*="accounts.google.com"]',
+      'button:has-text("Sign in")',
+    ],
   },
   grok: {
+    providerName: "Grok",
     responseSelectors: [".response-content-markdown"],
     generatingSelectors: [
       'button[aria-label*="Stop"]',
       'button[aria-label*="Cancel"]',
     ],
     stabilityThreshold: 500,
-    providerName: "Grok",
+    inputSelectors: ["textarea", '[contenteditable="true"]'],
+    sendButtonSelectors: [
+      'button[type="submit"]',
+      'button[aria-label*="Send"]',
+    ],
+    loginSelectors: ["textarea", '[contenteditable="true"]'],
+    loginButtonSelectors: [], // Grok usually redirects, hard to check button
   },
   qwen: {
+    providerName: "Qwen",
     responseSelectors: [
       ".qwen-chat-message-assistant .response-message-content .qwen-markdown",
       ".qwen-chat-message-assistant",
     ],
     generatingSelectors: ["button.stop-button"],
     stabilityThreshold: 500,
-    providerName: "Qwen",
+    inputSelectors: ["textarea", '[contenteditable="true"]'],
+    sendButtonSelectors: [
+      'button[type="submit"]',
+      'button[aria-label*="Send"]',
+      'button[class*="send"]',
+    ],
+    loginSelectors: ["textarea", '[contenteditable="true"]'],
+    loginButtonSelectors: [],
   },
   mistral: {
+    providerName: "Mistral",
     responseSelectors: [
       '[data-message-author-role="assistant"] [data-message-part-type="answer"]',
       '[data-message-author-role="assistant"]',
@@ -489,12 +581,24 @@ export const PROVIDER_CONFIGS: Record<string, StreamingConfig> = {
       'button[class*="stop"]',
     ],
     stabilityThreshold: 500,
-    providerName: "Mistral",
+    inputSelectors: [".ProseMirror", 'div[contenteditable="true"]', "textarea"],
+    sendButtonSelectors: [
+      'button[type="submit"]',
+      'button[aria-label*="Send"]',
+    ],
+    loginSelectors: ["textarea", '[contenteditable="true"]', ".ProseMirror"],
+    loginButtonSelectors: [],
   },
   zai: {
+    providerName: "Zai",
     responseSelectors: [
       ".chat-assistant #response-content-container div",
       ".chat-assistant #response-content-container",
+      "div[class*='message']",
+      "div[class*='response']",
+      ".markdown",
+      ".prose",
+      ".chat-assistant",
     ],
     generatingSelectors: [
       'button[aria-label="Stop generating"]',
@@ -503,6 +607,9 @@ export const PROVIDER_CONFIGS: Record<string, StreamingConfig> = {
       ".loading-container",
     ],
     stabilityThreshold: 500,
-    providerName: "Zai",
+    inputSelectors: ["#chat-input"],
+    sendButtonSelectors: ["#send-message-button"],
+    loginSelectors: ["#chat-input", "#send-message-button"],
+    loginButtonSelectors: [],
   },
 };

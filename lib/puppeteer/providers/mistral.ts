@@ -14,7 +14,7 @@ export class MistralProvider extends BaseProvider {
   async checkAuthentication(page: Page): Promise<boolean> {
     try {
       await page.waitForSelector(
-        'textarea, [contenteditable="true"], .ProseMirror',
+        PROVIDER_CONFIGS.mistral.loginSelectors.join(", "),
         {
           timeout: 10000,
         },
@@ -81,7 +81,8 @@ export class MistralProvider extends BaseProvider {
         console.log("[Mistral] Checking page state...");
         await new Promise((resolve) => setTimeout(resolve, 500));
 
-        const inputSelector = '.ProseMirror, div[contenteditable="true"]';
+        const inputSelector =
+          PROVIDER_CONFIGS.mistral.inputSelectors.join(", ");
         await page.waitForSelector(inputSelector, { timeout: 30000 });
 
         const input = await page.$(inputSelector);
@@ -108,16 +109,14 @@ export class MistralProvider extends BaseProvider {
         await new Promise((resolve) => setTimeout(resolve, 300));
 
         // Count existing assistant messages
-        previousResponseCount = await page.evaluate(() => {
-          const responses = document.querySelectorAll(
-            '[data-message-author-role="assistant"]',
-          );
+        previousResponseCount = await page.evaluate((selectors: string[]) => {
+          const responses = document.querySelectorAll(selectors[1]); // Use general selector
           return responses.length;
-        });
+        }, PROVIDER_CONFIGS.mistral.responseSelectors);
 
         // Click send or press Enter
         const sendButton = await page.$(
-          'button[type="submit"], button[aria-label*="Send"]',
+          PROVIDER_CONFIGS.mistral.sendButtonSelectors.join(", "),
         );
         if (sendButton) {
           await sendButton.click();
@@ -137,14 +136,13 @@ export class MistralProvider extends BaseProvider {
         // Wait for new response
         try {
           await page.waitForFunction(
-            (prevCount: number) => {
-              const responses = document.querySelectorAll(
-                '[data-message-author-role="assistant"]',
-              );
+            (prevCount: number, selectors: string[]) => {
+              const responses = document.querySelectorAll(selectors[1]);
               return responses.length > prevCount;
             },
             { timeout: 15000 },
             previousResponseCount,
+            PROVIDER_CONFIGS.mistral.responseSelectors,
           );
         } catch {
           // Continue
@@ -190,58 +188,59 @@ export class MistralProvider extends BaseProvider {
     while (Date.now() - startTime < maxWait) {
       await new Promise((resolve) => setTimeout(resolve, 500));
 
-      const isGenerating = await page.evaluate(() => {
-        const stopBtn = document.querySelector('button[aria-label*="Stop"]');
-        return stopBtn !== null;
-      });
+      const isGenerating = await page.evaluate((selectors: string[]) => {
+        for (const selector of selectors) {
+          if (document.querySelector(selector)) return true;
+        }
+        return false;
+      }, PROVIDER_CONFIGS.mistral.generatingSelectors);
 
       if (isGenerating) {
         stableCount = 0;
         continue;
       }
 
-      const currentResponse = await page.evaluate(() => {
-        const responses = document.querySelectorAll(
-          '[data-message-author-role="assistant"]',
-        );
+      const currentResponse = await page.evaluate((selectors: string[]) => {
+        const responses = document.querySelectorAll(selectors[1]); // Use general selector first
         if (responses.length > 0) {
           const lastResponse = responses[responses.length - 1];
           // Target only the answer part to avoid time text
           const answerPart = lastResponse.querySelector(
-            '[data-message-part-type="answer"]',
-          );
-          return answerPart?.textContent || "";
+            selectors[0].split(" ")[1],
+          ); // Hacky split for specific selector
+          return answerPart?.textContent || lastResponse.textContent || "";
         }
         return "";
-      });
+      }, PROVIDER_CONFIGS.mistral.responseSelectors);
 
-      if (currentResponse.length === lastLength && currentResponse.length > 0) {
+      if (
+        (currentResponse as string).length === lastLength &&
+        (currentResponse as string).length > 0
+      ) {
         stableCount++;
         if (stableCount >= 4) {
           break;
         }
       } else {
         stableCount = 0;
-        lastLength = currentResponse.length;
+        lastLength = (currentResponse as string).length;
       }
     }
 
-    const response = await page.evaluate(() => {
-      const responses = document.querySelectorAll(
-        '[data-message-author-role="assistant"]',
-      );
+    const response = await page.evaluate((selectors: string[]) => {
+      const responses = document.querySelectorAll(selectors[1]);
       if (responses.length > 0) {
         const lastResponse = responses[responses.length - 1];
         // Target only the answer part to avoid time text
         const answerPart = lastResponse.querySelector(
-          '[data-message-part-type="answer"]',
+          selectors[0].split(" ")[1],
         );
-        return answerPart?.textContent || "";
+        return answerPart?.textContent || lastResponse.textContent || "";
       }
       return "";
-    });
+    }, PROVIDER_CONFIGS.mistral.responseSelectors);
 
-    return response;
+    return response as string;
   }
 
   async deleteConversation(conversationId: string): Promise<boolean> {

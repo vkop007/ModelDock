@@ -14,9 +14,12 @@ export class QwenProvider extends BaseProvider {
   async checkAuthentication(page: Page): Promise<boolean> {
     try {
       // Check for presence of chat interface elements
-      await page.waitForSelector('textarea, [contenteditable="true"]', {
-        timeout: 10000,
-      });
+      await page.waitForSelector(
+        PROVIDER_CONFIGS.qwen.loginSelectors.join(", "),
+        {
+          timeout: 10000,
+        },
+      );
       return true;
     } catch {
       return false;
@@ -81,7 +84,7 @@ export class QwenProvider extends BaseProvider {
         await new Promise((resolve) => setTimeout(resolve, 500));
 
         // Wait for the input field - Qwen uses textarea
-        const inputSelector = "textarea";
+        const inputSelector = PROVIDER_CONFIGS.qwen.inputSelectors.join(", ");
         await page.waitForSelector(inputSelector, { timeout: 30000 });
 
         // Focus and type the message
@@ -107,17 +110,14 @@ export class QwenProvider extends BaseProvider {
         await new Promise((resolve) => setTimeout(resolve, 300));
 
         // Count existing responses BEFORE clicking send
-        // Qwen uses .qwen-chat-message-assistant for AI responses
-        previousResponseCount = await page.evaluate(() => {
-          const responses = document.querySelectorAll(
-            ".qwen-chat-message-assistant",
-          );
+        previousResponseCount = await page.evaluate((selectors: string[]) => {
+          const responses = document.querySelectorAll(selectors.join(", "));
           return responses.length;
-        });
+        }, PROVIDER_CONFIGS.qwen.responseSelectors);
 
-        // Click send button or press Enter
+        // Click send button
         const sendButton = await page.$(
-          'button[type="submit"], button[aria-label*="Send"], button[class*="send"]',
+          PROVIDER_CONFIGS.qwen.sendButtonSelectors.join(", "),
         );
         if (sendButton) {
           await sendButton.click();
@@ -137,14 +137,13 @@ export class QwenProvider extends BaseProvider {
         // Wait for a NEW response to appear
         try {
           await page.waitForFunction(
-            (prevCount: number) => {
-              const responses = document.querySelectorAll(
-                ".qwen-chat-message-assistant",
-              );
+            (prevCount: number, selectors: string[]) => {
+              const responses = document.querySelectorAll(selectors.join(", "));
               return responses.length > prevCount;
             },
             { timeout: 15000 },
             previousResponseCount,
+            PROVIDER_CONFIGS.qwen.responseSelectors,
           );
         } catch {
           // Continue, might be slow
@@ -188,53 +187,41 @@ export class QwenProvider extends BaseProvider {
     while (Date.now() - startTime < maxWait) {
       await new Promise((resolve) => setTimeout(resolve, 500));
 
-      const isGenerating = await page.evaluate(() => {
-        const stopBtn = document.querySelector("button.stop-button");
-        return stopBtn !== null;
-      });
+      const isGenerating = await page.evaluate((selectors: string[]) => {
+        for (const selector of selectors) {
+          if (document.querySelector(selector)) return true;
+        }
+        return false;
+      }, PROVIDER_CONFIGS.qwen.generatingSelectors);
 
       if (isGenerating) {
         stableCount = 0;
         continue;
       }
 
-      const currentResponse = await page.evaluate(() => {
-        const responses = document.querySelectorAll(
-          ".qwen-chat-message-assistant",
-        );
+      const response = await page.evaluate((selectors: string[]) => {
+        const responses = document.querySelectorAll(selectors.join(", "));
         if (responses.length > 0) {
-          const lastResponse = responses[responses.length - 1];
-          // Target only the markdown inside response-message-content to avoid model name/time
-          const markdown = lastResponse.querySelector(
-            ".response-message-content .qwen-markdown",
-          );
-          return markdown?.textContent || "";
+          return responses[responses.length - 1].textContent || "";
         }
         return "";
-      });
+      }, PROVIDER_CONFIGS.qwen.responseSelectors);
 
-      if (currentResponse.length === lastLength && currentResponse.length > 0) {
+      if (response.length === lastLength && response.length > 0) {
         stableCount++;
         if (stableCount >= 4) {
           break;
         }
       } else {
         stableCount = 0;
-        lastLength = currentResponse.length;
+        lastLength = (currentResponse as string).length;
       }
     }
 
-    const response = await page.evaluate(() => {
-      const responses = document.querySelectorAll(
-        ".qwen-chat-message-assistant",
-      );
+    const response = await page.evaluate((selectors: string[]) => {
+      const responses = document.querySelectorAll(selectors.join(", "));
       if (responses.length > 0) {
-        const lastResponse = responses[responses.length - 1];
-        // Target only the markdown inside response-message-content to avoid model name/time
-        const markdown = lastResponse.querySelector(
-          ".response-message-content .qwen-markdown",
-        );
-        return markdown?.textContent || "";
+        return responses[responses.length - 1].textContent || "";
       }
       return "";
     });

@@ -48,6 +48,8 @@ export class ZaiProvider extends BaseProvider {
   ): Promise<SendMessageResult> {
     console.log("[Z.ai] Sending message with streaming...");
 
+    let previousResponseCount = 0;
+
     try {
       // ----------------------------------------------------------------------
       // BLOCK 1: INPUT PHASE (Serialized)
@@ -81,9 +83,9 @@ export class ZaiProvider extends BaseProvider {
         }
 
         // Wait for input
-        const inputSelector = "#chat-input";
+        const inputSelector = PROVIDER_CONFIGS.zai.inputSelectors.join(", ");
         try {
-          await page.waitForSelector(inputSelector, { timeout: 20000 });
+          await page.waitForSelector(inputSelector, { timeout: 30000 });
         } catch {
           throw new Error("Could not find input element (#chat-input)");
         }
@@ -96,6 +98,12 @@ export class ZaiProvider extends BaseProvider {
 
         await inputEl.click();
         await new Promise((resolve) => setTimeout(resolve, 100));
+
+        // Count existing responses BEFORE clicking send
+        previousResponseCount = await page.evaluate((selectors: string[]) => {
+          const responses = document.querySelectorAll(selectors.join(", "));
+          return responses.length;
+        }, PROVIDER_CONFIGS.zai.responseSelectors);
 
         // Check and disable "Deep Think" if enabled
         try {
@@ -127,10 +135,21 @@ export class ZaiProvider extends BaseProvider {
         await new Promise((resolve) => setTimeout(resolve, 300));
         await new Promise((resolve) => setTimeout(resolve, 200));
 
+        // Check for presence of chat interface elements
+        await page.waitForSelector(
+          PROVIDER_CONFIGS.zai.loginSelectors.join(", "),
+          {
+            timeout: 10000,
+          },
+        );
+
         // Click send button
         try {
-          await page.waitForSelector("#send-message-button", { timeout: 5000 });
-          await page.click("#send-message-button");
+          await page.waitForSelector(
+            PROVIDER_CONFIGS.zai.sendButtonSelectors.join(", "),
+            { timeout: 5000 },
+          );
+          await page.click(PROVIDER_CONFIGS.zai.sendButtonSelectors.join(", "));
         } catch (e) {
           console.log(
             "[Z.ai] Send button not found or clickable, trying Enter",
@@ -147,14 +166,19 @@ export class ZaiProvider extends BaseProvider {
       return await browserManager.runTask(this.provider, async () => {
         const page = await this.getPage();
 
-        // Wait for response to start (any likely container)
+        // Wait for new response to appear
         try {
-          await page.waitForSelector(
-            "div[class*='message'], div[class*='response'], .markdown, .prose, .chat-assistant",
-            { timeout: 20000 },
+          await page.waitForFunction(
+            (selectors: string[], prevCount: number) => {
+              const responses = document.querySelectorAll(selectors.join(", "));
+              return responses.length > prevCount;
+            },
+            { timeout: 30000 },
+            PROVIDER_CONFIGS.zai.responseSelectors,
+            previousResponseCount,
           );
         } catch {
-          // Continue anyway, might be slow
+          console.log("[Z.ai] Timeout waiting for new response element");
         }
 
         // Fast streaming with 50ms polling
@@ -217,7 +241,7 @@ export class ZaiProvider extends BaseProvider {
       // Continue
     }
 
-    let lastContentLength = 0;
+    let lastLength = 0; // Renamed from lastContentLength
     let stableCount = 0;
     const maxWait = 180000;
     const startTime = Date.now();
@@ -226,35 +250,12 @@ export class ZaiProvider extends BaseProvider {
     while (Date.now() - startTime < maxWait) {
       await new Promise((resolve) => setTimeout(resolve, 500));
 
-      // Check for stop button
-      const isGenerating = await page.evaluate(() => {
-        // Standard checks
-        const stopBtn = document.querySelector(
-          'button[aria-label="Stop generating"], button[aria-label="Stop response"], [class*="stop-button"]',
-        );
-        if (stopBtn) return true;
-
-        // Specific Z.ai structure check (button with a square span inside)
-        // <button><span class="block bg-white size-3 ..."></span></button>
-        const allButtons = Array.from(document.querySelectorAll("button"));
-        const zaiStopBtn = allButtons.find((btn) => {
-          const span = btn.querySelector("span");
-          if (!span) return false;
-
-          // Check for the "square" icon classes typically found in Tailwind-like stop buttons
-          // "size-3" and "rounded-xs" are highly specific from the user snippet
-          const cls = span.className || "";
-          return cls.includes("size-3") && cls.includes("rounded-xs");
-        });
-
-        if (zaiStopBtn) return true;
-
-        // NEW: Check for loading container (3 dots animation)
-        const loadingContainer = document.querySelector(".loading-container");
-        if (loadingContainer) return true;
-
+      const isGenerating = await page.evaluate((selectors: string[]) => {
+        for (const selector of selectors) {
+          if (document.querySelector(selector)) return true;
+        }
         return false;
-      });
+      }, PROVIDER_CONFIGS.zai.generatingSelectors);
 
       if (isGenerating) {
         stableCount = 0;
@@ -283,16 +284,17 @@ export class ZaiProvider extends BaseProvider {
       });
 
       if (currentResponse && currentResponse.length > 0) {
-        if (currentResponse.length === lastContentLength) {
+        if (
+          (currentResponse as string).length === lastLength &&
+          (currentResponse as string).length > 0
+        ) {
           stableCount++;
           if (stableCount >= 4) {
-            // 2 seconds stable
-            finalResponse = currentResponse;
             break;
           }
         } else {
           stableCount = 0;
-          lastContentLength = currentResponse.length;
+          lastLength = (currentResponse as string).length;
         }
       }
     }

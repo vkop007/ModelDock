@@ -14,13 +14,13 @@ export class GeminiProvider extends BaseProvider {
   async checkAuthentication(page: Page): Promise<boolean> {
     try {
       await page.waitForSelector(
-        "rich-textarea, .ql-editor, [data-placeholder]",
+        PROVIDER_CONFIGS.gemini.loginSelectors.join(", "),
         { timeout: 10000 },
       );
       return true;
     } catch {
       const signInButton = await page.$(
-        'a[href*="accounts.google.com"], button:has-text("Sign in")',
+        PROVIDER_CONFIGS.gemini.loginButtonSelectors.join(", "),
       );
       return !signInButton;
     }
@@ -135,9 +135,7 @@ export class GeminiProvider extends BaseProvider {
         if (signal?.aborted) throw new Error("AbortError");
 
         // Wait for the input field - Updated selectors for 2024 Gemini UI
-        // Priorities: specific rich textarea -> contenteditable textbox -> generic contenteditable
-        const inputSelector =
-          'rich-textarea [contenteditable="true"], .ql-editor, div[role="textbox"][contenteditable="true"], [contenteditable="true"]';
+        const inputSelector = PROVIDER_CONFIGS.gemini.inputSelectors.join(", ");
         await page.waitForSelector(inputSelector, { timeout: 30000 });
 
         // Focus and type the message
@@ -178,16 +176,14 @@ export class GeminiProvider extends BaseProvider {
         await new Promise((resolve) => setTimeout(resolve, 500));
 
         // Count existing responses BEFORE sending so we can detect the new one
-        previousResponseCount = await page.evaluate(() => {
-          const responses = document.querySelectorAll(
-            ".response-content, .model-response-text, message-content",
-          );
+        previousResponseCount = await page.evaluate((selectors: string[]) => {
+          const responses = document.querySelectorAll(selectors.join(", "));
           return responses.length;
-        });
+        }, PROVIDER_CONFIGS.gemini.responseSelectors);
 
-        // Click send button - updated selector based on current Gemini UI
+        // Click send button
         const sendButton = await page.$(
-          'button.send-button[aria-label="Send message"], button[aria-label="Send message"], .send-button',
+          PROVIDER_CONFIGS.gemini.sendButtonSelectors.join(", "),
         );
         if (sendButton) {
           await sendButton.click();
@@ -213,14 +209,13 @@ export class GeminiProvider extends BaseProvider {
         // Wait for a NEW response to appear (more than previousResponseCount)
         try {
           await page.waitForFunction(
-            (prevCount: number) => {
-              const responses = document.querySelectorAll(
-                ".response-content, .model-response-text, message-content",
-              );
+            (prevCount: number, selectors: string[]) => {
+              const responses = document.querySelectorAll(selectors.join(", "));
               return responses.length > prevCount;
             },
             { timeout: 15000 },
             previousResponseCount,
+            PROVIDER_CONFIGS.gemini.responseSelectors,
           );
         } catch {
           // Continue, might use loading indicator
@@ -263,9 +258,8 @@ export class GeminiProvider extends BaseProvider {
           .runTask(this.provider, async () => {
             const page = await this.getPage();
             // Try common stop button selectors
-            // Gemini uses multiple aria labels
             const stopSelector =
-              'button[aria-label="Stop response"], button[aria-label="Stop generating"], .stop-button, [data-testid="stop-button"]';
+              PROVIDER_CONFIGS.gemini.generatingSelectors.join(", ");
             const stopBtn = await page.$(stopSelector);
             if (stopBtn) {
               await stopBtn.click();
@@ -286,7 +280,8 @@ export class GeminiProvider extends BaseProvider {
     // Wait for any likely response container or loading indicator
     try {
       await page.waitForSelector(
-        ".response-content, .model-response-text, message-content, .loading-indicator",
+        PROVIDER_CONFIGS.gemini.responseSelectors.join(", ") +
+          ", .loading-indicator",
         { timeout: 15000 },
       );
     } catch {
@@ -304,16 +299,12 @@ export class GeminiProvider extends BaseProvider {
       await new Promise((resolve) => setTimeout(resolve, 500));
 
       // Check for stop button
-      const isGenerating = await page.evaluate(() => {
-        const stopBtn = document.querySelector(
-          'button[aria-label="Stop response"], button[aria-label="Stop generating"], [data-testid="stop-button"]',
-        );
-        // Also check for loading indicators
-        const loading = document.querySelector(
-          '.loading-indicator, [aria-label="Loading"], .thinking-indicator',
-        );
-        return stopBtn !== null || loading !== null;
-      });
+      const isGenerating = await page.evaluate((selectors: string[]) => {
+        for (const selector of selectors) {
+          if (document.querySelector(selector)) return true;
+        }
+        return false;
+      }, PROVIDER_CONFIGS.gemini.generatingSelectors);
 
       if (isGenerating) {
         stableCount = 0;
@@ -321,24 +312,18 @@ export class GeminiProvider extends BaseProvider {
       }
 
       // Check content stability
-      const currentResponse = await page.evaluate(() => {
-        const responses = document.querySelectorAll(
-          ".response-content, .model-response-text, message-content",
-        );
+      const currentResponse = await page.evaluate((selectors: string[]) => {
+        const responses = document.querySelectorAll(selectors.join(", "));
         if (responses.length > 0) {
           return responses[responses.length - 1].textContent || "";
         }
-        // Fallback
-        const markdown = document.querySelectorAll(
-          ".markdown-content, .response-text",
-        );
-        if (markdown.length > 0) {
-          return markdown[markdown.length - 1].textContent || "";
-        }
         return "";
-      });
+      }, PROVIDER_CONFIGS.gemini.responseSelectors);
 
-      if (currentResponse.length === lastLength && currentResponse.length > 0) {
+      if (
+        (currentResponse as string).length === lastLength &&
+        (currentResponse as string).length > 0
+      ) {
         stableCount++;
         if (stableCount >= 4) {
           // 2 seconds stable
@@ -347,7 +332,7 @@ export class GeminiProvider extends BaseProvider {
         }
       } else {
         stableCount = 0;
-        lastLength = currentResponse.length;
+        lastLength = (currentResponse as string).length;
       }
     }
 
@@ -355,23 +340,15 @@ export class GeminiProvider extends BaseProvider {
     await new Promise((resolve) => setTimeout(resolve, 500));
 
     // Get final response
-    const response = await page.evaluate(() => {
-      const responses = document.querySelectorAll(
-        ".response-content, .model-response-text, message-content",
-      );
+    const response = await page.evaluate((selectors: string[]) => {
+      const responses = document.querySelectorAll(selectors.join(", "));
       if (responses.length > 0) {
         return responses[responses.length - 1].textContent || "";
       }
-      const markdown = document.querySelectorAll(
-        ".markdown-content, .response-text",
-      );
-      if (markdown.length > 0) {
-        return markdown[markdown.length - 1].textContent || "";
-      }
       return "";
-    });
+    }, PROVIDER_CONFIGS.gemini.responseSelectors);
 
-    return response;
+    return response as string;
   }
   async deleteConversation(conversationId: string): Promise<boolean> {
     console.log(`[Gemini] Deleting conversation via UI: ${conversationId}`);
@@ -519,8 +496,7 @@ export class GeminiProvider extends BaseProvider {
 
       // 3. Type prompt
       if (onStatusUpdate) onStatusUpdate("Typing prompt...");
-      const inputSelector =
-        'rich-textarea .ql-editor, .text-input-field, [contenteditable="true"]';
+      const inputSelector = PROVIDER_CONFIGS.gemini.inputSelectors.join(", ");
       await page.waitForSelector(inputSelector, { timeout: 10000 });
 
       const input = await page.$(inputSelector);
@@ -533,7 +509,7 @@ export class GeminiProvider extends BaseProvider {
       // 4. Send
       if (onStatusUpdate) onStatusUpdate("Sending request...");
       const sendButton = await page.$(
-        'button[aria-label="Send message"], .send-button, mat-icon[data-mat-icon-name="send"]',
+        PROVIDER_CONFIGS.gemini.sendButtonSelectors.join(", "),
       );
       if (sendButton) {
         await sendButton.click();
