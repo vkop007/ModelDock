@@ -1124,9 +1124,16 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: "TOGGLE_UNIFIED_MODE" });
   }, []);
 
-  const toggleUnifiedProvider = useCallback((provider: LLMProvider) => {
-    dispatch({ type: "TOGGLE_UNIFIED_PROVIDER", provider });
-  }, []);
+  const toggleUnifiedProvider = useCallback(
+    (provider: LLMProvider) => {
+      // Trigger warmup if adding a new provider
+      if (!state.unifiedProviders.includes(provider)) {
+        warmupProviders([provider]);
+      }
+      dispatch({ type: "TOGGLE_UNIFIED_PROVIDER", provider });
+    },
+    [state.unifiedProviders, warmupProviders],
+  );
 
   const broadcastMessage = useCallback(
     async (content: string, images?: string[]) => {

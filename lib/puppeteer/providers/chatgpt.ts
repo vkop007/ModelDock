@@ -17,14 +17,14 @@ export class ChatGPTProvider extends BaseProvider {
     try {
       // Check for presence of chat interface elements
       await page.waitForSelector(
-        '#prompt-textarea, [data-testid="send-button"], textarea',
+        PROVIDER_CONFIGS.chatgpt.loginSelectors.join(", "),
         { timeout: 10000 },
       );
       return true;
     } catch {
       // Check for login button or sign-in page
       const loginButton = await page.$(
-        'button:has-text("Log in"), a[href*="login"]',
+        PROVIDER_CONFIGS.chatgpt.loginButtonSelectors.join(", "),
       );
       return !loginButton;
     }
@@ -60,14 +60,8 @@ export class ChatGPTProvider extends BaseProvider {
         await new Promise((resolve) => setTimeout(resolve, 500));
       }
 
-      // Wait for input - ChatGPT uses various selectors depending on state
-      const inputSelectors = [
-        "#prompt-textarea",
-        '[data-testid="composer-input"]',
-        'div[contenteditable="true"].ProseMirror',
-        'div[contenteditable="true"]',
-        "textarea",
-      ];
+      // Wait for input
+      const inputSelectors = PROVIDER_CONFIGS.chatgpt.inputSelectors;
 
       let inputFound = false;
       for (const selector of inputSelectors) {
@@ -129,26 +123,36 @@ export class ChatGPTProvider extends BaseProvider {
       await new Promise((resolve) => setTimeout(resolve, 500));
 
       // Find and click the send button
-      const sendButtonClicked = await page.evaluate(() => {
-        // Try finding the send button by data-testid
-        const sendBtn = document.querySelector(
-          '[data-testid="send-button"]',
-        ) as HTMLButtonElement;
-        if (sendBtn && !sendBtn.disabled) {
-          sendBtn.click();
-          return true;
+      // Find and click the send button
+      const sendButtonClicked = await page.evaluate((selectors: string[]) => {
+        for (const selector of selectors) {
+          // data-testid
+          if (selector.includes("data-testid")) {
+            const btn = document.querySelector(selector) as HTMLButtonElement;
+            if (btn && !btn.disabled) {
+              btn.click();
+              return true;
+            }
+          }
+          // aria-label
+          else if (selector.includes("aria-label")) {
+            const btn = document.querySelector(selector) as HTMLButtonElement;
+            if (btn && !btn.disabled) {
+              btn.click();
+              return true;
+            }
+          }
+          // Generic query for others
+          else {
+            const btn = document.querySelector(selector) as HTMLButtonElement;
+            if (btn && !btn.disabled) {
+              btn.click();
+              return true;
+            }
+          }
         }
 
-        // Try finding by aria-label
-        const ariaBtn = document.querySelector(
-          'button[aria-label="Send prompt"]',
-        ) as HTMLButtonElement;
-        if (ariaBtn && !ariaBtn.disabled) {
-          ariaBtn.click();
-          return true;
-        }
-
-        // Try finding the button next to the textarea (inside the form)
+        // Fallback: Try finding the button next to the textarea (inside the form)
         const form = document.querySelector("form");
         if (form) {
           const buttons = form.querySelectorAll("button");
@@ -161,7 +165,7 @@ export class ChatGPTProvider extends BaseProvider {
         }
 
         return false;
-      });
+      }, PROVIDER_CONFIGS.chatgpt.sendButtonSelectors);
 
       if (!sendButtonClicked) {
         console.log("[ChatGPT] No button clicked, pressing Enter");
@@ -198,9 +202,12 @@ export class ChatGPTProvider extends BaseProvider {
 
     // First, wait for any response element to appear
     try {
-      await page.waitForSelector('[data-message-author-role="assistant"]', {
-        timeout: 30000,
-      });
+      await page.waitForSelector(
+        PROVIDER_CONFIGS.chatgpt.responseSelectors.join(", "),
+        {
+          timeout: 30000,
+        },
+      );
       console.log("[ChatGPT] Response element appeared");
     } catch {
       console.log(
@@ -227,12 +234,12 @@ export class ChatGPTProvider extends BaseProvider {
     while (Date.now() - startTime < maxWait) {
       await new Promise((resolve) => setTimeout(resolve, 500)); // Standard poll 500ms
 
-      const isGenerating = await page.evaluate(() => {
-        const btn = document.querySelector(
-          'button[aria-label="Stop generating"]',
-        );
-        return btn !== null;
-      });
+      const isGenerating = await page.evaluate((selectors: string[]) => {
+        for (const selector of selectors) {
+          if (document.querySelector(selector)) return true;
+        }
+        return false;
+      }, PROVIDER_CONFIGS.chatgpt.generatingSelectors);
 
       if (isGenerating) {
         stableCount = 0;
@@ -240,17 +247,19 @@ export class ChatGPTProvider extends BaseProvider {
       }
 
       // If stop button is gone, verify text stability
-      const currentResponse = await page.evaluate(() => {
-        const messages = document.querySelectorAll(
-          '[data-message-author-role="assistant"]',
-        );
+      const currentResponse = await page.evaluate((selectors: string[]) => {
+        // Try precise selector first
+        const messages = document.querySelectorAll(selectors[0]);
         if (messages.length > 0) {
           return messages[messages.length - 1].textContent || "";
         }
         return "";
-      });
+      }, PROVIDER_CONFIGS.chatgpt.responseSelectors);
 
-      if (currentResponse.length === lastLength && currentResponse.length > 0) {
+      if (
+        (currentResponse as string).length === lastLength &&
+        (currentResponse as string).length > 0
+      ) {
         stableCount++;
         // Require 2 seconds of stability after stop button disappears
         if (stableCount >= 4) {
@@ -259,7 +268,7 @@ export class ChatGPTProvider extends BaseProvider {
         }
       } else {
         stableCount = 0;
-        lastLength = currentResponse.length;
+        lastLength = (currentResponse as string).length;
       }
     }
 
@@ -267,22 +276,20 @@ export class ChatGPTProvider extends BaseProvider {
     await new Promise((resolve) => setTimeout(resolve, 500));
 
     // Get the LAST assistant message text content
-    const response = await page.evaluate(() => {
-      const messages = document.querySelectorAll(
-        '[data-message-author-role="assistant"]',
-      );
+    const response = await page.evaluate((selectors: string[]) => {
+      const messages = document.querySelectorAll(selectors[0]);
       if (messages.length > 0) {
         const lastMessage = messages[messages.length - 1];
         return lastMessage.textContent || "";
       }
       return "";
-    });
+    }, PROVIDER_CONFIGS.chatgpt.responseSelectors);
 
     console.log(
       `[ChatGPT] Response extracted. Length: ${response.length} chars`,
     );
     console.log("[ChatGPT] Response content:", response);
-    return response;
+    return response as string;
   }
 
   resetConversation(): void {
@@ -682,14 +689,8 @@ export class ChatGPTProvider extends BaseProvider {
 
         if (signal?.aborted) throw new Error("AbortError");
 
-        // Wait for input - ChatGPT uses various selectors depending on state
-        const inputSelectors = [
-          "#prompt-textarea",
-          '[data-testid="composer-input"]',
-          'div[contenteditable="true"].ProseMirror',
-          'div[contenteditable="true"]',
-          "textarea",
-        ];
+        // Wait for input
+        const inputSelectors = PROVIDER_CONFIGS.chatgpt.inputSelectors;
 
         let inputFound = false;
         for (const selector of inputSelectors) {
@@ -730,14 +731,18 @@ export class ChatGPTProvider extends BaseProvider {
         await new Promise((resolve) => setTimeout(resolve, 200));
 
         // NOW click send button
-        const sendButtonClicked = await page.evaluate(() => {
-          const btn = document.querySelector(
-            '[data-testid="send-button"]',
-          ) as HTMLButtonElement;
-          if (btn && !btn.disabled) {
-            btn.click();
-            return true;
+        const sendButtonClicked = await page.evaluate((selectors: string[]) => {
+          for (const selector of selectors) {
+            const btn = document.querySelector(
+              selector,
+            ) as HTMLButtonElement | null;
+            if (btn && !btn.disabled) {
+              btn.click();
+              return true;
+            }
           }
+
+          // Fallback
           const form = document.querySelector("form");
           if (form) {
             const buttons = form.querySelectorAll("button");
@@ -749,7 +754,7 @@ export class ChatGPTProvider extends BaseProvider {
             }
           }
           return false;
-        });
+        }, PROVIDER_CONFIGS.chatgpt.sendButtonSelectors);
 
         if (!sendButtonClicked) {
           await page.keyboard.press("Enter");
@@ -770,9 +775,10 @@ export class ChatGPTProvider extends BaseProvider {
 
         // Wait for assistant message to appear
         try {
-          await page.waitForSelector('[data-message-author-role="assistant"]', {
-            timeout: 30000,
-          });
+          await page.waitForSelector(
+            PROVIDER_CONFIGS.chatgpt.responseSelectors[0],
+            { timeout: 30000 },
+          );
         } catch {
           return { success: false, error: "No response received" };
         }
