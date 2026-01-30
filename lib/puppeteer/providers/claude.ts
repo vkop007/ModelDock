@@ -4,8 +4,6 @@ import { browserManager } from "../browser-manager";
 import {
   waitForCompletionWithStreaming,
   PROVIDER_CONFIGS,
-  setupNetworkMonitoring,
-  StreamParsers,
 } from "../fast-streaming";
 
 export class ClaudeProvider extends BaseProvider {
@@ -141,28 +139,6 @@ export class ClaudeProvider extends BaseProvider {
       return await browserManager.runTask(this.provider, async () => {
         const page = await this.getPage();
 
-        // Setup network interception (passive)
-        console.log(
-          "[Claude] Setting up passive network monitoring... (DISABLED - Using DOM)",
-        );
-
-        let networkContent = "";
-        /*
-        const { client, cleanup } = await setupNetworkMonitoring(
-          page,
-          "chat_conversations",
-          (chunk) => {
-            if (chunk) {
-              console.log(`[Claude] Network chunk (${chunk.length} chars)`);
-              onChunk(chunk);
-              networkContent += chunk;
-            }
-          },
-          StreamParsers.sse,
-        );
-        */
-        const cleanup = async () => {}; // Dummy cleanup
-
         // Wait for response with streaming
         console.log("[Claude] Waiting for streaming to complete...");
 
@@ -182,23 +158,16 @@ export class ClaudeProvider extends BaseProvider {
           // Continue, might be slow or network might have finished it already
         }
 
-        // Fast streaming with 50ms polling (fallback)
+        // Fast streaming with 50ms polling using DOM
         const config = PROVIDER_CONFIGS.claude;
         const result = await waitForCompletionWithStreaming(
           page,
           config,
-          (chunk) => {
-            if (!networkContent.includes(chunk)) {
-              onChunk(chunk);
-            }
-          },
+          onChunk,
           180000,
         );
 
-        // Cleanup
-        await cleanup();
-
-        const lastContent = result.content || networkContent;
+        const lastContent = result.content;
 
         // Extract Conversation ID
         const finalUrl = page.url();

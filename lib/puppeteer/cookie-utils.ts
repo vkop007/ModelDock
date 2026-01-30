@@ -6,7 +6,11 @@ import sqlite3 from "sqlite3";
 import tld from "tldjs";
 // @ts-ignore
 import keytar from "keytar";
-import { getBrowserCookiePath, getKeychainService } from "./browser-detector";
+import {
+  getBrowserCookiePath,
+  getKeychainService,
+  getBrowserType,
+} from "./browser-detector";
 
 interface Cookie {
   name: string;
@@ -124,11 +128,100 @@ function getChromeCookiePath(browserId: string = "chrome"): string {
 /**
  * Chromium timestamp to Unix timestamp
  */
-function convertTimestamp(timestamp: number): number {
+function convertChromiumTimestamp(timestamp: number): number {
   // Chromium uses Windows Gregorian epoch (1601-01-01) in microseconds
   // Unix is 1970-01-01 in seconds (or ms)
   // Difference is 11644473600 seconds
   return Math.floor(timestamp / 1000000 - 11644473600);
+}
+
+/**
+ * Firefox timestamp to Unix timestamp
+ * Firefox stores expiry as Unix timestamp in seconds
+ */
+function convertFirefoxTimestamp(timestamp: number): number {
+  // Firefox already uses Unix timestamp in seconds
+  return timestamp;
+}
+
+/**
+ * Read cookies from Firefox's cookies.sqlite database
+ * Firefox cookies are NOT encrypted, making this much simpler than Chromium
+ */
+async function getFirefoxCookiesBatch(
+  useUrls: Record<string, string>,
+  dbPath: string,
+): Promise<Record<string, FormattedCookie[]>> {
+  console.log(`[CookieUtils] Reading Firefox cookies from ${dbPath}`);
+
+  return new Promise((resolve, reject) => {
+    const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READONLY, (err) => {
+      if (err) return reject(err);
+    });
+
+    const results: Record<string, FormattedCookie[]> = {};
+    const domains = Object.values(useUrls)
+      .map((u) => tld.getDomain(u))
+      .filter(Boolean);
+    const uniqueDomains = [...new Set(domains)];
+
+    // Firefox uses 'host' column, Chromium uses 'host_key'
+    const domainPlaceholders = uniqueDomains
+      .map(() => "host LIKE ?")
+      .join(" OR ");
+    const params = uniqueDomains.map((d) => `%${d}`);
+
+    // Firefox moz_cookies table structure
+    const query = `
+      SELECT 
+        name,
+        value,
+        host,
+        path,
+        expiry,
+        isSecure,
+        isHttpOnly,
+        sameSite
+      FROM moz_cookies
+      WHERE ${domainPlaceholders}
+    `;
+
+    db.all(query, params, (err: Error | null, rows: any[]) => {
+      if (err) {
+        db.close();
+        return reject(err);
+      }
+
+      // Group cookies by provider
+      for (const [provider, url] of Object.entries(useUrls)) {
+        const domain = tld.getDomain(url);
+        if (!domain) continue;
+
+        const providerCookies = rows
+          .filter((row) => row.host.includes(domain))
+          .map((row) => ({
+            name: row.name,
+            value: row.value, // Firefox cookies are NOT encrypted
+            domain: row.host,
+            path: row.path,
+            expires: convertFirefoxTimestamp(row.expiry),
+            httpOnly: !!row.isHttpOnly,
+            secure: !!row.isSecure,
+            sameSite:
+              row.sameSite === 0
+                ? "None"
+                : row.sameSite === 1
+                  ? "Lax"
+                  : "Strict",
+          }));
+
+        results[provider] = providerCookies;
+      }
+
+      db.close();
+      resolve(results);
+    });
+  });
 }
 
 export async function getCookiesBatch(
@@ -140,6 +233,15 @@ export async function getCookiesBatch(
     throw new Error(`Cookie database not found at ${dbPath}`);
   }
 
+  // Check browser type and route to appropriate function
+  const browserType = getBrowserType(browserId);
+
+  if (browserType === "firefox") {
+    // Firefox cookies are NOT encrypted - use simpler function
+    return getFirefoxCookiesBatch(useUrls, dbPath);
+  }
+
+  // Chromium browsers - need decryption
   console.log(`[CookieUtils] Reading cookies from ${browserId} at ${dbPath}`);
 
   // 1. Get Key (Once!)
@@ -197,7 +299,9 @@ export async function getCookiesBatch(
           value: value,
           domain: row.host_key,
           path: row.path,
-          expires: row.has_expires ? convertTimestamp(row.expires_utc) : 0,
+          expires: row.has_expires
+            ? convertChromiumTimestamp(row.expires_utc)
+            : 0,
           httpOnly: row.is_httponly === 1,
           secure: row.is_secure === 1,
           sameSite: "Lax", // Default

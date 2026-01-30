@@ -4,8 +4,6 @@ import { browserManager } from "../browser-manager";
 import {
   waitForCompletionWithStreaming,
   PROVIDER_CONFIGS,
-  setupNetworkMonitoring,
-  StreamParsers,
 } from "../fast-streaming";
 
 export class ChatGPTProvider extends BaseProvider {
@@ -62,22 +60,42 @@ export class ChatGPTProvider extends BaseProvider {
         await new Promise((resolve) => setTimeout(resolve, 500));
       }
 
-      try {
-        await page.waitForSelector("#prompt-textarea", { timeout: 20000 });
-        console.log("[ChatGPT] Found #prompt-textarea");
-      } catch {
+      // Wait for input - ChatGPT uses various selectors depending on state
+      const inputSelectors = [
+        "#prompt-textarea",
+        '[data-testid="composer-input"]',
+        'div[contenteditable="true"].ProseMirror',
+        'div[contenteditable="true"]',
+        "textarea",
+      ];
+
+      let inputFound = false;
+      for (const selector of inputSelectors) {
+        try {
+          await page.waitForSelector(selector, { timeout: 5000 });
+          console.log(`[ChatGPT] Found input: ${selector}`);
+          inputFound = true;
+          break;
+        } catch {
+          // Try next selector
+        }
+      }
+
+      if (!inputFound) {
         console.log(
-          "[ChatGPT] #prompt-textarea not found, trying alternatives...",
+          "[ChatGPT] Primary selectors failed, waiting for any input...",
         );
-        await page.waitForSelector('div[contenteditable="true"], textarea', {
-          timeout: 15000,
+        await page.waitForSelector(inputSelectors.join(", "), {
+          timeout: 20000,
         });
       }
 
-      const inputEl =
-        (await page.$("#prompt-textarea")) ||
-        (await page.$('div[contenteditable="true"]')) ||
-        (await page.$("textarea"));
+      // Find the input element
+      let inputEl = null;
+      for (const selector of inputSelectors) {
+        inputEl = await page.$(selector);
+        if (inputEl) break;
+      }
 
       if (!inputEl) {
         return { success: false, error: "Could not find input element" };
@@ -664,20 +682,43 @@ export class ChatGPTProvider extends BaseProvider {
 
         if (signal?.aborted) throw new Error("AbortError");
 
-        // Wait for input - reduced timeouts
-        try {
-          await page.waitForSelector("#prompt-textarea", { timeout: 20000 });
-        } catch {
-          await page.waitForSelector('div[contenteditable="true"], textarea', {
-            timeout: 15000,
+        // Wait for input - ChatGPT uses various selectors depending on state
+        const inputSelectors = [
+          "#prompt-textarea",
+          '[data-testid="composer-input"]',
+          'div[contenteditable="true"].ProseMirror',
+          'div[contenteditable="true"]',
+          "textarea",
+        ];
+
+        let inputFound = false;
+        for (const selector of inputSelectors) {
+          try {
+            await page.waitForSelector(selector, { timeout: 5000 });
+            console.log(`[ChatGPT] Found input: ${selector}`);
+            inputFound = true;
+            break;
+          } catch {
+            // Try next selector
+          }
+        }
+
+        if (!inputFound) {
+          // Last resort - wait longer for any input
+          console.log(
+            "[ChatGPT] Primary selectors failed, waiting for any input...",
+          );
+          await page.waitForSelector(inputSelectors.join(", "), {
+            timeout: 20000,
           });
         }
 
-        // Type and send message
-        const inputEl =
-          (await page.$("#prompt-textarea")) ||
-          (await page.$('div[contenteditable="true"]')) ||
-          (await page.$("textarea"));
+        // Type and send message - try all known input selectors
+        let inputEl = null;
+        for (const selector of inputSelectors) {
+          inputEl = await page.$(selector);
+          if (inputEl) break;
+        }
 
         if (!inputEl) {
           throw new Error("Could not find input element");
@@ -727,45 +768,28 @@ export class ChatGPTProvider extends BaseProvider {
 
         if (signal?.aborted) throw new Error("AbortError");
 
-        console.log("[ChatGPT] Setting up passive network monitoring...");
-        console.log(
-          "[ChatGPT] Setting up passive network monitoring... (DISABLED - Using DOM)",
-        );
-        const networkContent = "";
-
-        const cleanup = async () => {}; // Dummy cleanup
-
         // Wait for assistant message to appear
         try {
           await page.waitForSelector('[data-message-author-role="assistant"]', {
             timeout: 30000,
           });
         } catch {
-          await cleanup();
           return { success: false, error: "No response received" };
         }
 
-        // Use DOM polling as backup (deduplicated)
+        // Use DOM polling for streaming
         const config = PROVIDER_CONFIGS.chatgpt;
         const result = await waitForCompletionWithStreaming(
           page,
           config,
-          (chunk) => {
-            // Only emit if not already covered by network
-            if (!networkContent.includes(chunk)) {
-              onChunk(chunk);
-            }
-          },
+          onChunk,
           180000,
-          signal, // Pass signal to break polling
+          signal,
         );
-
-        // Cleanup CDP session
-        await cleanup();
 
         this.hasActiveConversation = true;
 
-        const finalText = result.content || networkContent;
+        const finalText = result.content;
         const finalUrl = page.url();
         const match = finalUrl.match(/\/c\/([a-zA-Z0-9-]+)/);
         const newConversationId = match ? match[1] : undefined;
