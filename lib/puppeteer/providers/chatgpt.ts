@@ -60,22 +60,42 @@ export class ChatGPTProvider extends BaseProvider {
         await new Promise((resolve) => setTimeout(resolve, 500));
       }
 
-      try {
-        await page.waitForSelector("#prompt-textarea", { timeout: 20000 });
-        console.log("[ChatGPT] Found #prompt-textarea");
-      } catch {
+      // Wait for input - ChatGPT uses various selectors depending on state
+      const inputSelectors = [
+        "#prompt-textarea",
+        '[data-testid="composer-input"]',
+        'div[contenteditable="true"].ProseMirror',
+        'div[contenteditable="true"]',
+        "textarea",
+      ];
+
+      let inputFound = false;
+      for (const selector of inputSelectors) {
+        try {
+          await page.waitForSelector(selector, { timeout: 5000 });
+          console.log(`[ChatGPT] Found input: ${selector}`);
+          inputFound = true;
+          break;
+        } catch {
+          // Try next selector
+        }
+      }
+
+      if (!inputFound) {
         console.log(
-          "[ChatGPT] #prompt-textarea not found, trying alternatives...",
+          "[ChatGPT] Primary selectors failed, waiting for any input...",
         );
-        await page.waitForSelector('div[contenteditable="true"], textarea', {
-          timeout: 15000,
+        await page.waitForSelector(inputSelectors.join(", "), {
+          timeout: 20000,
         });
       }
 
-      const inputEl =
-        (await page.$("#prompt-textarea")) ||
-        (await page.$('div[contenteditable="true"]')) ||
-        (await page.$("textarea"));
+      // Find the input element
+      let inputEl = null;
+      for (const selector of inputSelectors) {
+        inputEl = await page.$(selector);
+        if (inputEl) break;
+      }
 
       if (!inputEl) {
         return { success: false, error: "Could not find input element" };
@@ -662,20 +682,43 @@ export class ChatGPTProvider extends BaseProvider {
 
         if (signal?.aborted) throw new Error("AbortError");
 
-        // Wait for input - reduced timeouts
-        try {
-          await page.waitForSelector("#prompt-textarea", { timeout: 20000 });
-        } catch {
-          await page.waitForSelector('div[contenteditable="true"], textarea', {
-            timeout: 15000,
+        // Wait for input - ChatGPT uses various selectors depending on state
+        const inputSelectors = [
+          "#prompt-textarea",
+          '[data-testid="composer-input"]',
+          'div[contenteditable="true"].ProseMirror',
+          'div[contenteditable="true"]',
+          "textarea",
+        ];
+
+        let inputFound = false;
+        for (const selector of inputSelectors) {
+          try {
+            await page.waitForSelector(selector, { timeout: 5000 });
+            console.log(`[ChatGPT] Found input: ${selector}`);
+            inputFound = true;
+            break;
+          } catch {
+            // Try next selector
+          }
+        }
+
+        if (!inputFound) {
+          // Last resort - wait longer for any input
+          console.log(
+            "[ChatGPT] Primary selectors failed, waiting for any input...",
+          );
+          await page.waitForSelector(inputSelectors.join(", "), {
+            timeout: 20000,
           });
         }
 
-        // Type and send message
-        const inputEl =
-          (await page.$("#prompt-textarea")) ||
-          (await page.$('div[contenteditable="true"]')) ||
-          (await page.$("textarea"));
+        // Type and send message - try all known input selectors
+        let inputEl = null;
+        for (const selector of inputSelectors) {
+          inputEl = await page.$(selector);
+          if (inputEl) break;
+        }
 
         if (!inputEl) {
           throw new Error("Could not find input element");
