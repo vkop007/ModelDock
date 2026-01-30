@@ -8,7 +8,13 @@ import {
   FiChevronRight,
   FiGlobe,
 } from "react-icons/fi";
-import { SiGooglechrome, SiBrave, SiVivaldi, SiOpera } from "react-icons/si";
+import {
+  SiGooglechrome,
+  SiBrave,
+  SiVivaldi,
+  SiOpera,
+  SiFirefox,
+} from "react-icons/si";
 
 interface DetectedBrowser {
   id: string;
@@ -47,6 +53,8 @@ function getBrowserIcon(icon: string, size: number = 24) {
       return <SiVivaldi size={size} />;
     case "opera":
       return <SiOpera size={size} />;
+    case "firefox":
+      return <SiFirefox size={size} />;
     case "arc":
       return (
         <span
@@ -83,6 +91,8 @@ function getBrowserColor(icon: string): string {
       return "#7B61FF";
     case "chromium":
       return "#4587F4";
+    case "firefox":
+      return "#FF7139";
     default:
       return "#888";
   }

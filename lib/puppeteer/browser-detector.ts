@@ -21,6 +21,7 @@ interface BrowserConfig {
     linux?: string[];
   };
   cookieFile: string;
+  type: "chromium" | "firefox";
 }
 
 const HOME = os.homedir();
@@ -44,6 +45,7 @@ const BROWSER_CONFIGS: BrowserConfig[] = [
       linux: [path.join(HOME, ".config/google-chrome/Default")],
     },
     cookieFile: "Cookies",
+    type: "chromium",
   },
   {
     id: "chrome-beta",
@@ -65,6 +67,7 @@ const BROWSER_CONFIGS: BrowserConfig[] = [
       linux: [path.join(HOME, ".config/google-chrome-beta/Default")],
     },
     cookieFile: "Cookies",
+    type: "chromium",
   },
   {
     id: "chromium",
@@ -78,6 +81,7 @@ const BROWSER_CONFIGS: BrowserConfig[] = [
       linux: [path.join(HOME, ".config/chromium/Default")],
     },
     cookieFile: "Cookies",
+    type: "chromium",
   },
   {
     id: "edge",
@@ -96,6 +100,7 @@ const BROWSER_CONFIGS: BrowserConfig[] = [
       linux: [path.join(HOME, ".config/microsoft-edge/Default")],
     },
     cookieFile: "Cookies",
+    type: "chromium",
   },
   {
     id: "brave",
@@ -117,6 +122,7 @@ const BROWSER_CONFIGS: BrowserConfig[] = [
       linux: [path.join(HOME, ".config/BraveSoftware/Brave-Browser/Default")],
     },
     cookieFile: "Cookies",
+    type: "chromium",
   },
   {
     id: "arc",
@@ -129,6 +135,7 @@ const BROWSER_CONFIGS: BrowserConfig[] = [
       // Arc is macOS only for now
     },
     cookieFile: "Cookies",
+    type: "chromium",
   },
   {
     id: "vivaldi",
@@ -142,6 +149,7 @@ const BROWSER_CONFIGS: BrowserConfig[] = [
       linux: [path.join(HOME, ".config/vivaldi/Default")],
     },
     cookieFile: "Cookies",
+    type: "chromium",
   },
   {
     id: "opera",
@@ -157,11 +165,65 @@ const BROWSER_CONFIGS: BrowserConfig[] = [
       linux: [path.join(HOME, ".config/opera")],
     },
     cookieFile: "Cookies",
+    type: "chromium",
+  },
+  // Firefox - uses different profile structure
+  {
+    id: "firefox",
+    name: "Mozilla Firefox",
+    icon: "firefox",
+    paths: {
+      darwin: [path.join(HOME, "Library/Application Support/Firefox/Profiles")],
+      win32: [path.join(process.env.APPDATA || "", "Mozilla/Firefox/Profiles")],
+      linux: [path.join(HOME, ".mozilla/firefox")],
+    },
+    cookieFile: "cookies.sqlite",
+    type: "firefox",
   },
 ];
 
 /**
- * Detect all installed Chromium-based browsers on the system
+ * Find Firefox default profile directory
+ * Firefox profiles are in folders like "xxxxx.default-release" or "xxxxx.default"
+ */
+function findFirefoxProfile(profilesDir: string): string | null {
+  if (!fs.existsSync(profilesDir)) {
+    return null;
+  }
+
+  try {
+    const entries = fs.readdirSync(profilesDir);
+    // Look for default-release first (newer Firefox), then default
+    const defaultRelease = entries.find((e) => e.endsWith(".default-release"));
+    if (defaultRelease) {
+      return path.join(profilesDir, defaultRelease);
+    }
+
+    const defaultProfile = entries.find((e) => e.endsWith(".default"));
+    if (defaultProfile) {
+      return path.join(profilesDir, defaultProfile);
+    }
+
+    // Fallback: find any profile directory
+    const anyProfile = entries.find((e) => {
+      const fullPath = path.join(profilesDir, e);
+      return (
+        fs.statSync(fullPath).isDirectory() &&
+        fs.existsSync(path.join(fullPath, "cookies.sqlite"))
+      );
+    });
+    if (anyProfile) {
+      return path.join(profilesDir, anyProfile);
+    }
+  } catch (e) {
+    console.error("[BrowserDetector] Error finding Firefox profile:", e);
+  }
+
+  return null;
+}
+
+/**
+ * Detect all installed browsers on the system
  */
 export function detectInstalledBrowsers(): DetectedBrowser[] {
   const platform = process.platform as "darwin" | "win32" | "linux";
@@ -174,8 +236,23 @@ export function detectInstalledBrowsers(): DetectedBrowser[] {
     }
 
     // Check each possible path for this browser
-    for (const profilePath of paths) {
-      const cookiePath = path.join(profilePath, config.cookieFile);
+    for (const basePath of paths) {
+      let profilePath: string;
+      let cookiePath: string;
+
+      if (config.type === "firefox") {
+        // Firefox uses a different profile structure
+        const firefoxProfile = findFirefoxProfile(basePath);
+        if (!firefoxProfile) {
+          continue;
+        }
+        profilePath = firefoxProfile;
+        cookiePath = path.join(profilePath, config.cookieFile);
+      } else {
+        // Chromium browsers
+        profilePath = basePath;
+        cookiePath = path.join(profilePath, config.cookieFile);
+      }
 
       // Check if the cookie file exists (indicates browser is installed and has been used)
       const installed = fs.existsSync(cookiePath);
@@ -214,14 +291,35 @@ export function getBrowserCookiePath(browserId: string): string | null {
     return null;
   }
 
-  for (const profilePath of paths) {
-    const cookiePath = path.join(profilePath, config.cookieFile);
+  for (const basePath of paths) {
+    let cookiePath: string;
+
+    if (config.type === "firefox") {
+      const firefoxProfile = findFirefoxProfile(basePath);
+      if (!firefoxProfile) {
+        continue;
+      }
+      cookiePath = path.join(firefoxProfile, config.cookieFile);
+    } else {
+      cookiePath = path.join(basePath, config.cookieFile);
+    }
+
     if (fs.existsSync(cookiePath)) {
       return cookiePath;
     }
   }
 
   return null;
+}
+
+/**
+ * Get the browser type (chromium or firefox)
+ */
+export function getBrowserType(
+  browserId: string,
+): "chromium" | "firefox" | null {
+  const config = BROWSER_CONFIGS.find((c) => c.id === browserId);
+  return config?.type || null;
 }
 
 /**
