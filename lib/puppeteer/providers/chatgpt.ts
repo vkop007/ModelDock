@@ -4,8 +4,6 @@ import { browserManager } from "../browser-manager";
 import {
   waitForCompletionWithStreaming,
   PROVIDER_CONFIGS,
-  setupNetworkMonitoring,
-  StreamParsers,
 } from "../fast-streaming";
 
 export class ChatGPTProvider extends BaseProvider {
@@ -727,45 +725,28 @@ export class ChatGPTProvider extends BaseProvider {
 
         if (signal?.aborted) throw new Error("AbortError");
 
-        console.log("[ChatGPT] Setting up passive network monitoring...");
-        console.log(
-          "[ChatGPT] Setting up passive network monitoring... (DISABLED - Using DOM)",
-        );
-        const networkContent = "";
-
-        const cleanup = async () => {}; // Dummy cleanup
-
         // Wait for assistant message to appear
         try {
           await page.waitForSelector('[data-message-author-role="assistant"]', {
             timeout: 30000,
           });
         } catch {
-          await cleanup();
           return { success: false, error: "No response received" };
         }
 
-        // Use DOM polling as backup (deduplicated)
+        // Use DOM polling for streaming
         const config = PROVIDER_CONFIGS.chatgpt;
         const result = await waitForCompletionWithStreaming(
           page,
           config,
-          (chunk) => {
-            // Only emit if not already covered by network
-            if (!networkContent.includes(chunk)) {
-              onChunk(chunk);
-            }
-          },
+          onChunk,
           180000,
-          signal, // Pass signal to break polling
+          signal,
         );
-
-        // Cleanup CDP session
-        await cleanup();
 
         this.hasActiveConversation = true;
 
-        const finalText = result.content || networkContent;
+        const finalText = result.content;
         const finalUrl = page.url();
         const match = finalUrl.match(/\/c\/([a-zA-Z0-9-]+)/);
         const newConversationId = match ? match[1] : undefined;
