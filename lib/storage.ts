@@ -6,7 +6,7 @@ import {
 } from "@/types";
 
 const STORAGE_KEYS = {
-  CONVERSATIONS: "llm-chat-conversations",
+  CONVERSATIONS: "llm-chat-conversations", // Now used as key in IndexedDB
   COOKIES: "llm-chat-cookies",
   SYSTEM_INSTRUCTIONS: "llm-chat-system-instructions",
   ACTIVE_PROVIDER: "llm-chat-active-provider",
@@ -17,28 +17,88 @@ const STORAGE_KEYS = {
 // Check if we're in browser environment
 const isBrowser = typeof window !== "undefined";
 
-// Conversations
-export function saveConversations(conversations: Conversation[]): void {
-  if (!isBrowser) return;
+// IndexedDB Helper
+const DB_NAME = "llm-chat-db";
+const STORE_NAME = "key-value-store";
+
+function openDB(): Promise<IDBDatabase> {
+  if (!isBrowser) return Promise.reject("Not in browser");
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, 1);
+    request.onupgradeneeded = (event) => {
+      const db = (event.target as IDBOpenDBRequest).result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME);
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function idbGet<T>(key: string): Promise<T | null> {
+  if (!isBrowser) return null;
   try {
-    localStorage.setItem(
-      STORAGE_KEYS.CONVERSATIONS,
-      JSON.stringify(conversations),
-    );
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(STORE_NAME, "readonly");
+      const store = transaction.objectStore(STORE_NAME);
+      const request = store.get(key);
+      request.onsuccess = () => resolve(request.result as T);
+      request.onerror = () => reject(request.error);
+    });
   } catch (error) {
-    console.error("Failed to save conversations:", error);
+    console.error(`Failed to get ${key} from IndexedDB:`, error);
+    return null;
   }
 }
 
-export function loadConversations(): Conversation[] {
-  if (!isBrowser) return [];
+async function idbSet(key: string, value: any): Promise<void> {
+  if (!isBrowser) return;
   try {
-    const data = localStorage.getItem(STORAGE_KEYS.CONVERSATIONS);
-    return data ? JSON.parse(data) : [];
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(STORE_NAME, "readwrite");
+      const store = transaction.objectStore(STORE_NAME);
+      const request = store.put(value, key);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
   } catch (error) {
-    console.error("Failed to load conversations:", error);
-    return [];
+    console.error(`Failed to set ${key} in IndexedDB:`, error);
   }
+}
+
+// Conversations (Now Async with IndexedDB)
+export async function saveConversations(
+  conversations: Conversation[],
+): Promise<void> {
+  await idbSet(STORAGE_KEYS.CONVERSATIONS, conversations);
+}
+
+export async function loadConversations(): Promise<Conversation[]> {
+  const conversations = await idbGet<Conversation[]>(
+    STORAGE_KEYS.CONVERSATIONS,
+  );
+
+  // Migration: If no conversations in IDB, check localStorage
+  if (!conversations && isBrowser) {
+    try {
+      const localData = localStorage.getItem(STORAGE_KEYS.CONVERSATIONS);
+      if (localData) {
+        const parsed = JSON.parse(localData);
+        // Save to IDB for next time
+        await saveConversations(parsed);
+        // Clear from localStorage to free up space
+        localStorage.removeItem(STORAGE_KEYS.CONVERSATIONS);
+        return parsed;
+      }
+    } catch (e) {
+      console.warn("Migration from localStorage failed", e);
+    }
+  }
+
+  return conversations || [];
 }
 
 // Cookie configs

@@ -24,15 +24,12 @@ export function StreamdownRenderer({
       return;
     }
 
-    // Check if content was reset (e.g. new message or error retry)
     if (content.length < displayedContent.length) {
       setDisplayedContent(content);
       return;
     }
 
-    // Use requestAnimationFrame for smoother animation
     const animate = (timestamp: number) => {
-      // Throttle to ~60fps (roughly every 16ms)
       if (timestamp - lastUpdateRef.current < 12) {
         animationFrameRef.current = requestAnimationFrame(animate);
         return;
@@ -46,9 +43,6 @@ export function StreamdownRenderer({
 
         const remaining = content.length - current.length;
 
-        // Adaptive step size for natural feel:
-        // - Large gaps: catch up quickly (code blocks, etc)
-        // - Small gaps: slow reveal for conversational text
         let step = 1;
         if (remaining > 100) {
           step = Math.min(remaining / 10, 20); // Rapid catch-up

@@ -4,15 +4,13 @@ import { ProviderStatus } from "@/types";
 
 interface ProviderStatusBadgeProps {
   status: ProviderStatus;
-  size?: "sm" | "md";
+  showLabel?: boolean;
 }
 
 export default function ProviderStatusBadge({
   status,
-  size = "sm",
+  showLabel = true,
 }: ProviderStatusBadgeProps) {
-  const sizeClass = size === "sm" ? "status-badge-sm" : "status-badge-md";
-
   const getStatusClass = () => {
     switch (status) {
       case "ready":
@@ -29,28 +27,42 @@ export default function ProviderStatusBadge({
     }
   };
 
-  const getTitle = () => {
+  const getLabel = () => {
     switch (status) {
       case "ready":
-        return "Connected";
+        return "Ready";
       case "warming":
-        return "Warming up...";
+        return "Loading";
       case "streaming":
-        return "Generating response...";
+        return "Live";
       case "error":
-        return "Connection error";
+        return "Error";
       case "idle":
       default:
         return "Idle";
     }
   };
 
+  const getTitle = () => {
+    switch (status) {
+      case "ready":
+        return "Connected and ready";
+      case "warming":
+        return "Warming up browser session...";
+      case "streaming":
+        return "Generating response...";
+      case "error":
+        return "Connection error";
+      case "idle":
+      default:
+        return "Not connected";
+    }
+  };
+
   return (
-    <span
-      className={`status-badge ${sizeClass} ${getStatusClass()}`}
-      title={getTitle()}
-    >
+    <span className={`status-badge ${getStatusClass()}`} title={getTitle()}>
       <span className="status-dot" />
+      {showLabel && <span className="status-label">{getLabel()}</span>}
     </span>
   );
 }

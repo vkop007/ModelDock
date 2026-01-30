@@ -424,33 +424,40 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
   // Load saved state on mount
   useEffect(() => {
-    const conversations = loadConversations();
-    const cookieConfigs = loadCookieConfigs();
-    const systemInstructions = loadSystemInstructions();
-    const activeProvider = loadActiveProvider();
-    const currentConversationId = loadCurrentConversation();
-    const unifiedProviders = loadUnifiedProviders();
+    const loadState = async () => {
+      // Async load for conversations (IndexedDB)
+      const conversations = await loadConversations();
 
-    dispatch({
-      type: "LOAD_STATE",
-      state: {
-        conversations,
-        cookieConfigs,
-        systemInstructions,
-        activeProvider,
-        currentConversationId,
-        unifiedProviders,
-      },
-    });
+      // Sync load for other preferences (localStorage)
+      const cookieConfigs = loadCookieConfigs();
+      const systemInstructions = loadSystemInstructions();
+      const activeProvider = loadActiveProvider();
+      const currentConversationId = loadCurrentConversation();
+      const unifiedProviders = loadUnifiedProviders();
 
-    // Mark as initialized after loading
-    isInitializedRef.current = true;
+      dispatch({
+        type: "LOAD_STATE",
+        state: {
+          conversations,
+          cookieConfigs,
+          systemInstructions,
+          activeProvider,
+          currentConversationId,
+          unifiedProviders,
+        },
+      });
+
+      // Mark as initialized after loading
+      isInitializedRef.current = true;
+    };
+
+    loadState();
   }, []);
 
   // Persist state changes - only after initial load to prevent overwriting saved data
   useEffect(() => {
     if (isInitializedRef.current) {
-      saveConversations(state.conversations);
+      saveConversations(state.conversations).catch(console.error);
     }
   }, [state.conversations]);
 
@@ -1041,11 +1048,34 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     if (lastUserMessageIndex === -1) return;
 
     const lastUserMessage = messages[lastUserMessageIndex];
+    const content = lastUserMessage.content;
+    const images = lastUserMessage.images;
 
-    dispatch({ type: "DELETE_MESSAGES_AFTER", messageId: lastUserMessage.id });
+    // Find the message before the user message to delete from there
+    // This way we delete both the user message AND all messages after it
+    if (lastUserMessageIndex > 0) {
+      const previousMessage = messages[lastUserMessageIndex - 1];
+      dispatch({
+        type: "DELETE_MESSAGES_AFTER",
+        messageId: previousMessage.id,
+      });
+    } else {
+      // If user message is the first message, clear all messages
+      dispatch({
+        type: "LOAD_STATE",
+        state: {
+          conversations: state.conversations.map((conv) =>
+            conv.id === currentConversation.id
+              ? { ...conv, messages: [], updatedAt: Date.now() }
+              : conv,
+          ),
+        },
+      });
+    }
 
-    await sendMessage(lastUserMessage.content, lastUserMessage.images);
-  }, [currentConversation, state.isSending, sendMessage]);
+    // Now sendMessage will add a fresh user message
+    await sendMessage(content, images);
+  }, [currentConversation, state.isSending, state.conversations, sendMessage]);
 
   const editAndResend = useCallback(
     async (messageId: string, newContent: string) => {
@@ -1059,16 +1089,34 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       const message = currentConversation.messages[messageIndex];
       if (message.role !== "user") return;
 
-      // Edit the message content
-      dispatch({ type: "EDIT_MESSAGE", messageId, content: newContent });
+      const images = message.images;
 
-      // Delete all messages after this one
-      dispatch({ type: "DELETE_MESSAGES_AFTER", messageId });
+      // Delete this message and all messages after it
+      // sendMessage will add a fresh user message with the new content
+      if (messageIndex > 0) {
+        const previousMessage = currentConversation.messages[messageIndex - 1];
+        dispatch({
+          type: "DELETE_MESSAGES_AFTER",
+          messageId: previousMessage.id,
+        });
+      } else {
+        // If this is the first message, clear all messages
+        dispatch({
+          type: "LOAD_STATE",
+          state: {
+            conversations: state.conversations.map((conv) =>
+              conv.id === currentConversation.id
+                ? { ...conv, messages: [], updatedAt: Date.now() }
+                : conv,
+            ),
+          },
+        });
+      }
 
-      // Resend the edited message
-      await sendMessage(newContent, message.images);
+      // Resend with new content
+      await sendMessage(newContent, images);
     },
-    [currentConversation, state.isSending, sendMessage],
+    [currentConversation, state.isSending, state.conversations, sendMessage],
   );
 
   // Export conversation
