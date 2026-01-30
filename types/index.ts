@@ -126,12 +126,28 @@ export interface CookieEntry {
   sameSite?: "Strict" | "Lax" | "None";
 }
 
+// Provider status for UI indicators
+export type ProviderStatus =
+  | "idle"
+  | "warming"
+  | "ready"
+  | "streaming"
+  | "error";
+
 // Session state for each provider
 export interface SessionState {
   provider: LLMProvider;
   isConnected: boolean;
   isLoading: boolean;
   error?: string;
+  // Status indicator
+  status: ProviderStatus;
+  // Streaming progress stats
+  streamingStats?: {
+    charsReceived: number;
+    startTime: number;
+    lastUpdateTime: number;
+  };
 }
 
 // API request/response types
@@ -209,7 +225,19 @@ export type ChatAction =
   | { type: "PIN_MESSAGE"; messageId: string }
   | { type: "UNPIN_MESSAGE"; messageId: string }
   | { type: "TOGGLE_UNIFIED_MODE" }
-  | { type: "TOGGLE_UNIFIED_PROVIDER"; provider: LLMProvider };
+  | { type: "TOGGLE_UNIFIED_PROVIDER"; provider: LLMProvider }
+  | {
+      type: "SET_PROVIDER_STATUS";
+      provider: LLMProvider;
+      status: ProviderStatus;
+    }
+  | {
+      type: "UPDATE_STREAMING_STATS";
+      provider: LLMProvider;
+      charsReceived: number;
+      startTime: number;
+    }
+  | { type: "CLEAR_STREAMING_STATS"; provider: LLMProvider };
 // Voice settings configuration
 export interface VoiceSettings {
   speechRecognition: {

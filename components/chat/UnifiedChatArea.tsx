@@ -6,6 +6,8 @@ import MessageList from "./MessageList";
 import Image from "next/image";
 import { FiMoreVertical, FiTrash2, FiX, FiPlus } from "react-icons/fi";
 import { useState } from "react";
+import ProviderStatusBadge from "./ProviderStatusBadge";
+import StreamingStats from "./StreamingStats";
 
 const getProviderLogo = (provider: LLMProvider, size: number) => {
   const logos: Record<LLMProvider, string> = {
@@ -40,6 +42,7 @@ export default function UnifiedChatArea() {
     toggleUnifiedProvider,
     deleteConversation,
     activeProvider, // Added for sorting logic
+    sessions, // For status indicators
   } = useChatContext();
 
   // Debug sorting
@@ -126,6 +129,8 @@ export default function UnifiedChatArea() {
       {providerConversations.map(({ provider, conversation }) => {
         const config = PROVIDERS[provider];
         const width = getColumnWidth(provider);
+        const session = sessions[provider];
+        const isStreaming = session?.status === "streaming";
 
         return (
           <div
@@ -138,6 +143,7 @@ export default function UnifiedChatArea() {
                 <div className="provider-info">
                   {getProviderLogo(provider, 20)}
                   <span className="provider-name">{config.name}</span>
+                  <ProviderStatusBadge status={session?.status || "idle"} />
                 </div>
                 <div className="column-actions">
                   {conversation && (
@@ -158,6 +164,15 @@ export default function UnifiedChatArea() {
                   </button>
                 </div>
               </div>
+
+              {/* Streaming Stats */}
+              {isStreaming && session?.streamingStats && (
+                <StreamingStats
+                  charsReceived={session.streamingStats.charsReceived}
+                  startTime={session.streamingStats.startTime}
+                  isActive={isStreaming}
+                />
+              )}
 
               <div className="unified-messages-area">
                 {conversation ? (
