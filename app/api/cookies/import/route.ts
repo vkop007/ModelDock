@@ -8,8 +8,11 @@ import { getCookiesBatch } from "@/lib/puppeteer/cookie-utils";
 
 export async function POST(req: NextRequest) {
   try {
-    const { provider } = await req.json();
+    const { provider, browser = "chrome" } = await req.json();
 
+    console.log(
+      `[CookieImport] Import request: provider=${provider}, browser=${browser}`,
+    );
     const getCookies = (url: string): Promise<any[]> => {
       return new Promise((resolve, reject) => {
         // @ts-ignore
@@ -47,15 +50,17 @@ export async function POST(req: NextRequest) {
       let results: Record<string, any> = {};
 
       try {
-        console.log("[CookieImport] Attempting batch import...");
+        console.log(
+          `[CookieImport] Attempting batch import from ${browser}...`,
+        );
         // Filter out empty URLs
         const targetUrls: Record<string, string> = {};
         providers.forEach((p) => {
           if (PROVIDER_URLS[p]) targetUrls[p] = PROVIDER_URLS[p];
         });
 
-        // Use new batch method
-        results = await getCookiesBatch(targetUrls);
+        // Use new batch method with browser parameter
+        results = await getCookiesBatch(targetUrls, browser);
 
         // Log results
         Object.entries(results).forEach(([p, cookies]) => {

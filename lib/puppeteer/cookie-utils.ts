@@ -6,6 +6,7 @@ import sqlite3 from "sqlite3";
 import tld from "tldjs";
 // @ts-ignore
 import keytar from "keytar";
+import { getBrowserCookiePath, getKeychainService } from "./browser-detector";
 
 interface Cookie {
   name: string;
@@ -64,9 +65,10 @@ function decrypt(key: Buffer, encryptedData: Buffer): string {
   }
 }
 
-async function getDerivedKey(): Promise<Buffer> {
+async function getDerivedKey(browserId: string = "chrome"): Promise<Buffer> {
   if (process.platform === "darwin") {
-    const password = await keytar.getPassword("Chrome Safe Storage", "Chrome");
+    const { service, account } = getKeychainService(browserId);
+    const password = await keytar.getPassword(service, account);
     return new Promise((resolve, reject) => {
       crypto.pbkdf2(
         password || "",
@@ -95,7 +97,14 @@ async function getDerivedKey(): Promise<Buffer> {
   throw new Error("Platform not supported for optimized batch cookie import");
 }
 
-function getChromeCookiePath(): string {
+function getChromeCookiePath(browserId: string = "chrome"): string {
+  // Use browser-detector for dynamic path resolution
+  const detectedPath = getBrowserCookiePath(browserId);
+  if (detectedPath) {
+    return detectedPath;
+  }
+
+  // Fallback to hardcoded Chrome paths
   if (process.platform === "darwin") {
     return path.join(
       process.env.HOME || "",
@@ -124,18 +133,21 @@ function convertTimestamp(timestamp: number): number {
 
 export async function getCookiesBatch(
   useUrls: Record<string, string>,
+  browserId: string = "chrome",
 ): Promise<Record<string, FormattedCookie[]>> {
-  const dbPath = getChromeCookiePath();
+  const dbPath = getChromeCookiePath(browserId);
   if (!fs.existsSync(dbPath)) {
     throw new Error(`Cookie database not found at ${dbPath}`);
   }
 
+  console.log(`[CookieUtils] Reading cookies from ${browserId} at ${dbPath}`);
+
   // 1. Get Key (Once!)
   let derivedKey: Buffer;
   try {
-    derivedKey = await getDerivedKey();
+    derivedKey = await getDerivedKey(browserId);
   } catch (e) {
-    console.warn("Could not retrieve Chrome key:", e);
+    console.warn(`Could not retrieve ${browserId} key:`, e);
     // If we fail here, we can't really proceed for encrypted cookies
     return {};
   }

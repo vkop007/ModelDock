@@ -401,22 +401,39 @@ class BrowserManager {
           continue;
         }
 
-        const stat = fs.statSync(itemPath);
+        // Handle race condition where file may be deleted between readdir and stat
+        let stat;
+        try {
+          stat = fs.statSync(itemPath);
+        } catch (e: unknown) {
+          // File was deleted between readdir and stat, skip it
+          if ((e as NodeJS.ErrnoException).code === "ENOENT") continue;
+          throw e;
+        }
 
         if (item === "Default" && stat.isDirectory()) {
           const defaultItems = fs.readdirSync(itemPath);
           for (const defaultItem of defaultItems) {
             const defaultItemPath = path.join(itemPath, defaultItem);
             if (defaultItem === "Local Storage") continue;
-            fs.rmSync(defaultItemPath, { recursive: true, force: true });
+            try {
+              fs.rmSync(defaultItemPath, { recursive: true, force: true });
+            } catch (e: unknown) {
+              if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
+            }
           }
         } else {
-          fs.rmSync(itemPath, { recursive: true, force: true });
+          try {
+            fs.rmSync(itemPath, { recursive: true, force: true });
+          } catch (e: unknown) {
+            if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
+          }
         }
       }
       console.log(`[BrowserManager] Cleaned shared data`);
     } catch (error) {
-      console.error(`[BrowserManager] Failed to clean shared data:`, error);
+      // Log but don't throw - cleaning is best effort
+      console.warn(`[BrowserManager] Warning during cleanup:`, error);
     }
   }
 
