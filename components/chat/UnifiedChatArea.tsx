@@ -4,8 +4,8 @@ import { useChatContext } from "@/context/ChatContext";
 import { PROVIDERS, LLMProvider } from "@/types";
 import MessageList from "./MessageList";
 import Image from "next/image";
-import { FiMoreVertical, FiTrash2, FiX, FiPlus } from "react-icons/fi";
-import { useState } from "react";
+import { FiTrash2, FiX, FiPlus } from "react-icons/fi";
+import { useState, useEffect } from "react";
 import ProviderStatusBadge from "./ProviderStatusBadge";
 import StreamingStats from "./StreamingStats";
 
@@ -45,12 +45,26 @@ export default function UnifiedChatArea() {
     sessions, // For status indicators
   } = useChatContext();
 
-  // Debug sorting
-  // console.log("Sort Debug:", { activeProvider, unifiedProviders });
-
   const [showAddMenu, setShowAddMenu] = useState(false);
-  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>(
+    () => {
+      // Load from localStorage on init
+      if (typeof window !== "undefined") {
+        const saved = localStorage.getItem("unifiedColumnWidths");
+        return saved ? JSON.parse(saved) : {};
+      }
+      return {};
+    },
+  );
   const [isResizing, setIsResizing] = useState<string | null>(null);
+  const [resizeWidth, setResizeWidth] = useState<number | null>(null);
+
+  // Save to localStorage when widths change
+  useEffect(() => {
+    if (Object.keys(columnWidths).length > 0) {
+      localStorage.setItem("unifiedColumnWidths", JSON.stringify(columnWidths));
+    }
+  }, [columnWidths]);
 
   // Initialize widths if not set
   const getColumnWidth = (provider: string) => {
@@ -60,6 +74,7 @@ export default function UnifiedChatArea() {
   const startResizing = (provider: string, e: React.MouseEvent) => {
     e.preventDefault();
     setIsResizing(provider);
+    setResizeWidth(getColumnWidth(provider));
 
     const startX = e.clientX;
     const startWidth = getColumnWidth(provider);
@@ -72,29 +87,29 @@ export default function UnifiedChatArea() {
         ...prev,
         [provider]: newWidth,
       }));
+      setResizeWidth(newWidth);
     };
 
     const onMouseUp = () => {
       setIsResizing(null);
+      setResizeWidth(null);
       document.removeEventListener("mousemove", onMouseMove);
       document.removeEventListener("mouseup", onMouseUp);
       document.body.style.cursor = "default";
+      document.body.style.userSelect = "auto";
     };
 
     document.addEventListener("mousemove", onMouseMove);
     document.addEventListener("mouseup", onMouseUp);
     document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
   };
 
-  // Sort providers according to user preference: ChatGPT -> Gemini -> Active -> Others
-  // Sort providers according to user preference: ChatGPT -> Gemini -> Active -> Others
   const combinedProviders = Array.from(
     new Set([...unifiedProviders, activeProvider]),
   );
   const sortedProviders = combinedProviders.filter(Boolean).sort((a, b) => {
     const priority = ["chatgpt", "gemini"];
-
-    // Add active provider to priority if not already there, after Gemini
     if (activeProvider && !priority.includes(activeProvider)) {
       priority.push(activeProvider);
     }
@@ -102,21 +117,15 @@ export default function UnifiedChatArea() {
     const idxA = priority.indexOf(a);
     const idxB = priority.indexOf(b);
 
-    // If both are in priority list, sort by priority index
     if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-    // If only A is in priority, it comes first
     if (idxA !== -1) return -1;
-    // If only B is in priority, it comes first
     if (idxB !== -1) return 1;
 
-    // Default to alphabetical or keep original for others
     return a.localeCompare(b);
   });
 
   const providerConversations = sortedProviders.map((provider) => {
-    // Filter conversations for this provider
     const providerConvos = conversations.filter((c) => c.provider === provider);
-    // Sort by updatedAt desc
     const sorted = providerConvos.sort((a, b) => b.updatedAt - a.updatedAt);
     return {
       provider,
@@ -164,8 +173,6 @@ export default function UnifiedChatArea() {
                   </button>
                 </div>
               </div>
-
-              {/* Streaming Stats */}
               {isStreaming && session?.streamingStats && (
                 <StreamingStats
                   charsReceived={session.streamingStats.charsReceived}
@@ -178,7 +185,7 @@ export default function UnifiedChatArea() {
                 {conversation ? (
                   <MessageList
                     messages={conversation.messages}
-                    isSending={isSending} // Note: this makes all spinners spin if ANY is sending. Can refine later.
+                    isSending={isSending}
                     conversationProvider={provider}
                   />
                 ) : (
@@ -192,12 +199,24 @@ export default function UnifiedChatArea() {
             <div
               className={`column-resizer ${isResizing === provider ? "resizing" : ""}`}
               onMouseDown={(e) => startResizing(provider, e)}
-            />
+              onDoubleClick={() => {
+                // Double-click to reset to default width
+                setColumnWidths((prev) => {
+                  const updated = { ...prev };
+                  delete updated[provider];
+                  return updated;
+                });
+              }}
+              title="Drag to resize • Double-click to reset"
+            >
+              {isResizing === provider && resizeWidth && (
+                <span className="resize-tooltip">{resizeWidth}px</span>
+              )}
+            </div>
           </div>
         );
       })}
 
-      {/* Add Provider Column */}
       <div className="unified-add-column">
         <div className="add-column-content">
           <button

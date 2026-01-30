@@ -15,7 +15,6 @@ export default function StreamingStats({
 }: StreamingStatsProps) {
   const [elapsedTime, setElapsedTime] = useState(0);
 
-  // Update elapsed time every 100ms while streaming
   useEffect(() => {
     if (!isActive || !startTime) return;
 
@@ -26,7 +25,6 @@ export default function StreamingStats({
     return () => clearInterval(interval);
   }, [isActive, startTime]);
 
-  // Reset when streaming stops
   useEffect(() => {
     if (!isActive) {
       setElapsedTime(0);
