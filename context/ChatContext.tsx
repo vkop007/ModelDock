@@ -501,30 +501,72 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       // Deduplicate
       const uniqueProviders = Array.from(new Set(providers));
 
-      await Promise.all(
-        uniqueProviders.map(async (provider) => {
-          const cookies = state.cookieConfigs[provider]?.cookies;
-          // Even if no cookies, we might want to open the browser
-          try {
-            console.log(`[ChatContext] Warming up browser for ${provider}`);
-            await fetch("/api/session/warmup", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                provider: provider,
-                cookies: cookies || [],
-              }),
-            });
-          } catch (error) {
-            console.error(
-              `[ChatContext] Warmup failed for ${provider}:`,
-              error,
-            );
-          }
-        }),
+      // Sort providers based on UI order (unifiedProviders)
+      uniqueProviders.sort((a, b) => {
+        const indexA = state.unifiedProviders.indexOf(a);
+        const indexB = state.unifiedProviders.indexOf(b);
+
+        // If both are in unified list, sort by index
+        if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+        // If only A is in list, it comes first
+        if (indexA !== -1) return -1;
+        // If only B is in list, it comes first
+        if (indexB !== -1) return 1;
+        // If neither, keep original order (or alphabetical?)
+        return 0;
+      });
+
+      console.log(
+        `[ChatContext] Warming up providers in order: ${uniqueProviders.join(", ")}`,
       );
+
+      // Execute sequentially to ensure physical tab order
+      for (const provider of uniqueProviders) {
+        const cookies = state.cookieConfigs[provider]?.cookies;
+
+        // We removed the preventSwitch logic from API/BrowserManager (user reverted).
+        // Instead, we rely on the fact that sequential creation will create tabs in order.
+        // The last created tab will naturally be focused.
+        // To fix focus, we will explicitly switch to the active provider AT THE END.
+
+        try {
+          console.log(`[ChatContext] Warming up browser for ${provider}`);
+          await fetch("/api/session/warmup", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              provider: provider,
+              cookies: cookies || [],
+            }),
+          });
+        } catch (error) {
+          console.error(`[ChatContext] Warmup failed for ${provider}:`, error);
+        }
+      }
+
+      // Final step: Ensure the active provider is focused/switched to
+      // This corrects the focus if the last warmed provider wasn't the active one.
+      const activeProvider = state.activeProvider;
+      if (activeProvider) {
+        try {
+          console.log(
+            `[ChatContext] Final focus switch to active provider: ${activeProvider}`,
+          );
+          const cookies = state.cookieConfigs[activeProvider]?.cookies;
+          await fetch("/api/session/warmup", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              provider: activeProvider,
+              cookies: cookies || [],
+            }),
+          });
+        } catch (e) {
+          console.error(`[ChatContext] Failed to focus active provider:`, e);
+        }
+      }
     },
-    [state.cookieConfigs],
+    [state.cookieConfigs, state.activeProvider, state.unifiedProviders],
   );
 
   // Prompt logic
@@ -1241,9 +1283,25 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         new Set([...state.unifiedProviders, state.activeProvider]),
       );
 
+      // Sort providers based on UI order (unifiedProviders)
+      providersToCall.sort((a, b) => {
+        const indexA = state.unifiedProviders.indexOf(a);
+        const indexB = state.unifiedProviders.indexOf(b);
+
+        // If both are in unified list, sort by index
+        if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+        // If only A is in list, it comes first
+        if (indexA !== -1) return -1;
+        // If only B is in list, it comes first
+        if (indexB !== -1) return 1;
+        // If neither, keep original order
+        return 0;
+      });
+
       try {
-        await Promise.all(
-          providersToCall.map(async (provider) => {
+        // Execute sequentially to create a visual "tour"
+        for (const provider of providersToCall) {
+          try {
             // Find latest conversation or create new one for this provider
             const providerConvos = state.conversations.filter(
               (c) => c.provider === provider,
@@ -1306,110 +1364,146 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
               status: "streaming",
             });
 
-            try {
-              const cookies = state.cookieConfigs[provider]?.cookies || [];
-              // Need external ID if existing conversation
-              const currentConv = isNew
-                ? null
-                : state.conversations.find((c) => c.id === conversationId);
-              const externalId = currentConv?.externalId;
+            const cookies = state.cookieConfigs[provider]?.cookies || [];
+            // Need external ID if existing conversation
+            const currentConv = isNew
+              ? null
+              : state.conversations.find((c) => c.id === conversationId);
+            const externalId = currentConv?.externalId;
 
-              const response = await fetch("/api/chat/stream", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  provider,
-                  message: content.trim(),
-                  images,
-                  cookies,
-                  conversationId: externalId,
-                }),
-                // Signal? We'd need individual abort controllers or one big one.
-                // For now, no signal handling for broadcast to keep it simple.
-              });
+            // Initiate the request
+            // This will trigger 'runTask' in BrowserManager which switches the tab
+            const response = await fetch("/api/chat/stream", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                provider,
+                message: content.trim(),
+                images,
+                cookies,
+                conversationId: externalId,
+              }),
+            });
 
-              if (!response.ok) throw new Error("Connection failed");
+            if (!response.ok) throw new Error("Connection failed");
 
-              const reader = response.body?.getReader();
-              const decoder = new TextDecoder();
+            // Process the stream
+            // Note: We don't await the stream completion here, allowing parallel streaming RESPONSE
+            // after the sequential REQUEST initiation.
+            const reader = response.body?.getReader();
+            const decoder = new TextDecoder();
+
+            // Process reading in background so we can move to next provider input
+            (async () => {
               let accumulatedContent = "";
               let sseBuffer = "";
+              try {
+                if (reader) {
+                  while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
 
-              if (reader) {
-                while (true) {
-                  const { done, value } = await reader.read();
-                  if (done) break;
+                    const chunk = decoder.decode(value, { stream: true });
+                    sseBuffer += chunk;
+                    const lines = sseBuffer.split("\n");
+                    sseBuffer = lines.pop() || "";
 
-                  const chunk = decoder.decode(value, { stream: true });
-                  sseBuffer += chunk;
-                  const lines = sseBuffer.split("\n");
-                  sseBuffer = lines.pop() || "";
-
-                  for (const line of lines) {
-                    if (line.startsWith("data: ")) {
-                      try {
-                        const data = JSON.parse(line.substring(6));
-                        if (data.type === "chunk" && data.content) {
-                          accumulatedContent += data.content;
-                          dispatch({
-                            type: "UPDATE_MESSAGE",
-                            id: assistantMessage.id,
-                            content: accumulatedContent,
-                            conversationId,
-                          });
-                          // Update streaming stats
-                          dispatch({
-                            type: "UPDATE_STREAMING_STATS",
-                            provider,
-                            charsReceived: accumulatedContent.length,
-                            startTime: streamStartTime,
-                          });
-                        } else if (data.type === "done" && data.success) {
-                          dispatch({
-                            type: "UPDATE_MESSAGE",
-                            id: assistantMessage.id,
-                            content: data.content,
-                            conversationId,
-                          });
-                          // Update external ID
-                          if (data.conversationId) {
+                    for (const line of lines) {
+                      if (line.startsWith("data: ")) {
+                        try {
+                          const data = JSON.parse(line.substring(6));
+                          if (data.type === "chunk" && data.content) {
+                            accumulatedContent += data.content;
                             dispatch({
-                              type: "UPDATE_CONVERSATION_EXTERNAL_ID",
-                              id: conversationId,
-                              externalId: data.conversationId,
+                              type: "UPDATE_MESSAGE",
+                              id: assistantMessage.id,
+                              content: accumulatedContent,
+                              conversationId,
+                            });
+                            // Update streaming stats
+                            dispatch({
+                              type: "UPDATE_STREAMING_STATS",
+                              provider,
+                              charsReceived: accumulatedContent.length,
+                              startTime: streamStartTime,
+                            });
+                          } else if (data.type === "done" && data.success) {
+                            dispatch({
+                              type: "UPDATE_MESSAGE",
+                              id: assistantMessage.id,
+                              content: data.content,
+                              conversationId,
+                            });
+                            // Update external ID
+                            if (data.conversationId) {
+                              dispatch({
+                                type: "UPDATE_CONVERSATION_EXTERNAL_ID",
+                                id: conversationId,
+                                externalId: data.conversationId,
+                              });
+                            }
+                          } else if (data.error) {
+                            dispatch({
+                              type: "UPDATE_MESSAGE",
+                              id: assistantMessage.id,
+                              content: `Error: ${data.error}`,
+                              conversationId,
                             });
                           }
-                        } else if (data.error) {
-                          dispatch({
-                            type: "UPDATE_MESSAGE",
-                            id: assistantMessage.id,
-                            content: `Error: ${data.error}`,
-                            conversationId,
-                          });
-                        }
-                      } catch {}
+                        } catch {}
+                      }
                     }
                   }
                 }
+              } catch (err) {
+                dispatch({
+                  type: "UPDATE_MESSAGE",
+                  id: assistantMessage.id,
+                  content: `Error: ${String(err)}`,
+                  conversationId,
+                });
+                dispatch({
+                  type: "SET_PROVIDER_STATUS",
+                  provider,
+                  status: "error",
+                });
+              } finally {
+                dispatch({ type: "CLEAR_STREAMING_STATS", provider });
               }
-            } catch (err) {
-              dispatch({
-                type: "UPDATE_MESSAGE",
-                id: assistantMessage.id,
-                content: `Error: ${String(err)}`,
-                conversationId,
-              });
-              dispatch({
-                type: "SET_PROVIDER_STATUS",
-                provider,
-                status: "error",
-              });
-            } finally {
-              // Clear streaming stats after completion
-              dispatch({ type: "CLEAR_STREAMING_STATS", provider });
-            }
-          }),
-        );
+            })();
+          } catch (err) {
+            console.error(`Error sending to ${provider}:`, err);
+            // Dispatch error status for UI but continue loop
+            dispatch({
+              type: "SET_PROVIDER_STATUS",
+              provider,
+              status: "error",
+            });
+          }
+        } // End for loop
+
+        // Final step: Ensure the active provider is focused/switched to
+        // We do this by triggering a lightweight warmup/switch call
+        const activeProvider = state.activeProvider;
+        if (activeProvider) {
+          try {
+            console.log(
+              `[ChatContext] Final focus switch to active provider: ${activeProvider}`,
+            );
+            const cookies = state.cookieConfigs[activeProvider]?.cookies;
+            // We execute this AFTER the loop, so it happens after all inputs are sent
+            await fetch("/api/session/warmup", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                provider: activeProvider,
+                cookies: cookies || [],
+              }),
+            });
+          } catch (e) {
+            console.error(`[ChatContext] Failed to focus active provider:`, e);
+          }
+        }
       } catch (error) {
         console.error("Broadcast failed", error);
       } finally {
@@ -1421,6 +1515,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       state.conversations,
       state.isSending,
       state.cookieConfigs,
+      state.activeProvider,
     ],
   );
 

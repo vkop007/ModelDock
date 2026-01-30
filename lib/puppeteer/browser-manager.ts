@@ -28,6 +28,7 @@ class BrowserManager {
   private cookiesInjected: Map<LLMProvider, boolean> = new Map();
   private pagesWarmed: Set<LLMProvider> = new Set();
   private initializing: Promise<Browser> | null = null;
+  private activeProvider: LLMProvider | null = null;
 
   async getBrowser(): Promise<Browser> {
     if (this.sharedBrowser) {
@@ -41,6 +42,7 @@ class BrowserManager {
       this.pages.clear();
       this.cookiesInjected.clear();
       this.pagesWarmed.clear();
+      this.activeProvider = null;
     }
 
     if (this.initializing) {
@@ -83,7 +85,7 @@ class BrowserManager {
     }
 
     const response = await connect({
-      headless: true, // Use visible browser for reliability
+      headless: false, // Use visible browser for reliability
       turnstile: true, // Auto-solve Cloudflare Turnstile
       disableXvfb: platform === "darwin", // Only disable Xvfb on macOS
       args: [
@@ -273,11 +275,19 @@ class BrowserManager {
     const page = this.pages.get(provider);
     if (!page || page.isClosed()) {
       console.log(`[BrowserManager] No page to switch to for ${provider}`);
+      this.activeProvider =
+        this.activeProvider === provider ? null : this.activeProvider;
       return false;
     }
 
     try {
+      // Removing optimization as it causes desync issues when browser auto-focuses new tabs
+      // if (this.activeProvider === provider) {
+      //   return true;
+      // }
+
       await page.bringToFront();
+      this.activeProvider = provider;
       console.log(`[BrowserManager] Switched to ${provider} tab`);
       return true;
     } catch (error) {
@@ -371,6 +381,7 @@ class BrowserManager {
     this.pages.clear();
     this.cookiesInjected.clear();
     this.pagesWarmed.clear();
+    this.activeProvider = null;
 
     if (this.sharedBrowser && this.sharedBrowser.connected) {
       await this.sharedBrowser.close();
