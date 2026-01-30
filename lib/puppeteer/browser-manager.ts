@@ -28,6 +28,7 @@ class BrowserManager {
   private cookiesInjected: Map<LLMProvider, boolean> = new Map();
   private pagesWarmed: Set<LLMProvider> = new Set();
   private initializing: Promise<Browser> | null = null;
+  private activeProvider: LLMProvider | null = null;
 
   async getBrowser(): Promise<Browser> {
     if (this.sharedBrowser) {
@@ -41,6 +42,7 @@ class BrowserManager {
       this.pages.clear();
       this.cookiesInjected.clear();
       this.pagesWarmed.clear();
+      this.activeProvider = null;
     }
 
     if (this.initializing) {
@@ -83,7 +85,7 @@ class BrowserManager {
     }
 
     const response = await connect({
-      headless: true, // Use visible browser for reliability
+      headless: false, // Use visible browser for reliability
       turnstile: true, // Auto-solve Cloudflare Turnstile
       disableXvfb: platform === "darwin", // Only disable Xvfb on macOS
       args: [
@@ -225,6 +227,7 @@ class BrowserManager {
   async warmPage(
     provider: LLMProvider,
     cookies?: CookieEntry[],
+    options?: { preventSwitch?: boolean },
   ): Promise<void> {
     console.log(`[BrowserManager] Warming page for ${provider}...`);
 
@@ -258,8 +261,10 @@ class BrowserManager {
       this.setPageWarmed(provider);
       console.log(`[BrowserManager] Successfully warmed page for ${provider}`);
 
-      // Bring the page to front after warming
-      await this.switchToPage(provider);
+      // Bring the page to front after warming (unless prevented)
+      if (!options?.preventSwitch) {
+        await this.switchToPage(provider);
+      }
     } catch (error) {
       console.error(
         `[BrowserManager] Failed to warm page for ${provider}:`,
@@ -273,11 +278,19 @@ class BrowserManager {
     const page = this.pages.get(provider);
     if (!page || page.isClosed()) {
       console.log(`[BrowserManager] No page to switch to for ${provider}`);
+      this.activeProvider =
+        this.activeProvider === provider ? null : this.activeProvider;
       return false;
     }
 
     try {
+      // Removing optimization as it causes desync issues when browser auto-focuses new tabs
+      // if (this.activeProvider === provider) {
+      //   return true;
+      // }
+
       await page.bringToFront();
+      this.activeProvider = provider;
       console.log(`[BrowserManager] Switched to ${provider} tab`);
       return true;
     } catch (error) {
@@ -371,6 +384,7 @@ class BrowserManager {
     this.pages.clear();
     this.cookiesInjected.clear();
     this.pagesWarmed.clear();
+    this.activeProvider = null;
 
     if (this.sharedBrowser && this.sharedBrowser.connected) {
       await this.sharedBrowser.close();
