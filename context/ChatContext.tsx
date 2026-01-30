@@ -38,6 +38,7 @@ const initialSessionState: SessionState = {
   provider: "chatgpt",
   isConnected: false,
   isLoading: false,
+  status: "idle",
 };
 
 const initialState: ChatState = {
@@ -338,6 +339,48 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
         : [...current, action.provider];
       return { ...state, unifiedProviders: updated };
     }
+
+    case "SET_PROVIDER_STATUS":
+      return {
+        ...state,
+        sessions: {
+          ...state.sessions,
+          [action.provider]: {
+            ...state.sessions[action.provider],
+            status: action.status,
+          },
+        },
+      };
+
+    case "UPDATE_STREAMING_STATS":
+      return {
+        ...state,
+        sessions: {
+          ...state.sessions,
+          [action.provider]: {
+            ...state.sessions[action.provider],
+            status: "streaming",
+            streamingStats: {
+              charsReceived: action.charsReceived,
+              startTime: action.startTime,
+              lastUpdateTime: Date.now(),
+            },
+          },
+        },
+      };
+
+    case "CLEAR_STREAMING_STATS":
+      return {
+        ...state,
+        sessions: {
+          ...state.sessions,
+          [action.provider]: {
+            ...state.sessions[action.provider],
+            status: "ready",
+            streamingStats: undefined,
+          },
+        },
+      };
 
     default:
       return state;
@@ -1208,6 +1251,13 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
             });
 
             // Stream
+            const streamStartTime = Date.now();
+            dispatch({
+              type: "SET_PROVIDER_STATUS",
+              provider,
+              status: "streaming",
+            });
+
             try {
               const cookies = state.cookieConfigs[provider]?.cookies || [];
               // Need external ID if existing conversation
@@ -1259,6 +1309,13 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
                             content: accumulatedContent,
                             conversationId,
                           });
+                          // Update streaming stats
+                          dispatch({
+                            type: "UPDATE_STREAMING_STATS",
+                            provider,
+                            charsReceived: accumulatedContent.length,
+                            startTime: streamStartTime,
+                          });
                         } else if (data.type === "done" && data.success) {
                           dispatch({
                             type: "UPDATE_MESSAGE",
@@ -1294,6 +1351,14 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
                 content: `Error: ${String(err)}`,
                 conversationId,
               });
+              dispatch({
+                type: "SET_PROVIDER_STATUS",
+                provider,
+                status: "error",
+              });
+            } finally {
+              // Clear streaming stats after completion
+              dispatch({ type: "CLEAR_STREAMING_STATS", provider });
             }
           }),
         );

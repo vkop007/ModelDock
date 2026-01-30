@@ -214,7 +214,7 @@ export class QwenProvider extends BaseProvider {
         }
       } else {
         stableCount = 0;
-        lastLength = (currentResponse as string).length;
+        lastLength = response.length;
       }
     }
 
@@ -224,9 +224,9 @@ export class QwenProvider extends BaseProvider {
         return responses[responses.length - 1].textContent || "";
       }
       return "";
-    });
+    }, PROVIDER_CONFIGS.qwen.responseSelectors);
 
-    return response;
+    return response as string;
   }
 
   async deleteConversation(conversationId: string): Promise<boolean> {
