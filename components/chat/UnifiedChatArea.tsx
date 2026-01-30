@@ -46,18 +46,19 @@ export default function UnifiedChatArea() {
   } = useChatContext();
 
   const [showAddMenu, setShowAddMenu] = useState(false);
-  const [columnWidths, setColumnWidths] = useState<Record<string, number>>(
-    () => {
-      // Load from localStorage on init
-      if (typeof window !== "undefined") {
-        const saved = localStorage.getItem("unifiedColumnWidths");
-        return saved ? JSON.parse(saved) : {};
-      }
-      return {};
-    },
-  );
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
   const [isResizing, setIsResizing] = useState<string | null>(null);
   const [resizeWidth, setResizeWidth] = useState<number | null>(null);
+
+  // Load from localStorage on mount (client-side only to avoid hydration mismatch)
+  useEffect(() => {
+    const saved = localStorage.getItem("unifiedColumnWidths");
+    if (saved) {
+      try {
+        setColumnWidths(JSON.parse(saved));
+      } catch {}
+    }
+  }, []);
 
   // Save to localStorage when widths change
   useEffect(() => {
