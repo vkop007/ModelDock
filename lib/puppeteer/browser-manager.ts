@@ -227,6 +227,7 @@ class BrowserManager {
   async warmPage(
     provider: LLMProvider,
     cookies?: CookieEntry[],
+    options?: { preventSwitch?: boolean },
   ): Promise<void> {
     console.log(`[BrowserManager] Warming page for ${provider}...`);
 
@@ -260,8 +261,10 @@ class BrowserManager {
       this.setPageWarmed(provider);
       console.log(`[BrowserManager] Successfully warmed page for ${provider}`);
 
-      // Bring the page to front after warming
-      await this.switchToPage(provider);
+      // Bring the page to front after warming (unless prevented)
+      if (!options?.preventSwitch) {
+        await this.switchToPage(provider);
+      }
     } catch (error) {
       console.error(
         `[BrowserManager] Failed to warm page for ${provider}:`,

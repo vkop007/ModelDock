@@ -524,10 +524,9 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       for (const provider of uniqueProviders) {
         const cookies = state.cookieConfigs[provider]?.cookies;
 
-        // We removed the preventSwitch logic from API/BrowserManager (user reverted).
-        // Instead, we rely on the fact that sequential creation will create tabs in order.
-        // The last created tab will naturally be focused.
-        // To fix focus, we will explicitly switch to the active provider AT THE END.
+        // We use preventSwitch: true to avoid creating a "flickering" effect where every new tab grabs focus.
+        // The tabs will be created in the background (physically ordered by creation time).
+        // Since we explicitly focus the ACTIVE provider at the end, we don't need intermediate switches.
 
         try {
           console.log(`[ChatContext] Warming up browser for ${provider}`);
@@ -537,6 +536,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
             body: JSON.stringify({
               provider: provider,
               cookies: cookies || [],
+              preventSwitch: true, // Prevent focus stealing
             }),
           });
         } catch (error) {

@@ -6,15 +6,16 @@ import { LLMProvider, CookieEntry } from "@/types";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { provider, cookies } = body as {
+    const { provider, cookies, preventSwitch } = body as {
       provider: LLMProvider;
       cookies?: CookieEntry[];
+      preventSwitch?: boolean;
     };
 
     if (!provider) {
       return NextResponse.json(
         { success: false, error: "Provider is required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -31,32 +32,38 @@ export async function POST(request: NextRequest) {
     if (!validProviders.includes(provider)) {
       return NextResponse.json(
         { success: false, error: "Invalid provider" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     // Check if already warmed - just switch to that tab
     if (browserManager.isPageWarmed(provider)) {
       console.log(
-        `[Warmup API] Page already warmed for ${provider}, switching tab`
+        `[Warmup API] Page already warmed for ${provider}, switching tab`,
       );
-      // Switch to the existing tab
-      browserManager.switchToPage(provider).catch((error) => {
-        console.error(`[Warmup API] Failed to switch tab:`, error);
-      });
+
+      // Switch to the existing tab ONLY if not prevented
+      if (!preventSwitch) {
+        browserManager.switchToPage(provider).catch((error) => {
+          console.error(`[Warmup API] Failed to switch tab:`, error);
+        });
+      }
+
       return NextResponse.json({
         success: true,
         warmed: true,
         cached: true,
-        switched: true,
+        switched: !preventSwitch,
       });
     }
 
     // Start warming in background (fire-and-forget)
     console.log(`[Warmup API] Starting warmup for ${provider}`);
-    browserManager.warmPage(provider, cookies).catch((error) => {
-      console.error(`[Warmup API] Background warmup failed:`, error);
-    });
+    browserManager
+      .warmPage(provider, cookies, { preventSwitch })
+      .catch((error) => {
+        console.error(`[Warmup API] Background warmup failed:`, error);
+      });
 
     return NextResponse.json({
       success: true,
@@ -66,7 +73,7 @@ export async function POST(request: NextRequest) {
     console.error("[Warmup API] Error:", error);
     return NextResponse.json(
       { success: false, error: String(error) },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -80,7 +87,7 @@ export async function GET(request: NextRequest) {
     if (!provider) {
       return NextResponse.json(
         { success: false, error: "Provider is required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -97,7 +104,7 @@ export async function GET(request: NextRequest) {
     console.error("[Warmup API] GET Error:", error);
     return NextResponse.json(
       { success: false, error: String(error) },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
