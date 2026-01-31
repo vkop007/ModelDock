@@ -79,6 +79,8 @@ const initialState: ChatState = {
   isSending: false,
   isUnifiedMode: true, // Always true now
   unifiedProviders: ["chatgpt", "gemini"], // Default providers for unified view
+  isFocusMode: false,
+  isSidebarCollapsed: false,
 };
 
 // Reducer
@@ -382,6 +384,12 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
         },
       };
 
+    case "TOGGLE_FOCUS_MODE":
+      return { ...state, isFocusMode: !state.isFocusMode };
+
+    case "TOGGLE_SIDEBAR":
+      return { ...state, isSidebarCollapsed: !state.isSidebarCollapsed };
+
     default:
       return state;
   }
@@ -410,6 +418,9 @@ interface ChatContextValue extends ChatState {
   unpinMessage: (messageId: string) => void;
   toggleUnifiedMode: () => void;
   toggleUnifiedProvider: (provider: LLMProvider) => void;
+  toggleFocusMode: () => void;
+  isSidebarCollapsed: boolean;
+  toggleSidebar: () => void;
   broadcastMessage: (content: string, images?: string[]) => Promise<void>;
   showCookiePrompt: boolean;
   setShowCookiePrompt: (show: boolean) => void;
@@ -1557,7 +1568,11 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     pinMessage,
     unpinMessage,
     toggleUnifiedMode, // Kept for interface compatibility but no-op/true
+    isFocusMode: state.isFocusMode,
+    toggleFocusMode: () => dispatch({ type: "TOGGLE_FOCUS_MODE" }),
     toggleUnifiedProvider,
+    isSidebarCollapsed: state.isSidebarCollapsed,
+    toggleSidebar: () => dispatch({ type: "TOGGLE_SIDEBAR" }),
     broadcastMessage,
     showCookiePrompt,
     setShowCookiePrompt,
