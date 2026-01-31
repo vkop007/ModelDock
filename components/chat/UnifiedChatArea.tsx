@@ -174,10 +174,10 @@ export default function UnifiedChatArea() {
                   </button>
                 </div>
               </div>
-              {isStreaming && session?.streamingStats && (
+              {isStreaming && (
                 <StreamingStats
-                  charsReceived={session.streamingStats.charsReceived}
-                  startTime={session.streamingStats.startTime}
+                  charsReceived={session?.streamingStats?.charsReceived || 0}
+                  startTime={session?.streamingStats?.startTime || Date.now()}
                   isActive={isStreaming}
                 />
               )}

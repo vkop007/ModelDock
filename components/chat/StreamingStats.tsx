@@ -31,8 +31,18 @@ export default function StreamingStats({
     }
   }, [isActive]);
 
-  if (!isActive || charsReceived === 0) {
+  if (!isActive) {
     return null;
+  }
+
+  if (charsReceived === 0) {
+    return (
+      <div className="streaming-stats">
+        <span className="stat-item">
+          <span className="stat-value">Initializing...</span>
+        </span>
+      </div>
+    );
   }
 
   const seconds = elapsedTime / 1000;
