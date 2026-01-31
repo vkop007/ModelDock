@@ -512,72 +512,88 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       // Deduplicate
       const uniqueProviders = Array.from(new Set(providers));
 
-      // Sort providers based on UI order (unifiedProviders)
-      uniqueProviders.sort((a, b) => {
-        const indexA = state.unifiedProviders.indexOf(a);
-        const indexB = state.unifiedProviders.indexOf(b);
-
-        // If both are in unified list, sort by index
-        if (indexA !== -1 && indexB !== -1) return indexA - indexB;
-        // If only A is in list, it comes first
-        if (indexA !== -1) return -1;
-        // If only B is in list, it comes first
-        if (indexB !== -1) return 1;
-        // If neither, keep original order (or alphabetical?)
-        return 0;
-      });
-
       console.log(
-        `[ChatContext] Warming up providers in order: ${uniqueProviders.join(", ")}`,
+        `[ChatContext] Warming up providers: ${uniqueProviders.join(", ")}`,
       );
 
-      // Execute sequentially to ensure physical tab order
-      for (const provider of uniqueProviders) {
+      // We can parallelize the status updates and polling, even if the backend queues them
+      uniqueProviders.forEach(async (provider) => {
         const cookies = state.cookieConfigs[provider]?.cookies;
+        if (!cookies || cookies.length === 0) return;
 
-        // We use preventSwitch: true to avoid creating a "flickering" effect where every new tab grabs focus.
-        // The tabs will be created in the background (physically ordered by creation time).
-        // Since we explicitly focus the ACTIVE provider at the end, we don't need intermediate switches.
+        // Set status to warming immediately
+        dispatch({
+          type: "SET_PROVIDER_STATUS",
+          provider,
+          status: "warming",
+        });
 
         try {
-          console.log(`[ChatContext] Warming up browser for ${provider}`);
+          // Trigger warmup
           await fetch("/api/session/warmup", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               provider: provider,
-              cookies: cookies || [],
-              preventSwitch: true, // Prevent focus stealing
+              cookies: cookies,
+              preventSwitch: true, // We'll switch explicitly later if needed
             }),
           });
+
+          // Poll for readiness
+          let isWarmed = false;
+          let attempts = 0;
+          const maxAttempts = 60; // 60 seconds (generous timeout for parallel loads)
+
+          while (!isWarmed && attempts < maxAttempts) {
+            const warmupRes = await fetch(
+              `/api/session/warmup?provider=${provider}`,
+            );
+            const warmupData = await warmupRes.json();
+
+            if (warmupData.success && warmupData.isWarmed) {
+              isWarmed = true;
+              break;
+            }
+
+            // Wait 1 second
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+            attempts++;
+          }
+
+          if (isWarmed) {
+            dispatch({
+              type: "SET_PROVIDER_STATUS",
+              provider,
+              status: "ready",
+            });
+          } else {
+            // Timeout
+            console.warn(`[ChatContext] Warmup timed out for ${provider}`);
+            dispatch({
+              type: "SET_PROVIDER_STATUS",
+              provider,
+              status: "idle", // Reset to idle or error? Idle seems safer if just timeout
+            });
+          }
         } catch (error) {
           console.error(`[ChatContext] Warmup failed for ${provider}:`, error);
-        }
-      }
-
-      // Final step: Ensure the active provider is focused/switched to
-      // This corrects the focus if the last warmed provider wasn't the active one.
-      const activeProvider = state.activeProvider;
-      if (activeProvider) {
-        try {
-          console.log(
-            `[ChatContext] Final focus switch to active provider: ${activeProvider}`,
-          );
-          const cookies = state.cookieConfigs[activeProvider]?.cookies;
-          await fetch("/api/session/warmup", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              provider: activeProvider,
-              cookies: cookies || [],
-            }),
+          dispatch({
+            type: "SET_PROVIDER_STATUS",
+            provider,
+            status: "error",
           });
-        } catch (e) {
-          console.error(`[ChatContext] Failed to focus active provider:`, e);
         }
-      }
+      });
+
+      // We removed the sequential loop and final focus switch here because
+      // the polling logic is async/parallel.
+      // If we need to focus the active provider, we can do it separately or rely on user interaction.
+      // However, to be safe, let's just trigger a lightweight active provider focus *after* a small delay
+      // to ensure it gets some priority in the queue?
+      // Actually, since we're fire-and-forgetting the polling, the UI updates are what matters.
     },
-    [state.cookieConfigs, state.activeProvider, state.unifiedProviders],
+    [state.cookieConfigs],
   );
 
   // Prompt logic
@@ -723,8 +739,47 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         provider,
         state: { isLoading: true },
       });
+      // Set visual status to warming
+      dispatch({
+        type: "SET_PROVIDER_STATUS",
+        provider,
+        status: "warming",
+      });
 
       try {
+        // Step 1: Trigger Warmup
+        await fetch("/api/session/warmup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ provider, cookies, preventSwitch: true }),
+        });
+
+        // Step 2: Poll for "isWarmed" status
+        let isWarmed = false;
+        let attempts = 0;
+        const maxAttempts = 30; // 30 seconds timeout
+
+        while (!isWarmed && attempts < maxAttempts) {
+          const warmupRes = await fetch(
+            `/api/session/warmup?provider=${provider}`,
+          );
+          const warmupData = await warmupRes.json();
+
+          if (warmupData.success && warmupData.isWarmed) {
+            isWarmed = true;
+            break;
+          }
+
+          // Wait 1 second before next check
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          attempts++;
+        }
+
+        if (!isWarmed) {
+          throw new Error("Timeout waiting for browser warmup");
+        }
+
+        // Step 3: Check Authentication (now that page is ready)
         const response = await fetch("/api/session", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -732,22 +787,36 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         });
 
         const data = await response.json();
+        const isConnected = data.isAuthenticated;
+
         dispatch({
           type: "SET_SESSION_STATE",
           provider,
           state: {
             isLoading: false,
-            isConnected: data.isAuthenticated,
+            isConnected: isConnected,
             error: data.error,
           },
         });
 
-        return data.isAuthenticated;
+        dispatch({
+          type: "SET_PROVIDER_STATUS",
+          provider,
+          status: isConnected ? "ready" : "error",
+        });
+
+        return isConnected;
       } catch (error) {
+        console.error(`[ChatContext] Connection test failed:`, error);
         dispatch({
           type: "SET_SESSION_STATE",
           provider,
           state: { isLoading: false, isConnected: false, error: String(error) },
+        });
+        dispatch({
+          type: "SET_PROVIDER_STATUS",
+          provider,
+          status: "error",
         });
         return false;
       }
