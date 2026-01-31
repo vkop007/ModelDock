@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import { useState } from "react";
 import { useFolderContext, FOLDER_COLORS } from "@/context/FolderContext";
 import {
   FiFolder,
@@ -10,7 +10,6 @@ import {
   FiTrash2,
   FiChevronDown,
   FiChevronRight,
-  FiMoreVertical,
   FiMove,
   FiPlus,
 } from "react-icons/fi";
