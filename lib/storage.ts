@@ -4,6 +4,7 @@ import {
   Folder,
   LLMProvider,
   SystemInstructions,
+  VoiceSettings,
 } from "@/types";
 
 const STORAGE_KEYS = {
@@ -14,6 +15,7 @@ const STORAGE_KEYS = {
   ACTIVE_PROVIDER: "llm-chat-active-provider",
   CURRENT_CONVERSATION: "llm-chat-current-conversation",
   UNIFIED_PROVIDERS: "llm-chat-unified-providers",
+  VOICE_SETTINGS: "llm-chat-voice-settings",
 };
 
 // Check if we're in browser environment
@@ -312,4 +314,57 @@ export async function loadFolders(): Promise<Folder[]> {
   }
 
   return folders || [];
+}
+
+// ==================== Voice Settings Storage ====================
+
+// Default voice settings
+const defaultVoiceSettings: VoiceSettings = {
+  speechRecognition: {
+    enabled: true,
+    language: "en-US",
+    continuous: false,
+  },
+  textToSpeech: {
+    enabled: false,
+    autoPlay: false,
+    voiceURI: null,
+    rate: 1,
+    pitch: 1,
+    volume: 1,
+  },
+};
+
+export function saveVoiceSettings(settings: VoiceSettings): void {
+  if (!isBrowser) return;
+  try {
+    localStorage.setItem(STORAGE_KEYS.VOICE_SETTINGS, JSON.stringify(settings));
+  } catch (error) {
+    console.error("Failed to save voice settings:", error);
+  }
+}
+
+export function loadVoiceSettings(): VoiceSettings {
+  if (!isBrowser) return defaultVoiceSettings;
+
+  try {
+    const data = localStorage.getItem(STORAGE_KEYS.VOICE_SETTINGS);
+    if (!data) return defaultVoiceSettings;
+
+    const parsed = JSON.parse(data);
+    // Merge with defaults to ensure all properties exist
+    return {
+      speechRecognition: {
+        ...defaultVoiceSettings.speechRecognition,
+        ...(parsed.speechRecognition || {}),
+      },
+      textToSpeech: {
+        ...defaultVoiceSettings.textToSpeech,
+        ...(parsed.textToSpeech || {}),
+      },
+    };
+  } catch (error) {
+    console.error("Failed to load voice settings:", error);
+    return defaultVoiceSettings;
+  }
 }

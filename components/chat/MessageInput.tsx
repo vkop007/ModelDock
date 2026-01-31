@@ -1,6 +1,7 @@
 "use client";
 
 import { useChatContext } from "@/context/ChatContext";
+import { useVoiceSettings } from "@/context/VoiceContext";
 import { useState, useRef, useEffect, KeyboardEvent, useCallback } from "react";
 import {
   FiSend,
@@ -85,6 +86,9 @@ export default function MessageInput() {
     stopListening,
     resetTranscript,
   } = useSpeechRecognition({ continuous: false, interimResults: true });
+
+  // Get speech recognition enabled setting from context
+  const { speechRecognitionEnabled } = useVoiceSettings();
 
   // Edit last user message callback for keyboard shortcut
   const handleEditLastMessage = useCallback(() => {
@@ -426,14 +430,16 @@ export default function MessageInput() {
         {/* Right Actions: Voice & Send */}
         <div className="input-actions">
           {/* Voice Input Button */}
-          <button
-            className={`icon-btn ${isListening ? "listening" : ""}`}
-            onClick={handleVoiceToggle}
-            disabled={isSending || isDisabled}
-            title={isListening ? "Stop recording" : "Voice input"}
-          >
-            {isListening ? <FiMicOff size={20} /> : <FiMic size={20} />}
-          </button>
+          {speechRecognitionEnabled && (
+            <button
+              className={`icon-btn ${isListening ? "listening" : ""}`}
+              onClick={handleVoiceToggle}
+              disabled={isSending || isDisabled}
+              title={isListening ? "Stop recording" : "Voice input"}
+            >
+              {isListening ? <FiMicOff size={20} /> : <FiMic size={20} />}
+            </button>
+          )}
 
           {/* Generate Image Button (Only for supported providers) */}
           {(activeProvider === "chatgpt" || activeProvider === "gemini") &&
