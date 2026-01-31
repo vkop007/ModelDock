@@ -166,11 +166,6 @@ export default function MessageBubble({
     <div
       className={`message ${isUser ? "user" : "assistant"} ${message.isPinned ? "pinned" : ""}`}
     >
-      {message.isPinned && (
-        <div className="pin-indicator" title="Pinned message">
-          <BsPinAngleFill size={12} />
-        </div>
-      )}
       {!isUser && (
         <div className={`message-avatar ${isLoading ? "loading" : ""}`}>
           {getProviderLogo()}
