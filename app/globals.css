@@ -2600,33 +2600,32 @@ body {
   align-items: center;
 }
 
-/* Add Provider Menu - opens downwards */
+/* Add Provider Menu - Premium Design */
 .add-provider-menu {
   position: absolute;
-  top: 48px; /* Below the button */
-  right: 12px;
-  left: auto;
-  transform: none;
-  margin-top: 0;
-  width: 280px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  padding: 16px;
+  top: 48px;
+  right: 0;
+  width: 320px;
+  background: rgba(23, 23, 23);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  padding: 20px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
-  z-index: 1000; /* High z-index to stay above everything */
-  max-height: 500px;
-  overflow-y: auto;
-  animation: menuIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  gap: 16px;
+  box-shadow: 
+    0 20px 50px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.05);
+  z-index: 1000;
+  animation: menuIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes menuIn {
   from {
     opacity: 0;
-    transform: translateY(-10px) scale(0.95);
+    transform: translateY(-8px) scale(0.98);
   }
   to {
     opacity: 1;
@@ -2634,20 +2633,20 @@ body {
   }
 }
 
-/* Fix menu positioning if it goes off bottom - handled by state now */
-
-/* Actually, let's just make it right aligned or center */
 .add-provider-menu h3 {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
-  color: var(--text-primary);
-  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+  padding-left: 4px;
 }
 
 .provider-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
 }
 
 .provider-option-btn {
@@ -2655,24 +2654,31 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 12px;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
+  gap: 10px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 16px;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .provider-option-btn:hover {
-  background: var(--bg-hover);
-  border-color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
   color: var(--text-primary);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.provider-option-btn:active {
+  transform: translateY(0) scale(0.98);
 }
 
 .provider-option-btn span {
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 500;
   text-align: center;
 }
 
