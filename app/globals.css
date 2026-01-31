@@ -2583,8 +2583,36 @@ body {
   box-shadow: 0 0 12px rgba(66, 133, 244, 0.6);
 }
 
-/* Resize width tooltip */
-.resize-tooltip {
+/* Folder/Conversation Action Buttons */
+.folder-manager .action-btn,
+.folder-manager .folder-item-btn {
+  width: 28px;
+  height: 28px;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  transition: all 0.2s ease;
+  padding: 0;
+  border: none;
+  cursor: pointer;
+}
+
+.folder-manager .action-btn:hover,
+.folder-manager .folder-item-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+}
+
+.folder-manager .delete:hover,
+.folder-manager .delete-conv-btn:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--error-red);
+}
+
+.search-tooltip {
   position: absolute;
   top: 50%;
   left: 50%;
@@ -3576,15 +3604,22 @@ body {
 .folder-conv-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 4px 8px 16px;
   border-radius: 6px;
   color: var(--text-secondary);
   font-size: 13px;
   cursor: pointer;
   transition: all 0.2s ease;
   margin: 0 -4px;
-  padding-left: 16px;
+}
+
+.folder-conv-item .conv-title {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .folder-conv-item:hover {
@@ -3630,8 +3665,9 @@ body {
 .unsorted-conv-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 4px 8px 12px;
   border-radius: 6px;
   color: var(--text-secondary);
   font-size: 13px;

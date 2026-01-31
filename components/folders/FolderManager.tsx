@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useFolderContext, FOLDER_COLORS } from "@/context/FolderContext";
 import {
   FiFolder,
@@ -56,6 +56,17 @@ export default function FolderManager({
   const [showFolderMenu, setShowFolderMenu] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
   const [moveMenuOpen, setMoveMenuOpen] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!moveMenuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest(".move-dropdown")) {
+        setMoveMenuOpen(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [moveMenuOpen]);
   const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
 
   // Get conversations without a folder (unsorted)
@@ -333,7 +344,7 @@ export default function FolderManager({
                             onClick={() => onNewChatInFolder(folder.id)}
                             title="Add chat to folder"
                           >
-                            <FiPlus size={12} />
+                            <FiPlus size={16} />
                           </button>
                         )}
                         <button
@@ -341,7 +352,7 @@ export default function FolderManager({
                           onClick={() => handleStartEdit(folder)}
                           title="Rename"
                         >
-                          <FiEdit2 size={12} />
+                          <FiEdit2 size={16} />
                         </button>
                         <button
                           className="folder-item-btn delete"
@@ -356,7 +367,7 @@ export default function FolderManager({
                           }}
                           title="Delete"
                         >
-                          <FiTrash2 size={12} />
+                          <FiTrash2 size={16} />
                         </button>
                       </div>
                     )}
@@ -377,10 +388,37 @@ export default function FolderManager({
                             currentConversationId === conv.id ? "active" : ""
                           }`}
                           onClick={() => onSelectConversation(conv.id)}
+                          onMouseEnter={(e) => {
+                            const btns = e.currentTarget.querySelectorAll(
+                              ".action-btn",
+                            ) as NodeListOf<HTMLElement>;
+                            btns.forEach((btn) => (btn.style.opacity = "1"));
+                          }}
+                          onMouseLeave={(e) => {
+                            // Only hide if the move menu is not open for this conversation
+                            if (moveMenuOpen !== conv.id) {
+                              const btns = e.currentTarget.querySelectorAll(
+                                ".action-btn",
+                              ) as NodeListOf<HTMLElement>;
+                              btns.forEach((btn) => (btn.style.opacity = "0"));
+                            }
+                          }}
                           draggable
                           onDragStart={(e) => handleDragStart(e, conv.id)}
                         >
                           <span className="conv-title">{conv.title}</span>
+                          <div className="conv-actions">
+                            <button
+                              className="action-btn delete-conv-btn"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onDeleteConversation(conv.id);
+                              }}
+                              title="Delete"
+                            >
+                              <FiTrash2 size={16} />
+                            </button>
+                          </div>
                         </div>
                       ))
                     )}
@@ -456,7 +494,7 @@ export default function FolderManager({
                       }}
                       title="Move to folder"
                     >
-                      <FiMove size={12} />
+                      <FiPlus size={18} />
                     </button>
                     {moveMenuOpen === conv.id && (
                       <div className="move-menu">
@@ -490,7 +528,7 @@ export default function FolderManager({
                   }}
                   title="Delete"
                 >
-                  <FiTrash2 size={12} />
+                  <FiTrash2 size={18} />
                 </button>
               </div>
             </div>
