@@ -5,7 +5,7 @@ import { useThemeContext } from "@/context/ThemeContext";
 import { FiSun, FiMoon } from "react-icons/fi";
 
 interface ThemeToggleProps {
-  variant?: "toggle" | "options";
+  variant?: "toggle" | "options" | "icon";
   className?: string;
 }
 
@@ -14,6 +14,18 @@ export default function ThemeToggle({
   className = "",
 }: ThemeToggleProps) {
   const { theme, toggleTheme, setTheme } = useThemeContext();
+
+  if (variant === "icon") {
+    return (
+      <button
+        className={`theme-icon-btn ${className}`}
+        onClick={toggleTheme}
+        title={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
+      >
+        {theme === "dark" ? <FiMoon size={18} /> : <FiSun size={18} />}
+      </button>
+    );
+  }
 
   if (variant === "options") {
     return (

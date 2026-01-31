@@ -150,7 +150,8 @@ body {
 
 .sidebar-actions {
   display: flex;
-  gap: 8px;
+  gap: 10px;
+  margin-bottom: 8px;
 }
 
 .new-chat-btn {
@@ -158,17 +159,41 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  padding: 16px 20px;
-  background: transparent;
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
+  gap: 12px;
+  height: 44px;
+  padding: 0 16px;
+  background: var(--bg-tertiary);
+  border: 1px solid transparent;
+  border-radius: 12px;
   color: var(--text-primary);
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+}
+
+.new-chat-btn:hover {
+  background: var(--bg-hover);
+  border-color: rgba(255, 255, 255, 0.05);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.new-chat-btn:active {
+  transform: translateY(0);
+}
+
+.sidebar.collapsed .sidebar-actions {
+  justify-content: center;
+  padding: 0;
+}
+
+.sidebar.collapsed .new-chat-btn {
+  width: 44px;
+  min-width: 44px;
+  padding: 0;
+  margin: 0 auto;
+  border-radius: 12px;
 }
 
 .search-trigger-btn {
@@ -176,23 +201,27 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 42px;
+  width: 44px;
+  height: 44px;
   padding: 0;
-  background: transparent;
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
+  background: var(--bg-tertiary);
+  border: 1px solid transparent;
+  border-radius: 12px;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
 }
 
 .search-trigger-btn:hover {
   background: var(--bg-hover);
-  border-color: rgba(255, 255, 255, 0.1);
   color: var(--text-primary);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  border-color: rgba(255, 255, 255, 0.05);
   transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.search-trigger-btn:active {
+  transform: translateY(0);
 }
 
 /* Provider Selector */
@@ -403,15 +432,29 @@ body {
   display: block; /* Ensure icons are visible */
 }
 
-/* Hide icons in regular settings modal if preferred, or keep them. 
-   Assuming we want them there too, but let's just handle sidebar for now. 
-   The default SettingsModal styles might hide them if not updated, 
-   but since we removed the Appearance tab from SettingsModal, 
-   this component is primarily used in Sidebar now. */
+.theme-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  margin: 0 auto;
+  background: var(--bg-tertiary);
+  border: none;
+  border-radius: 10px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.theme-icon-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
 
 /* Toggle variant override for collapsed state */
 .sidebar-theme-toggle {
-  width: 100% !important;
+  width: 100% !important; 
   display: flex;
   justify-content: center;
 }
