@@ -381,17 +381,6 @@ export default function FolderManager({
                               <span>{folder.name}</span>
                             </button>
                           ))}
-                          <button
-                            className="move-menu-item unsort"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onMoveConversationToFolder(conv.id, undefined);
-                              setMoveMenuOpen(null);
-                            }}
-                          >
-                            <FiFolder size={12} />
-                            <span>Unsorted</span>
-                          </button>
                         </div>
                       )}
                     </div>

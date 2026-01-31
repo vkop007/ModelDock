@@ -573,6 +573,8 @@ export const PROVIDER_CONFIGS: Record<string, StreamingConfig> = {
   mistral: {
     providerName: "Mistral",
     responseSelectors: [
+      '[data-message-author-role="assistant"] .prose',
+      '[data-message-author-role="assistant"] .markdown',
       '[data-message-author-role="assistant"] [data-message-part-type="answer"]',
       '[data-message-author-role="assistant"]',
     ],
@@ -594,10 +596,8 @@ export const PROVIDER_CONFIGS: Record<string, StreamingConfig> = {
     responseSelectors: [
       ".chat-assistant #response-content-container div",
       ".chat-assistant #response-content-container",
-      "div[class*='message']",
-      "div[class*='response']",
-      ".markdown",
-      ".prose",
+      '[data-message-author-role="assistant"] .markdown',
+      '[data-message-author-role="assistant"]',
       ".chat-assistant",
     ],
     generatingSelectors: [
