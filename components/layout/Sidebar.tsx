@@ -20,11 +20,6 @@ import SettingsModal from "../settings/SettingsModal";
 const SIDEBAR_WIDTH = 260;
 const COLLAPSED_WIDTH = 60;
 
-const loadCollapsedState = (): boolean => {
-  if (typeof window === "undefined") return false;
-  return localStorage.getItem("sidebar-collapsed") === "true";
-};
-
 export default function Sidebar() {
   const {
     conversations,
@@ -38,6 +33,8 @@ export default function Sidebar() {
     currentConversation,
     isUnifiedMode,
     toggleUnifiedMode,
+    isSidebarCollapsed: isCollapsed,
+    toggleSidebar: toggleCollapse,
   } = useChatContext();
 
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -45,18 +42,7 @@ export default function Sidebar() {
     null,
   );
   const [showExportMenu, setShowExportMenu] = useState(false);
-  const [isCollapsed, setIsCollapsed] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Load saved state on mount
-  useEffect(() => {
-    setIsCollapsed(loadCollapsedState());
-  }, []);
-
-  // Save collapsed state
-  useEffect(() => {
-    localStorage.setItem("sidebar-collapsed", isCollapsed.toString());
-  }, [isCollapsed]);
 
   // Filter conversations by active provider
   const filteredConversations = conversations.filter(
@@ -80,10 +66,6 @@ export default function Sidebar() {
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
-  };
-
-  const toggleCollapse = () => {
-    setIsCollapsed(!isCollapsed);
   };
 
   const effectiveWidth = isCollapsed ? COLLAPSED_WIDTH : SIDEBAR_WIDTH;

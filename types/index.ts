@@ -187,6 +187,8 @@ export interface ChatState {
   isSending: boolean;
   isUnifiedMode: boolean;
   unifiedProviders: LLMProvider[];
+  isFocusMode: boolean;
+  isSidebarCollapsed: boolean;
 }
 
 // Chat context actions
@@ -237,7 +239,15 @@ export type ChatAction =
       charsReceived: number;
       startTime: number;
     }
-  | { type: "CLEAR_STREAMING_STATS"; provider: LLMProvider };
+  | {
+      type: "UPDATE_STREAMING_STATS";
+      provider: LLMProvider;
+      charsReceived: number;
+      startTime: number;
+    }
+  | { type: "CLEAR_STREAMING_STATS"; provider: LLMProvider }
+  | { type: "TOGGLE_FOCUS_MODE" }
+  | { type: "TOGGLE_SIDEBAR" };
 // Voice settings configuration
 export interface VoiceSettings {
   speechRecognition: {

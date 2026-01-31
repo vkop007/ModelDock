@@ -76,6 +76,25 @@ body {
   overflow: hidden;
 }
 
+.sidebar-wrapper {
+  width: var(--sidebar-width);
+  transition:
+    width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.2s ease;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.sidebar-wrapper.hidden {
+  width: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.sidebar-wrapper.collapsed {
+  width: 60px;
+}
+
 /* Sidebar */
 .sidebar {
   width: var(--sidebar-width);
@@ -87,6 +106,15 @@ body {
   padding: 12px;
   gap: 16px;
   overflow-y: auto;
+  min-width: var(--sidebar-width); /* Prevent content squishing */
+  position: relative;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sidebar.collapsed {
+  width: 60px;
+  min-width: 60px;
+  padding: 12px 6px;
 }
 
 .sidebar-actions {
@@ -2013,18 +2041,23 @@ body {
 }
 
 /* Collapsed sidebar adjustments */
+/* Collapsed sidebar adjustments */
 .sidebar.collapsed .sidebar-footer {
   flex-direction: column;
   gap: 8px;
+  padding: 8px 4px;
 }
 
 .sidebar.collapsed .settings-btn {
   width: 100%;
   justify-content: center;
+  padding: 8px;
 }
 
 .sidebar.collapsed .collapse-btn {
   width: 100%;
+  justify-content: center;
+  padding: 8px;
 }
 
 /* Message Footer with Timestamp */
