@@ -10,12 +10,14 @@ interface MessageListProps {
   messages: Message[];
   isSending: boolean;
   conversationProvider: LLMProvider;
+  conversationId?: string;
 }
 
 export default function MessageList({
   messages,
   isSending,
   conversationProvider,
+  conversationId,
 }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const { regenerateLastMessage, editAndResend, pinMessage, unpinMessage } =
@@ -66,7 +68,7 @@ export default function MessageList({
                 className="unpin-btn"
                 onClick={(e) => {
                   e.stopPropagation();
-                  unpinMessage(msg.id);
+                  unpinMessage(msg.id, conversationId);
                 }}
               >
                 <BsX size={16} />
@@ -87,10 +89,18 @@ export default function MessageList({
               isLast={index === messages.length - 1}
               isSending={isSending}
               conversationProvider={conversationProvider}
-              onRegenerate={isLastAssistant ? regenerateLastMessage : undefined}
-              onEdit={isUserMessage ? editAndResend : undefined}
-              onPin={pinMessage}
-              onUnpin={unpinMessage}
+              onRegenerate={
+                isLastAssistant
+                  ? () => regenerateLastMessage(conversationId)
+                  : undefined
+              }
+              onEdit={
+                isUserMessage
+                  ? (id, content) => editAndResend(id, content, conversationId)
+                  : undefined
+              }
+              onPin={(id) => pinMessage(id, conversationId)}
+              onUnpin={(id) => unpinMessage(id, conversationId)}
               allowPin={true}
               canRegenerate={isLastAssistant}
               canEdit={isUserMessage}
