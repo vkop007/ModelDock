@@ -1,6 +1,7 @@
 "use client";
 
 import { ChatProvider, useChatContext } from "@/context/ChatContext";
+import { ThemeProvider } from "@/context/ThemeContext";
 import Sidebar from "@/components/layout/Sidebar";
 import ChatArea from "@/components/layout/ChatArea";
 import GlobalSearch from "@/components/chat/GlobalSearch";
@@ -27,8 +28,10 @@ function AppContent() {
 
 export default function Home() {
   return (
-    <ChatProvider>
-      <AppContent />
-    </ChatProvider>
+    <ThemeProvider>
+      <ChatProvider>
+        <AppContent />
+      </ChatProvider>
+    </ThemeProvider>
   );
 }

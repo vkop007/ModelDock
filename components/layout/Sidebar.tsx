@@ -16,6 +16,7 @@ import {
   FiGrid,
 } from "react-icons/fi";
 import SettingsModal from "../settings/SettingsModal";
+import ThemeToggle from "../settings/ThemeToggle";
 
 const SIDEBAR_WIDTH = 260;
 const COLLAPSED_WIDTH = 60;
@@ -201,27 +202,41 @@ export default function Sidebar() {
 
         {/* Footer with Settings and Collapse Toggle */}
         <div className="sidebar-footer">
-          <button
-            className="settings-btn"
-            onClick={() => setShowSettingsModal(true)}
-            title="Settings"
-          >
-            <FiSettings size={18} />
-            {!isCollapsed && <span>Settings</span>}
-          </button>
-
-          {/* Collapse/Expand Button */}
-          <button
-            className="collapse-btn"
-            onClick={toggleCollapse}
-            title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-          >
-            {isCollapsed ? (
-              <FiChevronRight size={18} />
+          {/* Theme Toggle - Full Width (Options variant when expanded) */}
+          <div className="sidebar-theme-container">
+            {!isCollapsed ? (
+              <ThemeToggle
+                variant="options"
+                className="sidebar-theme-options"
+              />
             ) : (
-              <FiChevronLeft size={18} />
+              <ThemeToggle variant="toggle" className="sidebar-theme-toggle" />
             )}
-          </button>
+          </div>
+
+          {/* Bottom Row: Settings & Collapse */}
+          <div className="sidebar-footer-controls">
+            <button
+              className="settings-btn"
+              onClick={() => setShowSettingsModal(true)}
+              title="Settings"
+            >
+              <FiSettings size={18} />
+              {!isCollapsed && <span>Settings</span>}
+            </button>
+
+            <button
+              className="collapse-btn"
+              onClick={toggleCollapse}
+              title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              {isCollapsed ? (
+                <FiChevronRight size={18} />
+              ) : (
+                <FiChevronLeft size={18} />
+              )}
+            </button>
+          </div>
         </div>
       </aside>
 

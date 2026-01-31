@@ -11,6 +11,8 @@ import {
   FiHelpCircle,
   FiKey,
   FiMessageSquare,
+  FiSun,
+  FiMoon,
 } from "react-icons/fi";
 import { SiOpenai, SiGoogle } from "react-icons/si";
 import { parseCookiesFromJSON } from "@/lib/storage";
@@ -253,7 +255,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
             }
           >
             <FiMessageSquare size={16} />
-            <span>System Instructions</span>
+            <span>Instructions</span>
             {!supportsInstructions && (
               <span className="coming-soon-badge">Soon</span>
             )}
