@@ -66,6 +66,7 @@ export default function MessageBubble({
     isSpeaking,
     isPaused,
     isSupported: isTTSSupported,
+    activeId,
     speak,
     pause,
     resume,
@@ -75,6 +76,7 @@ export default function MessageBubble({
   const isUser = message.role === "user";
   const isLoading =
     message.role === "assistant" && !message.content && isLast && isSending;
+  const isMeSpeaking = isSpeaking && activeId === message.id;
 
   // Auto-focus and auto-resize textarea when editing
   useEffect(() => {
@@ -120,7 +122,7 @@ export default function MessageBubble({
       return;
     }
 
-    if (isSpeaking) {
+    if (isMeSpeaking) {
       if (isPaused) {
         resume();
       } else {
@@ -133,7 +135,7 @@ export default function MessageBubble({
         .replace(/`([^`]+)`/g, "$1")
         .replace(/[*_~#\[\]]/g, "")
         .trim();
-      speak(plainText);
+      speak(plainText, message.id);
     }
   };
 
@@ -164,11 +166,6 @@ export default function MessageBubble({
     <div
       className={`message ${isUser ? "user" : "assistant"} ${message.isPinned ? "pinned" : ""}`}
     >
-      {message.isPinned && (
-        <div className="pin-indicator" title="Pinned message">
-          <BsPinAngleFill size={12} />
-        </div>
-      )}
       {!isUser && (
         <div className={`message-avatar ${isLoading ? "loading" : ""}`}>
           {getProviderLogo()}
@@ -273,23 +270,23 @@ export default function MessageBubble({
                   <>
                     {/* TTS Button */}
                     <button
-                      className={`action-btn ${isSpeaking ? "speaking" : ""}`}
+                      className={`action-btn ${isMeSpeaking ? "speaking" : ""}`}
                       onClick={handleTTSToggle}
                       title={
-                        isSpeaking
+                        isMeSpeaking
                           ? isPaused
                             ? "Resume"
                             : "Pause"
                           : "Read aloud"
                       }
                     >
-                      {isSpeaking ? (
+                      {isMeSpeaking ? (
                         <FiVolumeX size={14} />
                       ) : (
                         <FiVolume2 size={14} />
                       )}
                     </button>
-                    {isSpeaking && (
+                    {isMeSpeaking && (
                       <button
                         className="action-btn"
                         onClick={handleTTSStop}

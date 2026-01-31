@@ -86,7 +86,11 @@ export default function Sidebar() {
       >
         {/* Actions Header */}
         <div className="sidebar-actions">
-          <button className="new-chat-btn" onClick={() => newChat()} title="New Chat">
+          <button
+            className="new-chat-btn"
+            onClick={() => newChat()}
+            title="New Chat"
+          >
             <FiPlus size={24} />
             {!isCollapsed && <span>New Chat</span>}
           </button>
@@ -187,7 +191,7 @@ export default function Sidebar() {
                 className="sidebar-theme-options"
               />
             ) : (
-              <ThemeToggle variant="toggle" className="sidebar-theme-toggle" />
+              <ThemeToggle variant="icon" className="sidebar-theme-toggle" />
             )}
           </div>
 

@@ -236,12 +236,21 @@ export type ChatAction =
   | { type: "DELETE_CONVERSATION"; id: string }
   | { type: "UPDATE_CONVERSATION_TITLE"; id: string; title: string }
   | { type: "UPDATE_CONVERSATION_EXTERNAL_ID"; id: string; externalId: string }
-  | { type: "DELETE_MESSAGES_AFTER"; messageId: string }
-  | { type: "EDIT_MESSAGE"; messageId: string; content: string }
-  | { type: "REMOVE_LAST_MESSAGE" }
+  | {
+      type: "DELETE_MESSAGES_AFTER";
+      messageId: string;
+      conversationId?: string;
+    }
+  | {
+      type: "EDIT_MESSAGE";
+      messageId: string;
+      content: string;
+      conversationId?: string;
+    }
+  | { type: "REMOVE_LAST_MESSAGE"; conversationId?: string }
   | { type: "IMPORT_CONVERSATION"; conversation: Conversation }
-  | { type: "PIN_MESSAGE"; messageId: string }
-  | { type: "UNPIN_MESSAGE"; messageId: string }
+  | { type: "PIN_MESSAGE"; messageId: string; conversationId?: string }
+  | { type: "UNPIN_MESSAGE"; messageId: string; conversationId?: string }
   | { type: "TOGGLE_UNIFIED_MODE" }
   | { type: "TOGGLE_UNIFIED_PROVIDER"; provider: LLMProvider }
   | {

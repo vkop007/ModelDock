@@ -197,6 +197,7 @@ export default function UnifiedChatArea() {
                     messages={conversation.messages}
                     isSending={isSending}
                     conversationProvider={provider}
+                    conversationId={conversation.id}
                   />
                 ) : (
                   <div className="empty-column-state"></div>
