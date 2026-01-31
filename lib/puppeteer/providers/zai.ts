@@ -233,19 +233,10 @@ export class ZaiProvider extends BaseProvider {
     const page = await this.getPage();
     console.log("[Z.ai] Waiting for response to stream...");
 
-    try {
-      await page.waitForSelector("#response-content-container", {
-        timeout: 15000,
-      });
-    } catch {
-      // Continue
-    }
-
-    let lastLength = 0; // Renamed from lastContentLength
+    let lastLength = 0;
     let stableCount = 0;
     const maxWait = 180000;
     const startTime = Date.now();
-    let finalResponse = "";
 
     while (Date.now() - startTime < maxWait) {
       await new Promise((resolve) => setTimeout(resolve, 500));
@@ -262,44 +253,43 @@ export class ZaiProvider extends BaseProvider {
         continue;
       }
 
-      const currentResponse = await page.evaluate(() => {
-        const responseContainers = document.querySelectorAll(".chat-assistant");
-        if (responseContainers.length === 0) return "";
-        const assistantMessage =
-          responseContainers[responseContainers.length - 1];
-        if (!assistantMessage) return "";
-
-        const container = assistantMessage.querySelector(
-          "#response-content-container",
-        );
-        if (!container) return "";
-
-        // Get the first child div that contains the actual content
-        const contentDiv = container.querySelector("div");
-        if (!contentDiv) {
-          return (container as HTMLElement).innerText || "";
-        }
-
-        return contentDiv.innerText || "";
-      });
-
-      if (currentResponse && currentResponse.length > 0) {
-        if (
-          (currentResponse as string).length === lastLength &&
-          (currentResponse as string).length > 0
-        ) {
-          stableCount++;
-          if (stableCount >= 4) {
-            break;
+      const currentResponse = await page.evaluate((selectors: string[]) => {
+        for (const selector of selectors) {
+          const elements = document.querySelectorAll(selector);
+          if (elements.length > 0) {
+            const lastElement = elements[elements.length - 1] as HTMLElement;
+            return lastElement.innerText || "";
           }
-        } else {
-          stableCount = 0;
-          lastLength = (currentResponse as string).length;
         }
+        return "";
+      }, PROVIDER_CONFIGS.zai.responseSelectors);
+
+      if (
+        (currentResponse as string).length === lastLength &&
+        (currentResponse as string).length > 0
+      ) {
+        stableCount++;
+        if (stableCount >= 4) {
+          break;
+        }
+      } else {
+        stableCount = 0;
+        lastLength = (currentResponse as string).length;
       }
     }
 
-    return finalResponse;
+    const finalResponse = await page.evaluate((selectors: string[]) => {
+      for (const selector of selectors) {
+        const elements = document.querySelectorAll(selector);
+        if (elements.length > 0) {
+          const lastElement = elements[elements.length - 1] as HTMLElement;
+          return lastElement.innerText || "";
+        }
+      }
+      return "";
+    }, PROVIDER_CONFIGS.zai.responseSelectors);
+
+    return finalResponse as string;
   }
 
   async deleteConversation(conversationId: string): Promise<boolean> {

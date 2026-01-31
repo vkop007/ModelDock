@@ -201,14 +201,14 @@ export class MistralProvider extends BaseProvider {
       }
 
       const currentResponse = await page.evaluate((selectors: string[]) => {
-        const responses = document.querySelectorAll(selectors[1]); // Use general selector first
-        if (responses.length > 0) {
-          const lastResponse = responses[responses.length - 1];
-          // Target only the answer part to avoid time text
-          const answerPart = lastResponse.querySelector(
-            selectors[0].split(" ")[1],
-          ); // Hacky split for specific selector
-          return answerPart?.textContent || lastResponse.textContent || "";
+        // Iterate through selectors in order of specificity
+        for (const selector of selectors) {
+          const elements = document.querySelectorAll(selector);
+          if (elements.length > 0) {
+            const lastElement = elements[elements.length - 1] as HTMLElement;
+            // Return innerText to preserve formatting
+            return lastElement.innerText || "";
+          }
         }
         return "";
       }, PROVIDER_CONFIGS.mistral.responseSelectors);
@@ -228,14 +228,12 @@ export class MistralProvider extends BaseProvider {
     }
 
     const response = await page.evaluate((selectors: string[]) => {
-      const responses = document.querySelectorAll(selectors[1]);
-      if (responses.length > 0) {
-        const lastResponse = responses[responses.length - 1];
-        // Target only the answer part to avoid time text
-        const answerPart = lastResponse.querySelector(
-          selectors[0].split(" ")[1],
-        );
-        return answerPart?.textContent || lastResponse.textContent || "";
+      for (const selector of selectors) {
+        const elements = document.querySelectorAll(selector);
+        if (elements.length > 0) {
+          const lastElement = elements[elements.length - 1] as HTMLElement;
+          return lastElement.innerText || "";
+        }
       }
       return "";
     }, PROVIDER_CONFIGS.mistral.responseSelectors);
