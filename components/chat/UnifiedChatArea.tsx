@@ -4,10 +4,17 @@ import { useChatContext } from "@/context/ChatContext";
 import { PROVIDERS, LLMProvider } from "@/types";
 import MessageList from "./MessageList";
 import Image from "next/image";
-import { FiTrash2, FiX, FiPlus } from "react-icons/fi";
+import {
+  FiTrash2,
+  FiX,
+  FiPlus,
+  FiMaximize2,
+  FiMinimize2,
+} from "react-icons/fi";
 import { useState, useEffect } from "react";
 import ProviderStatusBadge from "./ProviderStatusBadge";
 import StreamingStats from "./StreamingStats";
+import ProviderLoadingOverlay from "./ProviderLoadingOverlay";
 
 const getProviderLogo = (provider: LLMProvider, size: number) => {
   const logos: Record<LLMProvider, string> = {
@@ -43,6 +50,8 @@ export default function UnifiedChatArea() {
     deleteConversation,
     activeProvider, // Added for sorting logic
     sessions, // For status indicators
+    isFocusMode,
+    toggleFocusMode,
   } = useChatContext();
 
   const [showAddMenu, setShowAddMenu] = useState(false);
@@ -190,11 +199,14 @@ export default function UnifiedChatArea() {
                     conversationProvider={provider}
                   />
                 ) : (
-                  <div className="empty-column-state">
-                    <p>No conversation yet</p>
-                  </div>
+                  <div className="empty-column-state"></div>
                 )}
               </div>
+
+              <ProviderLoadingOverlay
+                provider={provider}
+                status={session?.status || "idle"}
+              />
             </div>
             {/* Resizer Handle */}
             <div
@@ -219,6 +231,14 @@ export default function UnifiedChatArea() {
       })}
 
       <div className="unified-add-column">
+        <button
+          className="add-column-btn"
+          onClick={toggleFocusMode}
+          title={isFocusMode ? "Exit Focus Mode" : "Enter Focus Mode"}
+        >
+          {isFocusMode ? <FiMinimize2 size={20} /> : <FiMaximize2 size={20} />}
+        </button>
+
         <div className="add-column-content">
           <button
             className="add-column-btn"

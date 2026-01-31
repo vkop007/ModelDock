@@ -64,8 +64,10 @@ export default function MessageInput() {
   const [showModelMenu, setShowModelMenu] = useState(false);
 
   const session = sessions[activeProvider];
+  const isReady =
+    session?.status === "ready" || session?.status === "streaming";
   const hasCookies = (cookieConfigs[activeProvider]?.cookies?.length ?? 0) > 0;
-  const isDisabled = !hasCookies;
+  const isDisabled = !hasCookies || (!isReady && !isSending);
   const activeConfig = PROVIDERS[activeProvider];
   const modelButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -410,7 +412,11 @@ export default function MessageInput() {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={
-              isDisabled ? "Configure cookies to chat..." : "Message..."
+              isDisabled && hasCookies
+                ? `Waiting for ${activeConfig.name} to be ready...`
+                : !hasCookies
+                  ? `Configure cookies to chat...`
+                  : `Message ${activeConfig.name}...`
             }
             disabled={isSending || isDisabled}
             rows={1}
