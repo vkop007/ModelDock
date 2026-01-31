@@ -1299,6 +1299,9 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       });
 
       try {
+        // Track all active streams
+        const streamPromises: Promise<void>[] = [];
+
         // Execute sequentially to create a visual "tour"
         for (const provider of providersToCall) {
           try {
@@ -1394,7 +1397,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
             const decoder = new TextDecoder();
 
             // Process reading in background so we can move to next provider input
-            (async () => {
+            const streamPromise = (async () => {
               let accumulatedContent = "";
               let sseBuffer = "";
               try {
@@ -1471,6 +1474,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
                 dispatch({ type: "CLEAR_STREAMING_STATS", provider });
               }
             })();
+
+            streamPromises.push(streamPromise);
           } catch (err) {
             console.error(`Error sending to ${provider}:`, err);
             // Dispatch error status for UI but continue loop
@@ -1504,6 +1509,9 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
             console.error(`[ChatContext] Failed to focus active provider:`, e);
           }
         }
+
+        // Wait for all streams to finish before setting isSending to false
+        await Promise.all(streamPromises);
       } catch (error) {
         console.error("Broadcast failed", error);
       } finally {

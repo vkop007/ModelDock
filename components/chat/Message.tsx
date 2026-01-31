@@ -169,7 +169,11 @@ export default function MessageBubble({
           <BsPinAngleFill size={12} />
         </div>
       )}
-      {!isUser && <div className="message-avatar">{getProviderLogo()}</div>}
+      {!isUser && (
+        <div className={`message-avatar ${isLoading ? "loading" : ""}`}>
+          {getProviderLogo()}
+        </div>
+      )}
       <div className="message-content">
         {isLoading ? (
           <div className="loading-dots">
