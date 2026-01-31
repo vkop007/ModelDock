@@ -83,6 +83,7 @@ body {
     opacity 0.2s ease;
   overflow: hidden;
   flex-shrink: 0;
+  background: var(--bg-secondary);
 }
 
 .sidebar-wrapper.hidden {
