@@ -1,6 +1,7 @@
 "use client";
 
 import { useChatContext } from "@/context/ChatContext";
+import { useFolderContext } from "@/context/FolderContext";
 import { LLMProvider } from "@/types";
 import { useState, useRef, useEffect } from "react";
 import {
@@ -13,10 +14,11 @@ import {
   FiUpload,
   FiChevronLeft,
   FiChevronRight,
-  FiGrid,
+  FiFolder,
 } from "react-icons/fi";
 import SettingsModal from "../settings/SettingsModal";
 import ThemeToggle from "../settings/ThemeToggle";
+import FolderManager from "../folders/FolderManager";
 
 const SIDEBAR_WIDTH = 260;
 const COLLAPSED_WIDTH = 60;
@@ -32,11 +34,16 @@ export default function Sidebar() {
     exportConversation,
     importConversation,
     currentConversation,
-    isUnifiedMode,
-    toggleUnifiedMode,
     isSidebarCollapsed: isCollapsed,
     toggleSidebar: toggleCollapse,
+    moveConversationToFolder,
   } = useChatContext();
+
+  const {
+    folders,
+    isLoading: foldersLoading,
+    createFolder,
+  } = useFolderContext();
 
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [hoveredConversation, setHoveredConversation] = useState<string | null>(
@@ -79,8 +86,8 @@ export default function Sidebar() {
       >
         {/* Actions Header */}
         <div className="sidebar-actions">
-          <button className="new-chat-btn" onClick={newChat} title="New Chat">
-            <FiPlus size={18} />
+          <button className="new-chat-btn" onClick={() => newChat()} title="New Chat">
+            <FiPlus size={24} />
             {!isCollapsed && <span>New Chat</span>}
           </button>
           {!isCollapsed && (
@@ -152,51 +159,21 @@ export default function Sidebar() {
           </div>
         )}
 
-        {/* Conversation List */}
+        {/* Folder Manager (always visible to allow creating folders) */}
         <div className="conversation-list">
           {!isCollapsed && (
-            <label className="conversation-label">Recent Chats</label>
-          )}
-          {filteredConversations.length === 0 ? (
-            !isCollapsed && (
-              <div className="empty-state">
-                <FiMessageSquare size={24} />
-                <p>No conversations yet</p>
-              </div>
-            )
-          ) : (
-            <div className="conversations">
-              {filteredConversations.map((conv) => (
-                <div
-                  key={conv.id}
-                  className={`conversation-item ${
-                    currentConversationId === conv.id ? "active" : ""
-                  }`}
-                  onClick={() => selectConversation(conv.id)}
-                  onMouseEnter={() => setHoveredConversation(conv.id)}
-                  onMouseLeave={() => setHoveredConversation(null)}
-                  title={isCollapsed ? conv.title : undefined}
-                >
-                  <FiMessageSquare size={16} />
-                  {!isCollapsed && (
-                    <>
-                      <span className="conversation-title">{conv.title}</span>
-                      {hoveredConversation === conv.id && (
-                        <button
-                          className="delete-btn"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteConversation(conv.id);
-                          }}
-                        >
-                          <FiTrash2 size={14} />
-                        </button>
-                      )}
-                    </>
-                  )}
-                </div>
-              ))}
-            </div>
+            <>
+              {/* Always show folder section */}
+              <FolderManager
+                conversations={filteredConversations}
+                currentConversationId={currentConversationId}
+                onSelectConversation={selectConversation}
+                onDeleteConversation={deleteConversation}
+                onMoveConversationToFolder={moveConversationToFolder}
+                onNewChatInFolder={(folderId) => newChat(folderId)}
+                isCollapsed={isCollapsed}
+              />
+            </>
           )}
         </div>
 
