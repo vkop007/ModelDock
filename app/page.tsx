@@ -3,6 +3,7 @@
 import { ChatProvider, useChatContext } from "@/context/ChatContext";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { FolderProvider } from "@/context/FolderContext";
+import { VoiceProvider } from "@/context/VoiceContext";
 import Sidebar from "@/components/layout/Sidebar";
 import ChatArea from "@/components/layout/ChatArea";
 import GlobalSearch from "@/components/chat/GlobalSearch";
@@ -32,7 +33,9 @@ export default function Home() {
     <ThemeProvider>
       <FolderProvider>
         <ChatProvider>
-          <AppContent />
+          <VoiceProvider>
+            <AppContent />
+          </VoiceProvider>
         </ChatProvider>
       </FolderProvider>
     </ThemeProvider>

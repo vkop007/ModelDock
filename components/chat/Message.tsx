@@ -15,6 +15,7 @@ import Image from "next/image";
 import { getRelativeTime, getFormattedTime } from "@/lib/utils/time";
 import { useTextToSpeech } from "@/hooks/useTextToSpeech";
 import { useSmartRelativeTime } from "@/hooks/useSmartRelativeTime";
+import { useVoiceSettings } from "@/context/VoiceContext";
 
 // Logo paths for each provider
 const PROVIDER_LOGOS: Record<LLMProvider, string> = {
@@ -61,7 +62,16 @@ export default function MessageBubble({
   const relativeTime = useSmartRelativeTime(message.timestamp);
   const editTextareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // TTS for assistant messages
+  // Get voice settings from context FIRST (before using them)
+  const {
+    textToSpeechEnabled,
+    textToSpeechVoiceURI,
+    textToSpeechRate,
+    textToSpeechPitch,
+    textToSpeechVolume,
+  } = useVoiceSettings();
+
+  // TTS for assistant messages - pass settings to hook
   const {
     isSpeaking,
     isPaused,
@@ -71,7 +81,27 @@ export default function MessageBubble({
     pause,
     resume,
     stop,
-  } = useTextToSpeech();
+    setVoice,
+    setRate,
+    setPitch,
+    setVolume,
+    voices,
+  } = useTextToSpeech({
+    rate: textToSpeechRate,
+    pitch: textToSpeechPitch,
+    volume: textToSpeechVolume,
+  });
+
+  // Apply voice setting when it changes
+  useEffect(() => {
+    if (!isTTSSupported || !textToSpeechVoiceURI) return;
+    const matchingVoice = voices.find(
+      (v) => v.voiceURI === textToSpeechVoiceURI,
+    );
+    if (matchingVoice) {
+      setVoice(matchingVoice);
+    }
+  }, [isTTSSupported, textToSpeechVoiceURI, voices, setVoice]);
 
   const isUser = message.role === "user";
   const isLoading =
@@ -266,7 +296,7 @@ export default function MessageBubble({
                 )}
 
                 {/* Assistant message actions */}
-                {!isUser && message.content && (
+                {!isUser && message.content && textToSpeechEnabled && (
                   <>
                     {/* TTS Button */}
                     <button
