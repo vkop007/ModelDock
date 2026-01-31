@@ -110,6 +110,7 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
         provider,
         createdAt: Date.now(),
         updatedAt: Date.now(),
+        folderId: action.folderId,
       };
 
       return {
@@ -390,6 +391,15 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
     case "TOGGLE_SIDEBAR":
       return { ...state, isSidebarCollapsed: !state.isSidebarCollapsed };
 
+    case "MOVE_CONVERSATION_TO_FOLDER": {
+      const conversations = state.conversations.map((conv) =>
+        conv.id === action.conversationId
+          ? { ...conv, folderId: action.folderId, updatedAt: Date.now() }
+          : conv,
+      );
+      return { ...state, conversations };
+    }
+
     default:
       return state;
   }
@@ -399,7 +409,7 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
 interface ChatContextValue extends ChatState {
   dispatch: React.Dispatch<ChatAction>;
   sendMessage: (content: string, images?: string[]) => Promise<void>;
-  newChat: () => void;
+  newChat: (folderId?: string) => void;
   selectConversation: (id: string) => void;
   setProvider: (provider: LLMProvider) => void;
   setCookies: (provider: LLMProvider, cookies: CookieEntry[]) => void;
@@ -424,6 +434,10 @@ interface ChatContextValue extends ChatState {
   broadcastMessage: (content: string, images?: string[]) => Promise<void>;
   showCookiePrompt: boolean;
   setShowCookiePrompt: (show: boolean) => void;
+  moveConversationToFolder: (
+    conversationId: string,
+    folderId: string | undefined,
+  ) => void;
 }
 
 const ChatContext = createContext<ChatContextValue | null>(null);
@@ -640,34 +654,37 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     null;
 
   // Actions
-  const newChat = useCallback(() => {
-    if (state.isUnifiedMode) {
-      // In unified mode, create new chats for ALL unified providers
-      // CRITICAL: We must ensure the ACTIVE provider is processed LAST
-      // so that its new conversation becomes the currentConversationId.
+  const newChat = useCallback(
+    (folderId?: string) => {
+      if (state.isUnifiedMode) {
+        // In unified mode, create new chats for ALL unified providers
+        // CRITICAL: We must ensure the ACTIVE provider is processed LAST
+        // so that its new conversation becomes the currentConversationId.
 
-      const providersToCreate = [...state.unifiedProviders];
+        const providersToCreate = [...state.unifiedProviders];
 
-      // If active provider is in the list, move it to the end
-      if (providersToCreate.includes(state.activeProvider)) {
-        providersToCreate.splice(
-          providersToCreate.indexOf(state.activeProvider),
-          1,
-        );
-        providersToCreate.push(state.activeProvider);
+        // If active provider is in the list, move it to the end
+        if (providersToCreate.includes(state.activeProvider)) {
+          providersToCreate.splice(
+            providersToCreate.indexOf(state.activeProvider),
+            1,
+          );
+          providersToCreate.push(state.activeProvider);
+        } else {
+          // If not in the list, just add it to the end
+          providersToCreate.push(state.activeProvider);
+        }
+
+        providersToCreate.forEach((provider) => {
+          dispatch({ type: "NEW_CONVERSATION", provider, folderId });
+        });
       } else {
-        // If not in the list, just add it to the end
-        providersToCreate.push(state.activeProvider);
+        // Single mode - just reset current
+        dispatch({ type: "NEW_CONVERSATION", folderId });
       }
-
-      providersToCreate.forEach((provider) => {
-        dispatch({ type: "NEW_CONVERSATION", provider });
-      });
-    } else {
-      // Single mode - just reset current
-      dispatch({ type: "NEW_CONVERSATION" });
-    }
-  }, [state.isUnifiedMode, state.unifiedProviders, state.activeProvider]);
+    },
+    [state.isUnifiedMode, state.unifiedProviders, state.activeProvider],
+  );
 
   const selectConversation = useCallback((id: string) => {
     dispatch({ type: "SELECT_CONVERSATION", id });
@@ -1615,6 +1632,17 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: "UNPIN_MESSAGE", messageId });
   }, []);
 
+  const moveConversationToFolder = useCallback(
+    (conversationId: string, folderId: string | undefined) => {
+      dispatch({
+        type: "MOVE_CONVERSATION_TO_FOLDER",
+        conversationId,
+        folderId,
+      });
+    },
+    [],
+  );
+
   const value: ChatContextValue = {
     ...state,
     dispatch,
@@ -1645,6 +1673,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     broadcastMessage,
     showCookiePrompt,
     setShowCookiePrompt,
+    moveConversationToFolder,
   };
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;

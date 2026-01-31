@@ -1,12 +1,14 @@
 import {
   Conversation,
   CookieConfig,
+  Folder,
   LLMProvider,
   SystemInstructions,
 } from "@/types";
 
 const STORAGE_KEYS = {
-  CONVERSATIONS: "llm-chat-conversations", // Now used as key in IndexedDB
+  CONVERSATIONS: "llm-chat-conversations",
+  FOLDERS: "llm-chat-folders",
   COOKIES: "llm-chat-cookies",
   SYSTEM_INSTRUCTIONS: "llm-chat-system-instructions",
   ACTIVE_PROVIDER: "llm-chat-active-provider",
@@ -282,4 +284,32 @@ export function loadUnifiedProviders(): LLMProvider[] {
     console.error("Failed to load unified providers:", error);
     return ["chatgpt", "gemini"];
   }
+}
+
+// ==================== Folder Storage ====================
+
+// Folders (Using IndexedDB for better performance with larger datasets)
+export async function saveFolders(folders: Folder[]): Promise<void> {
+  await idbSet(STORAGE_KEYS.FOLDERS, folders);
+}
+
+export async function loadFolders(): Promise<Folder[]> {
+  const folders = await idbGet<Folder[]>(STORAGE_KEYS.FOLDERS);
+
+  // Migration: If no folders in IDB, check localStorage
+  if (!folders && isBrowser) {
+    try {
+      const localData = localStorage.getItem(STORAGE_KEYS.FOLDERS);
+      if (localData) {
+        const parsed = JSON.parse(localData);
+        await saveFolders(parsed);
+        localStorage.removeItem(STORAGE_KEYS.FOLDERS);
+        return parsed;
+      }
+    } catch (e) {
+      console.warn("Migration from localStorage failed", e);
+    }
+  }
+
+  return folders || [];
 }

@@ -159,12 +159,12 @@ body {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  padding: 12px 16px;
+  padding: 16px 20px;
   background: transparent;
   border: 1px solid var(--border-color);
   border-radius: 10px;
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.3s ease;
@@ -266,8 +266,9 @@ body {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 0;
   overflow-y: auto;
+  padding: 0;
 }
 
 .conversations {
@@ -343,11 +344,10 @@ body {
 /* Sidebar Footer */
 .sidebar-footer {
   margin-top: auto;
-  padding-top: 16px;
-  border-top: 1px solid var(--border-color);
+  padding-top: 12px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 2px;
 }
 
 /* Theme Toggle styles */
@@ -358,20 +358,21 @@ body {
 .sidebar-theme-options {
   display: flex;
   background: var(--bg-tertiary);
-  padding: 4px;
+  padding: 6px;
   border-radius: 10px;
-  border: 1px solid var(--border-color);
+  border: none;
   width: 100%;
+  gap: 6px;
 }
 
 .sidebar-theme-options .theme-option {
   flex: 1;
   display: flex;
-  flex-direction: row; /* Ensure row layout overrides generic column styles */
+  flex-direction: row;
   align-items: center;
   justify-content: center;
-  gap: 6px; /* Reduced from 8px for tighter fit */
-  padding: 8px;
+  gap: 6px;
+  padding: 10px 12px;
   border-radius: 6px;
   background: transparent;
   border: none;
@@ -380,6 +381,7 @@ body {
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
+  margin: 0;
 }
 
 .sidebar-theme-options .theme-option:hover {
@@ -390,6 +392,7 @@ body {
   background: var(--bg-primary);
   color: var(--text-primary);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  margin: 0;
 }
 
 .sidebar-theme-options .theme-option-preview {
@@ -419,14 +422,16 @@ body {
   align-items: center;
   gap: 8px;
   width: 100%;
+  padding: 12px 0;
+  margin-top: 8px;
 }
 
 .settings-btn {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px;
-  background: transparent;
+  padding: 10px 12px;
+  background: var(--bg-tertiary);
   border: none;
   border-radius: 8px;
   color: var(--text-secondary);
@@ -439,19 +444,19 @@ body {
 }
 
 .settings-btn:hover {
-  background: var(--bg-hover); /* Match sidebar hover */
+  background: var(--bg-hover);
   color: var(--text-primary);
 }
 
 /* Collapse Button */
 .collapse-btn {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: var(--bg-tertiary);
-  border: 1px solid var(--border-color);
+  border: none;
   border-radius: 8px;
   color: var(--text-muted);
   cursor: pointer;
@@ -462,7 +467,6 @@ body {
 .collapse-btn:hover {
   background: var(--bg-hover);
   color: var(--text-primary);
-  border-color: var(--text-muted);
 }
 
 /* Collapsed State Overrides */
@@ -2037,13 +2041,16 @@ body {
 /* Export/Import Sidebar Actions */
 .sidebar-export-actions {
   display: flex;
-  gap: 6px;
-  padding: 0 4px;
+  gap: 8px;
+  padding: 0;
+  margin-bottom: 12px;
+  width: 100%;
 }
 
 .export-dropdown {
   position: relative;
   flex: 1;
+  display: flex;
 }
 
 .export-btn,
@@ -2052,7 +2059,8 @@ body {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  width: 100%;
+  flex: 1;
+  width: 0;
   padding: 8px 12px;
   background: transparent;
   border: 1px solid var(--border-color);
@@ -3236,4 +3244,519 @@ body {
   background: var(--bg-hover);
   color: var(--text-primary);
   border-color: var(--text-muted);
+}
+
+/* ============================================
+   Folder Manager
+   ============================================ */
+.folder-manager {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.folder-manager-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 0;
+}
+
+.folder-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+}
+
+.folder-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.folder-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.folder-action-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+/* Create folder form */
+.create-folder-form {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.folder-name-input {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 8px 12px;
+  color: var(--text-primary);
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.folder-name-input:focus {
+  border-color: var(--accent-blue);
+}
+
+.folder-color-picker {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.color-option {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.color-option:hover {
+  transform: scale(1.1);
+}
+
+.color-option.selected {
+  border-color: var(--text-primary);
+}
+
+.create-folder-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+.create-folder-actions .cancel-btn,
+.create-folder-actions .create-btn {
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.create-folder-actions .cancel-btn {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+}
+
+.create-folder-actions .cancel-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.create-folder-actions .create-btn {
+  background: var(--accent-blue);
+  border: none;
+  color: white;
+}
+
+.create-folder-actions .create-btn:hover {
+  opacity: 0.9;
+}
+
+/* Folders list */
+.folders-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.folder-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.folder-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  position: relative;
+  height: 32px;
+}
+
+.folder-header:hover {
+  background: var(--bg-hover);
+}
+
+.folder-header:hover .folder-item-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.folder-expand-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.folder-expand-btn:hover {
+  color: var(--text-primary);
+}
+
+.folder-name-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  min-width: 0;
+}
+
+.folder-name {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.folder-name-edit {
+  flex: 1;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--accent-blue);
+  border-radius: 4px;
+  padding: 2px 6px;
+  color: var(--text-primary);
+  font-size: 13px;
+  outline: none;
+}
+
+.folder-count {
+  font-size: 11px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.folder-item-actions {
+  display: flex;
+  gap: 2px;
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 2px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.folder-item-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.folder-item-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.folder-item-btn.delete:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: var(--error-red);
+}
+
+/* Folder conversations */
+.folder-conversations {
+  display: flex;
+  flex-direction: column;
+  padding-left: 28px;
+  gap: 2px;
+  margin-top: 2px;
+}
+
+.folder-empty {
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+  text-align: center;
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+  margin: 4px 0;
+}
+
+.folder-conv-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin: 0 -4px;
+  padding-left: 16px;
+}
+
+.folder-conv-item:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.folder-conv-item.active {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+/* Unsorted section */
+.unsorted-section {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
+  padding-top: 4px;
+}
+
+.unsorted-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.unsorted-count {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.unsorted-conversations {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.unsorted-conv-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.unsorted-conv-item:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.unsorted-conv-item.active {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.unsorted-conv-item .conv-title {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.unsorted-conv-item .delete-conv-btn {
+  opacity: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.unsorted-conv-item .delete-conv-btn:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: var(--error-red);
+}
+
+/* Move dropdown */
+.unsorted-conv-item .conv-actions {
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.unsorted-conv-item:hover .conv-actions {
+  opacity: 1;
+}
+
+.unsorted-conv-item .action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.unsorted-conv-item .action-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+/* Move dropdown menu */
+.move-dropdown {
+  position: relative;
+}
+
+.move-menu {
+  position: absolute;
+  right: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 4px;
+  min-width: 160px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+}
+
+.move-menu-header {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 6px 8px 4px;
+}
+
+.move-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  text-align: left;
+}
+
+.move-menu-item:hover {
+  background: var(--bg-hover);
+}
+
+.move-menu-item.unsort {
+  color: var(--text-secondary);
+}
+
+.move-menu-item.unsort:hover {
+  background: var(--bg-hover);
+}
+
+/* Collapsed folder manager */
+.folder-manager-collapsed {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+}
+
+.folder-collapsed-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.folder-collapsed-btn:hover {
+  background: var(--bg-hover);
+}
+
+/* Sidebar theme container */
+.sidebar-theme-container {
+  padding: 8px 0;
+}
+
+.sidebar-theme-options {
+  padding: 0 0px;
+}
+
+.sidebar-footer-controls {
+  display: flex;
+  gap: 4px;
+  padding-top: 8px;
 }

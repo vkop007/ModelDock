@@ -98,7 +98,23 @@ export interface Conversation {
   createdAt: number;
   updatedAt: number;
   externalId?: string;
+  folderId?: string; // Reference to parent folder
 }
+
+// Folder/Project structure for organizing conversations
+export interface Folder {
+  id: string;
+  name: string;
+  description?: string;
+  color?: string; // Hex color for folder customization
+  icon?: string; // Icon name or emoji
+  createdAt: number;
+  updatedAt: number;
+  order: number; // For custom ordering
+}
+
+// Default folder types for quick access
+export type SystemFolderType = "all" | "recent" | "pinned" | "unsorted";
 
 // Cookie configuration per provider
 export interface CookieConfig {
@@ -194,7 +210,7 @@ export interface ChatState {
 // Chat context actions
 export type ChatAction =
   | { type: "SET_PROVIDER"; provider: LLMProvider }
-  | { type: "NEW_CONVERSATION"; provider?: LLMProvider }
+  | { type: "NEW_CONVERSATION"; provider?: LLMProvider; folderId?: string }
   | { type: "SELECT_CONVERSATION"; id: string }
   | { type: "ADD_MESSAGE"; message: Message; conversationId?: string }
   | {
@@ -239,15 +255,15 @@ export type ChatAction =
       charsReceived: number;
       startTime: number;
     }
-  | {
-      type: "UPDATE_STREAMING_STATS";
-      provider: LLMProvider;
-      charsReceived: number;
-      startTime: number;
-    }
   | { type: "CLEAR_STREAMING_STATS"; provider: LLMProvider }
   | { type: "TOGGLE_FOCUS_MODE" }
-  | { type: "TOGGLE_SIDEBAR" };
+  | { type: "TOGGLE_SIDEBAR" }
+  | {
+      type: "MOVE_CONVERSATION_TO_FOLDER";
+      conversationId: string;
+      folderId: string | undefined;
+    };
+
 // Voice settings configuration
 export interface VoiceSettings {
   speechRecognition: {
