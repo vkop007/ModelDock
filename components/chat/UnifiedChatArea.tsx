@@ -10,11 +10,13 @@ import {
   FiPlus,
   FiMaximize2,
   FiMinimize2,
+  FiPower,
 } from "react-icons/fi";
 import { useState, useEffect } from "react";
 import ProviderStatusBadge from "./ProviderStatusBadge";
 import StreamingStats from "./StreamingStats";
 import ProviderLoadingOverlay from "./ProviderLoadingOverlay";
+import Toggle from "./Toggle";
 
 const getProviderLogo = (provider: LLMProvider, size: number) => {
   const logos: Record<LLMProvider, string> = {
@@ -52,6 +54,8 @@ export default function UnifiedChatArea() {
     sessions, // For status indicators
     isFocusMode,
     toggleFocusMode,
+    enabledProviders,
+    toggleProviderEnabled,
   } = useChatContext();
 
   const [showAddMenu, setShowAddMenu] = useState(false);
@@ -161,7 +165,9 @@ export default function UnifiedChatArea() {
               minWidth: "320px",
             }}
           >
-            <div className="unified-chat-column">
+            <div
+              className={`unified-chat-column ${!enabledProviders.includes(provider) ? "disabled" : ""}`}
+            >
               <div className="unified-column-header">
                 <div className="provider-info">
                   {getProviderLogo(provider, 20)}
@@ -169,6 +175,16 @@ export default function UnifiedChatArea() {
                   <ProviderStatusBadge status={session?.status || "idle"} />
                 </div>
                 <div className="column-actions">
+                  <Toggle
+                    enabled={enabledProviders.includes(provider)}
+                    onChange={() => toggleProviderEnabled(provider)}
+                    title={
+                      enabledProviders.includes(provider)
+                        ? "Disable for messaging"
+                        : "Enable for messaging"
+                    }
+                    className="mr-1"
+                  />
                   {conversation && (
                     <button
                       className="column-action-btn"
