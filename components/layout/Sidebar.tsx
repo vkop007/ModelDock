@@ -15,6 +15,7 @@ import {
   FiChevronLeft,
   FiChevronRight,
   FiFolder,
+  FiX,
 } from "react-icons/fi";
 import SettingsModal from "../settings/SettingsModal";
 import ThemeToggle from "../settings/ThemeToggle";
@@ -37,6 +38,7 @@ export default function Sidebar() {
     isSidebarCollapsed: isCollapsed,
     toggleSidebar: toggleCollapse,
     moveConversationToFolder,
+    deleteAllConversations,
   } = useChatContext();
 
   const {
@@ -50,6 +52,7 @@ export default function Sidebar() {
     null,
   );
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Filter conversations by active provider
@@ -183,6 +186,57 @@ export default function Sidebar() {
 
         {/* Footer Section */}
         <div className="sidebar-footer">
+          {/* Delete All Section - Separate from Settings */}
+          <div className="sidebar-delete-container">
+            {!isCollapsed ? (
+              showDeleteConfirm ? (
+                <div className="delete-confirm-sidebar">
+                  <span>Delete All?</span>
+                  <div className="delete-confirm-actions-sidebar">
+                    <button
+                      className="cancel-btn-sidebar"
+                      onClick={() => setShowDeleteConfirm(false)}
+                      title="Cancel"
+                    >
+                      <FiX size={14} />
+                    </button>
+                    <button
+                      className="confirm-btn-sidebar"
+                      onClick={() => {
+                        deleteAllConversations();
+                        setShowDeleteConfirm(false);
+                      }}
+                      title="Confirm Delete All"
+                    >
+                      <FiTrash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  className="sidebar-row-btn delete-all-row-btn"
+                  onClick={() => setShowDeleteConfirm(true)}
+                  title="Delete All Chats"
+                >
+                  <FiTrash2 size={16} />
+                  <span>Delete All Chats</span>
+                </button>
+              )
+            ) : (
+              <button
+                className="icon-action-btn delete-all-row-btn"
+                onClick={() => {
+                  if (window.confirm("Delete all conversations?")) {
+                    deleteAllConversations();
+                  }
+                }}
+                title="Delete All"
+              >
+                <FiTrash2 size={18} />
+              </button>
+            )}
+          </div>
+
           {/* Theme Toggle Section */}
           <div className="sidebar-theme-container">
             {!isCollapsed ? (

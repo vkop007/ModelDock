@@ -235,6 +235,7 @@ export type ChatAction =
     }
   | { type: "LOAD_STATE"; state: Partial<ChatState> }
   | { type: "DELETE_CONVERSATION"; id: string }
+  | { type: "DELETE_ALL_CONVERSATIONS" }
   | { type: "UPDATE_CONVERSATION_TITLE"; id: string; title: string }
   | { type: "UPDATE_CONVERSATION_EXTERNAL_ID"; id: string; externalId: string }
   | {
