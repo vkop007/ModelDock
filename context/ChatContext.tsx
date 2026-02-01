@@ -370,6 +370,20 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
       return { ...state, conversations };
     }
 
+    case "PIN_CONVERSATION": {
+      const conversations = state.conversations.map((conv) =>
+        conv.id === action.id ? { ...conv, isPinned: true, updatedAt: Date.now() } : conv,
+      );
+      return { ...state, conversations };
+    }
+
+    case "UNPIN_CONVERSATION": {
+      const conversations = state.conversations.map((conv) =>
+        conv.id === action.id ? { ...conv, isPinned: false, updatedAt: Date.now() } : conv,
+      );
+      return { ...state, conversations };
+    }
+
     case "TOGGLE_UNIFIED_MODE":
       return { ...state, isUnifiedMode: true };
 
@@ -504,6 +518,8 @@ interface ChatContextValue extends ChatState {
   ) => void;
   toggleProviderEnabled: (provider: LLMProvider) => void;
   deleteAllConversations: () => void;
+  pinConversation: (id: string) => void;
+  unpinConversation: (id: string) => void;
 }
 
 const ChatContext = createContext<ChatContextValue | null>(null);
@@ -829,6 +845,14 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
   const deleteAllConversations = useCallback(() => {
     dispatch({ type: "DELETE_ALL_CONVERSATIONS" });
+  }, []);
+
+  const pinConversation = useCallback((id: string) => {
+    dispatch({ type: "PIN_CONVERSATION", id });
+  }, []);
+
+  const unpinConversation = useCallback((id: string) => {
+    dispatch({ type: "UNPIN_CONVERSATION", id });
   }, []);
 
   const testConnection = useCallback(
@@ -1911,6 +1935,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     moveConversationToFolder,
     toggleProviderEnabled,
     deleteAllConversations,
+    pinConversation,
+    unpinConversation,
     enabledProviders: state.enabledProviders,
     unifiedProviders: state.unifiedProviders,
   };

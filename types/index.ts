@@ -99,6 +99,7 @@ export interface Conversation {
   updatedAt: number;
   externalId?: string;
   folderId?: string; // Reference to parent folder
+  isPinned?: boolean; // Pin conversation to top
 }
 
 // Folder/Project structure for organizing conversations
@@ -253,6 +254,8 @@ export type ChatAction =
   | { type: "IMPORT_CONVERSATION"; conversation: Conversation }
   | { type: "PIN_MESSAGE"; messageId: string; conversationId?: string }
   | { type: "UNPIN_MESSAGE"; messageId: string; conversationId?: string }
+  | { type: "PIN_CONVERSATION"; id: string }
+  | { type: "UNPIN_CONVERSATION"; id: string }
   | { type: "TOGGLE_UNIFIED_MODE" }
   | { type: "TOGGLE_UNIFIED_PROVIDER"; provider: LLMProvider }
   | {

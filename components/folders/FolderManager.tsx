@@ -12,11 +12,12 @@ import {
   FiChevronRight,
   FiMove,
   FiPlus,
+  FiStar,
 } from "react-icons/fi";
 import { Folder } from "@/types";
 
 interface FolderManagerProps {
-  conversations: { id: string; title: string; folderId?: string }[];
+  conversations: { id: string; title: string; folderId?: string; isPinned?: boolean }[];
   currentConversationId: string | null;
   onSelectConversation: (id: string) => void;
   onDeleteConversation: (id: string) => void;
@@ -25,6 +26,8 @@ interface FolderManagerProps {
     folderId: string | undefined,
   ) => void;
   onNewChatInFolder?: (folderId: string) => void;
+  onPinConversation?: (id: string) => void;
+  onUnpinConversation?: (id: string) => void;
   isCollapsed?: boolean;
 }
 
@@ -35,6 +38,8 @@ export default function FolderManager({
   onDeleteConversation,
   onMoveConversationToFolder,
   onNewChatInFolder,
+  onPinConversation,
+  onUnpinConversation,
   isCollapsed,
 }: FolderManagerProps) {
   const {
@@ -409,6 +414,20 @@ export default function FolderManager({
                           <span className="conv-title">{conv.title}</span>
                           <div className="conv-actions">
                             <button
+                              className={`action-btn pin-conv-btn ${conv.isPinned ? "pinned" : ""}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (conv.isPinned) {
+                                  onUnpinConversation?.(conv.id);
+                                } else {
+                                  onPinConversation?.(conv.id);
+                                }
+                              }}
+                              title={conv.isPinned ? "Unpin" : "Pin"}
+                            >
+                              <FiStar size={16} />
+                            </button>
+                            <button
                               className="action-btn delete-conv-btn"
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -520,6 +539,20 @@ export default function FolderManager({
                     )}
                   </div>
                 )}
+                <button
+                  className={`action-btn pin-conv-btn ${conv.isPinned ? "pinned" : ""}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (conv.isPinned) {
+                      onUnpinConversation?.(conv.id);
+                    } else {
+                      onPinConversation?.(conv.id);
+                    }
+                  }}
+                  title={conv.isPinned ? "Unpin" : "Pin"}
+                >
+                  <FiStar size={18} />
+                </button>
                 <button
                   className="action-btn delete-conv-btn"
                   onClick={(e) => {
