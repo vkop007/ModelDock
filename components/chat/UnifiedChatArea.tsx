@@ -119,6 +119,8 @@ export default function UnifiedChatArea() {
     document.body.style.userSelect = "none";
   };
 
+  const { currentConversationId } = useChatContext();
+
   const combinedProviders = Array.from(
     new Set([...unifiedProviders, activeProvider]),
   );
@@ -141,6 +143,39 @@ export default function UnifiedChatArea() {
   const providerConversations = sortedProviders.map((provider) => {
     const providerConvos = conversations.filter((c) => c.provider === provider);
     const sorted = providerConvos.sort((a, b) => b.updatedAt - a.updatedAt);
+
+    // 1. Direct match: If currentConversationId belongs to this provider
+    const directMatch = providerConvos.find(
+      (c) => c.id === currentConversationId,
+    );
+    if (directMatch) {
+      return { provider, conversation: directMatch };
+    }
+
+    // 2. Smart Sync: If we have a selected conversation, try to find one for this provider
+    // with the same title or created around the same time (within 1 minute)
+    if (currentConversationId) {
+      const selectedConv = conversations.find(
+        (c) => c.id === currentConversationId,
+      );
+      if (selectedConv) {
+        const titleMatch = providerConvos.find(
+          (c) => c.title === selectedConv.title && c.title !== "New Chat",
+        );
+        if (titleMatch) {
+          return { provider, conversation: titleMatch };
+        }
+
+        const timeMatch = providerConvos.find(
+          (c) => Math.abs(c.createdAt - selectedConv.createdAt) < 60000,
+        );
+        if (timeMatch) {
+          return { provider, conversation: timeMatch };
+        }
+      }
+    }
+
+    // 3. Fallback to most recent
     return {
       provider,
       conversation: sorted.length > 0 ? sorted[0] : null,

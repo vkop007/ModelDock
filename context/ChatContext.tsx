@@ -132,8 +132,14 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
       };
     }
 
-    case "SELECT_CONVERSATION":
-      return { ...state, currentConversationId: action.id };
+    case "SELECT_CONVERSATION": {
+      const selectedConv = state.conversations.find((c) => c.id === action.id);
+      return {
+        ...state,
+        currentConversationId: action.id,
+        activeProvider: selectedConv?.provider || state.activeProvider,
+      };
+    }
 
     case "ADD_MESSAGE": {
       const targetId = action.conversationId || state.currentConversationId;
