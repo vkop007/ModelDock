@@ -181,9 +181,9 @@ export default function Sidebar() {
           )}
         </div>
 
-        {/* Footer with Settings and Collapse Toggle */}
+        {/* Footer Section */}
         <div className="sidebar-footer">
-          {/* Theme Toggle - Full Width (Options variant when expanded) */}
+          {/* Theme Toggle Section */}
           <div className="sidebar-theme-container">
             {!isCollapsed ? (
               <ThemeToggle
@@ -195,29 +195,48 @@ export default function Sidebar() {
             )}
           </div>
 
-          {/* Bottom Row: Settings & Collapse */}
-          <div className="sidebar-footer-controls">
-            <button
-              className="settings-btn"
-              onClick={() => setShowSettingsModal(true)}
-              title="Settings"
-            >
-              <FiSettings size={18} />
-              {!isCollapsed && <span>Settings</span>}
-            </button>
-
-            <button
-              className="collapse-btn"
-              onClick={toggleCollapse}
-              title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-            >
-              {isCollapsed ? (
-                <FiChevronRight size={18} />
-              ) : (
+          {!isCollapsed ? (
+            /* Expanded Footer: Tools Row */
+            <div className="sidebar-footer-content">
+              <button
+                className="settings-btn profile-integrated"
+                onClick={() => setShowSettingsModal(true)}
+                title="Settings"
+              >
+                <div className="user-avatar-mini">
+                  <FiSettings size={14} />
+                </div>
+                <span>Settings</span>
+              </button>
+              <button
+                className="icon-action-btn"
+                onClick={toggleCollapse}
+                title="Collapse sidebar"
+              >
                 <FiChevronLeft size={18} />
-              )}
-            </button>
-          </div>
+              </button>
+            </div>
+          ) : (
+            /* Collapsed Footer: Compact Stack */
+            <div className="sidebar-footer-collapsed">
+              <button
+                className="icon-action-btn"
+                onClick={() => setShowSettingsModal(true)}
+                title="Settings"
+              >
+                <div className="user-avatar-mini">
+                  <FiSettings size={14} />
+                </div>
+              </button>
+              <button
+                className="collapse-btn-compact"
+                onClick={toggleCollapse}
+                title="Expand sidebar"
+              >
+                <FiChevronRight size={18} />
+              </button>
+            </div>
+          )}
         </div>
       </aside>
 
