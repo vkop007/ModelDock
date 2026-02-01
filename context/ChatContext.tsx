@@ -222,8 +222,19 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
         },
       };
 
-    case "LOAD_STATE":
-      return { ...state, ...action.state };
+    case "LOAD_STATE": {
+      // Validate that currentConversationId exists in the loaded conversations
+      let currentConversationId = action.state.currentConversationId;
+      if (
+        currentConversationId &&
+        !action.state.conversations.some((c) => c.id === currentConversationId)
+      ) {
+        // If the saved currentConversationId doesn't exist, find the most recent conversation
+        const recentConversation = action.state.conversations[0];
+        currentConversationId = recentConversation?.id || null;
+      }
+      return { ...state, ...action.state, currentConversationId };
+    }
 
     case "DELETE_CONVERSATION": {
       const deletedConversation = state.conversations.find(
