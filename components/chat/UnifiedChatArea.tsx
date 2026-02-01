@@ -147,7 +147,7 @@ export default function UnifiedChatArea() {
     <div className="unified-chat-container">
       {providerConversations.map(({ provider, conversation }) => {
         const config = PROVIDERS[provider];
-        const width = getColumnWidth(provider);
+        const customWidth = columnWidths[provider];
         const session = sessions[provider];
         const isStreaming = session?.status === "streaming";
 
@@ -155,7 +155,11 @@ export default function UnifiedChatArea() {
           <div
             key={provider}
             className="unified-chat-column-wrapper"
-            style={{ width: width, flexShrink: 0 }}
+            style={{
+              width: customWidth ? `${customWidth}px` : "auto",
+              flex: "1 1 auto",
+              minWidth: "320px",
+            }}
           >
             <div className="unified-chat-column">
               <div className="unified-column-header">

@@ -373,7 +373,7 @@ body {
 /* Sidebar Footer */
 .sidebar-footer {
   margin-top: auto;
-  padding-top: 12px;
+  padding-top: 8px;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -387,7 +387,7 @@ body {
 .sidebar-theme-options {
   display: flex;
   background: var(--bg-tertiary);
-  padding: 6px;
+  padding: 4px;
   border-radius: 10px;
   border: none;
   width: 100%;
@@ -401,7 +401,7 @@ body {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 10px 12px;
+  padding: 8px 10px;
   border-radius: 6px;
   background: transparent;
   border: none;
@@ -465,15 +465,15 @@ body {
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 12px 0;
-  margin-top: 8px;
+  padding: 4px 0;
+  margin-top: 4px;
 }
 
 .settings-btn {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 12px;
+  padding: 8px 10px;
   background: var(--bg-tertiary);
   border: none;
   border-radius: 8px;
@@ -2726,16 +2726,25 @@ body {
 
 /* Add Column Section */
 .unified-add-column {
-  width: 48px; /* Slim sidebar */
+  width: 36px;
   flex: 0 0 auto;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-start; /* Buttons at top */
-  gap: 15px;
-  padding: 12px;
-  background: var(--bg-secondary);
-  border-left: 1px solid var(--border-color);
+  justify-content: flex-start;
+  gap: 12px;
+  padding-right: 25px;
+  padding-left: 25px;
+  padding-top: 11px;
+  background: transparent;
+  transition: all 0.2s ease;
+  position: relative;
+  border-left: 1px solid transparent;
+}
+
+.unified-add-column:hover {
+  background: rgba(255, 255, 255, 0.02);
+  border-left-color: var(--border-color);
 }
 
 /* Provider Loading Overlay */
@@ -2855,22 +2864,22 @@ body {
 .add-provider-menu {
   position: absolute;
   top: 48px;
-  right: 0;
-  width: 320px;
+  right: 12px;
+  width: 260px;
   background: var(--bg-input-default);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(32px);
+  -webkit-backdrop-filter: blur(32px);
   border: 1px solid var(--border-color);
   border-radius: 20px;
-  padding: 20px;
+  padding: 14px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 10px;
   box-shadow: 
-    0 20px 50px rgba(0, 0, 0, 0.25),
-    0 4px 12px rgba(0, 0, 0, 0.1);
+    0 32px 64px rgba(0, 0, 0, 0.5),
+    0 12px 24px rgba(0, 0, 0, 0.3);
   z-index: 1000;
-  animation: menuIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: menuIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes menuIn {
