@@ -24,6 +24,7 @@ interface UseTextToSpeechReturn {
 
 // Singleton state to track which message is currently speaking
 let globalActiveId: string | null = null;
+let globalUtterance: SpeechSynthesisUtterance | null = null; // Prevent GC
 const activeIdListeners = new Set<(id: string | null) => void>();
 
 const notifyListeners = () => {
@@ -44,6 +45,7 @@ export const useTextToSpeech = (
   const [volume, setVolumeState] = useState(options.volume ?? 1);
 
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const requestRef = useRef<number>(0);
 
   // Check if browser supports Speech Synthesis
   const isSupported =
@@ -114,43 +116,84 @@ export const useTextToSpeech = (
         return;
       }
 
+      if (!text || text.trim().length === 0) {
+        console.warn("Speech synthesis skipped: Empty text provided.");
+        return;
+      }
+
       // Stop any ongoing speech
       window.speechSynthesis.cancel();
+      // Force resume in case it was stuck in paused state
+      window.speechSynthesis.resume();
 
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.voice = selectedVoice;
-      utterance.rate = rate;
-      utterance.pitch = pitch;
-      utterance.volume = volume;
+      const requestId = ++requestRef.current;
 
-      utterance.onstart = () => {
-        setIsSpeaking(true);
-        setIsPaused(false);
-        globalActiveId = id;
-        notifyListeners();
-      };
+      // Small delay to prevent race conditions and allow cancel to process
+      setTimeout(() => {
+        if (requestRef.current !== requestId) return;
 
-      utterance.onend = () => {
-        setIsSpeaking(false);
-        setIsPaused(false);
-        if (globalActiveId === id) {
-          globalActiveId = null;
-          notifyListeners();
+        const utterance = new SpeechSynthesisUtterance(text);
+
+        // Robust voice selection
+        if (selectedVoice) {
+          utterance.voice = selectedVoice;
+        } else {
+          // Fallback to first available English voice or first voice
+          const fallback =
+            voices.find((v) => v.lang.startsWith("en")) || voices[0];
+          if (fallback) utterance.voice = fallback;
         }
-      };
 
-      utterance.onerror = (event) => {
-        console.error("Speech synthesis error:", event);
-        setIsSpeaking(false);
-        setIsPaused(false);
-        if (globalActiveId === id) {
-          globalActiveId = null;
+        utterance.rate = rate;
+        utterance.pitch = pitch;
+        utterance.volume = volume;
+
+        utterance.onstart = () => {
+          setIsSpeaking(true);
+          setIsPaused(false);
+          globalActiveId = id;
           notifyListeners();
-        }
-      };
+        };
 
-      utteranceRef.current = utterance;
-      window.speechSynthesis.speak(utterance);
+        utterance.onend = () => {
+          setIsSpeaking(false);
+          setIsPaused(false);
+          if (globalActiveId === id) {
+            globalActiveId = null;
+            notifyListeners();
+          }
+          if (globalUtterance === utterance) {
+            globalUtterance = null;
+          }
+        };
+
+        utterance.onerror = (event) => {
+          if (event.error === "canceled" || event.error === "interrupted") {
+            // These are expected when switching or stopping
+            return;
+          }
+
+          console.error("Speech synthesis error details:", {
+            error: event.error,
+            elapsedTime: event.elapsedTime,
+            eventType: event.type,
+          });
+          setIsSpeaking(false);
+          setIsPaused(false);
+          if (globalActiveId === id) {
+            globalActiveId = null;
+            notifyListeners();
+          }
+        };
+
+        utteranceRef.current = utterance;
+        globalUtterance = utterance;
+
+        console.log(
+          `Starting speech (v2) for id: ${id}, text length: ${text.length}, voice: ${selectedVoice?.name ?? "default"}`,
+        );
+        window.speechSynthesis.speak(utterance);
+      }, 50);
     },
     [isSupported, selectedVoice, rate, pitch, volume],
   );
@@ -174,6 +217,7 @@ export const useTextToSpeech = (
   const stop = useCallback(() => {
     if (!isSupported) return;
     window.speechSynthesis.cancel();
+    globalUtterance = null;
     setIsSpeaking(false);
     setIsPaused(false);
     globalActiveId = null;
