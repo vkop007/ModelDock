@@ -2667,13 +2667,15 @@ body {
 }
 
 .toggle-switch.enabled {
-  background: var(--accent-green);
+  background: rgba(16, 163, 127, 0.1); /* Subtle green tint */
   border-color: var(--accent-green);
+  border-width: 1.5px;
 }
 
 .toggle-switch.disabled {
-  background: var(--bg-hover);
+  background: transparent;
   border-color: var(--border-color);
+  border-width: 1.5px;
 }
 
 .toggle-switch-thumb {
@@ -2688,8 +2690,8 @@ body {
 }
 
 .toggle-switch.enabled .toggle-switch-thumb {
-  transform: translateX(14px);
-  background: white;
+  transform: translateX(13px); /* Adjusted for thicker border */
+  background: var(--accent-green);
 }
 
 .toggle-switch.disabled:hover .toggle-switch-thumb {
