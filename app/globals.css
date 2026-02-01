@@ -383,7 +383,7 @@ body {
   padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 10px;
   background: var(--bg-secondary);
 }
 
