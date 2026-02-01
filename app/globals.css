@@ -373,7 +373,7 @@ body {
 /* Sidebar Footer */
 .sidebar-footer {
   margin-top: auto;
-  padding-top: 12px;
+  padding-top: 8px;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -387,7 +387,7 @@ body {
 .sidebar-theme-options {
   display: flex;
   background: var(--bg-tertiary);
-  padding: 6px;
+  padding: 4px;
   border-radius: 10px;
   border: none;
   width: 100%;
@@ -401,7 +401,7 @@ body {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 10px 12px;
+  padding: 8px 10px;
   border-radius: 6px;
   background: transparent;
   border: none;
@@ -465,15 +465,15 @@ body {
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 12px 0;
-  margin-top: 8px;
+  padding: 4px 0;
+  margin-top: 4px;
 }
 
 .settings-btn {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 12px;
+  padding: 8px 10px;
   background: var(--bg-tertiary);
   border: none;
   border-radius: 8px;
@@ -2733,7 +2733,9 @@ body {
   align-items: center;
   justify-content: flex-start;
   gap: 12px;
-  padding: 12px 0;
+  padding-right: 25px;
+  padding-left: 25px;
+  padding-top: 11px;
   background: transparent;
   transition: all 0.2s ease;
   position: relative;
