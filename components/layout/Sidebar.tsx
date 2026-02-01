@@ -203,9 +203,7 @@ export default function Sidebar() {
                 onClick={() => setShowSettingsModal(true)}
                 title="Settings"
               >
-                <div className="user-avatar-mini">
-                  <FiSettings size={14} />
-                </div>
+                <FiSettings size={18} />
                 <span>Settings</span>
               </button>
               <button
@@ -224,9 +222,7 @@ export default function Sidebar() {
                 onClick={() => setShowSettingsModal(true)}
                 title="Settings"
               >
-                <div className="user-avatar-mini">
-                  <FiSettings size={14} />
-                </div>
+                <FiSettings size={18} />
               </button>
               <button
                 className="collapse-btn-compact"
