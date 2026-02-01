@@ -248,6 +248,14 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
       return { ...state, conversations, currentConversationId };
     }
 
+    case "DELETE_ALL_CONVERSATIONS": {
+      return {
+        ...state,
+        conversations: [],
+        currentConversationId: null,
+      };
+    }
+
     case "UPDATE_CONVERSATION_TITLE": {
       const conversations = state.conversations.map((conv) =>
         conv.id === action.id ? { ...conv, title: action.title } : conv,
@@ -484,6 +492,7 @@ interface ChatContextValue extends ChatState {
     folderId: string | undefined,
   ) => void;
   toggleProviderEnabled: (provider: LLMProvider) => void;
+  deleteAllConversations: () => void;
 }
 
 const ChatContext = createContext<ChatContextValue | null>(null);
@@ -806,6 +815,10 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     },
     [state.conversations, state.cookieConfigs],
   );
+
+  const deleteAllConversations = useCallback(() => {
+    dispatch({ type: "DELETE_ALL_CONVERSATIONS" });
+  }, []);
 
   const testConnection = useCallback(
     async (provider: LLMProvider): Promise<boolean> => {
@@ -1886,6 +1899,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     setShowCookiePrompt,
     moveConversationToFolder,
     toggleProviderEnabled,
+    deleteAllConversations,
     enabledProviders: state.enabledProviders,
     unifiedProviders: state.unifiedProviders,
   };

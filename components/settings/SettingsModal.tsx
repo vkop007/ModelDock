@@ -17,6 +17,7 @@ import {
   FiVolumeX,
   FiPlay,
   FiSettings,
+  FiDatabase,
 } from "react-icons/fi";
 import { SiOpenai, SiGoogle } from "react-icons/si";
 import { parseCookiesFromJSON } from "@/lib/storage";
@@ -26,7 +27,7 @@ interface SettingsModalProps {
   onClose: () => void;
 }
 
-type SettingsTab = "cookies" | "instructions" | "voice";
+type SettingsTab = "cookies" | "instructions" | "voice" | "data";
 
 export default function SettingsModal({ onClose }: SettingsModalProps) {
   const {
@@ -328,6 +329,18 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
           >
             <FiMic size={16} />
             <span>Voice</span>
+          </button>
+          <button
+            className={`settings-type-tab ${
+              settingsTab === "data" ? "active" : ""
+            }`}
+            onClick={() => {
+              setSettingsTab("data");
+              setError(null);
+            }}
+          >
+            <FiDatabase size={16} />
+            <span>Data</span>
           </button>
         </div>
 
@@ -769,6 +782,29 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                   Done
                 </button>
               </div>
+            </>
+          )}
+
+          {/* Data Tab */}
+          {settingsTab === "data" && (
+            <>
+              <div className="instructions">
+                <div className="instruction-header">
+                  <FiDatabase size={16} />
+                  <span>Data Management</span>
+                </div>
+                <p>
+                  Manage your local data. All conversations are stored locally
+                  in your browser via IndexedDB.
+                </p>
+              </div>
+
+              {error && !error.includes("failed") && (
+                <div className="success-message" style={{ marginTop: "20px" }}>
+                  <FiCheck size={14} />
+                  <span>{error}</span>
+                </div>
+              )}
             </>
           )}
         </div>
