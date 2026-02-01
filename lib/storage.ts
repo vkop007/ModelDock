@@ -16,6 +16,7 @@ const STORAGE_KEYS = {
   CURRENT_CONVERSATION: "llm-chat-current-conversation",
   UNIFIED_PROVIDERS: "llm-chat-unified-providers",
   VOICE_SETTINGS: "llm-chat-voice-settings",
+  ENABLED_PROVIDERS: "llm-chat-enabled-providers",
 };
 
 // Check if we're in browser environment
@@ -285,6 +286,32 @@ export function loadUnifiedProviders(): LLMProvider[] {
   } catch (error) {
     console.error("Failed to load unified providers:", error);
     return ["chatgpt", "gemini"];
+  }
+}
+
+// Enabled Providers
+export function saveEnabledProviders(providers: LLMProvider[]): void {
+  if (!isBrowser) return;
+  try {
+    localStorage.setItem(
+      STORAGE_KEYS.ENABLED_PROVIDERS,
+      JSON.stringify(providers),
+    );
+  } catch (error) {
+    console.error("Failed to save enabled providers:", error);
+  }
+}
+
+export function loadEnabledProviders(
+  allProviders: LLMProvider[],
+): LLMProvider[] {
+  if (!isBrowser) return allProviders;
+  try {
+    const data = localStorage.getItem(STORAGE_KEYS.ENABLED_PROVIDERS);
+    return data ? JSON.parse(data) : allProviders;
+  } catch (error) {
+    console.error("Failed to load enabled providers:", error);
+    return allProviders;
   }
 }
 

@@ -31,6 +31,8 @@ import {
   loadSystemInstructions,
   saveUnifiedProviders,
   loadUnifiedProviders,
+  saveEnabledProviders,
+  loadEnabledProviders,
 } from "@/lib/storage";
 
 // Initial state
@@ -81,6 +83,16 @@ const initialState: ChatState = {
   unifiedProviders: ["chatgpt", "gemini"], // Default providers for unified view
   isFocusMode: false,
   isSidebarCollapsed: false,
+  enabledProviders: [
+    "chatgpt",
+    "claude",
+    "gemini",
+    "zai",
+    "grok",
+    "qwen",
+    "mistral",
+    "ollama",
+  ],
 };
 
 // Reducer
@@ -341,7 +353,21 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
       const updated = current.includes(action.provider)
         ? current.filter((p) => p !== action.provider)
         : [...current, action.provider];
-      return { ...state, unifiedProviders: updated };
+
+      // If adding a provider, ensure it's also in enabledProviders so it's active by default
+      let enabledProviders = state.enabledProviders;
+      if (
+        updated.includes(action.provider) &&
+        !enabledProviders.includes(action.provider)
+      ) {
+        enabledProviders = [...enabledProviders, action.provider];
+      }
+
+      return {
+        ...state,
+        unifiedProviders: updated,
+        enabledProviders,
+      };
     }
 
     case "SET_PROVIDER_STATUS":
@@ -401,6 +427,14 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
       return { ...state, conversations };
     }
 
+    case "TOGGLE_PROVIDER_ENABLED": {
+      const current = state.enabledProviders;
+      const updated = current.includes(action.provider)
+        ? current.filter((p) => p !== action.provider)
+        : [...current, action.provider];
+      return { ...state, enabledProviders: updated };
+    }
+
     default:
       return state;
   }
@@ -443,6 +477,7 @@ interface ChatContextValue extends ChatState {
     conversationId: string,
     folderId: string | undefined,
   ) => void;
+  toggleProviderEnabled: (provider: LLMProvider) => void;
 }
 
 const ChatContext = createContext<ChatContextValue | null>(null);
@@ -464,6 +499,16 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       const activeProvider = loadActiveProvider();
       const currentConversationId = loadCurrentConversation();
       const unifiedProviders = loadUnifiedProviders();
+      const enabledProviders = loadEnabledProviders([
+        "chatgpt",
+        "claude",
+        "gemini",
+        "zai",
+        "grok",
+        "qwen",
+        "mistral",
+        "ollama",
+      ]);
 
       dispatch({
         type: "LOAD_STATE",
@@ -474,6 +519,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           activeProvider,
           currentConversationId,
           unifiedProviders,
+          enabledProviders,
         },
       });
 
@@ -520,6 +566,12 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       saveUnifiedProviders(state.unifiedProviders);
     }
   }, [state.unifiedProviders]);
+
+  useEffect(() => {
+    if (isInitializedRef.current) {
+      saveEnabledProviders(state.enabledProviders);
+    }
+  }, [state.enabledProviders]);
 
   // Warmup browser page for active provider and unified providers
   const activeProviderCookies =
@@ -1176,7 +1228,14 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       }
       dispatch({ type: "TOGGLE_UNIFIED_PROVIDER", provider });
     },
-    [state.unifiedProviders, warmupProviders],
+    [state.unifiedProviders, warmupProviders, dispatch],
+  );
+
+  const toggleProviderEnabled = useCallback(
+    (provider: LLMProvider) => {
+      dispatch({ type: "TOGGLE_PROVIDER_ENABLED", provider });
+    },
+    [dispatch],
   );
 
   const broadcastMessage = useCallback(
@@ -1189,10 +1248,11 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
       dispatch({ type: "SET_SENDING", isSending: true });
 
-      // Always include active provider in broadcast
+      // Always include active provider in broadcast IF enabled
+      // Filter by enabled providers
       const providersToCall = Array.from(
         new Set([...state.unifiedProviders, state.activeProvider]),
-      );
+      ).filter((p) => state.enabledProviders.includes(p));
 
       // Sort providers based on UI order (unifiedProviders)
       providersToCall.sort((a, b) => {
@@ -1435,6 +1495,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       state.isSending,
       state.cookieConfigs,
       state.activeProvider,
+      state.enabledProviders,
     ],
   );
 
@@ -1818,6 +1879,9 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     showCookiePrompt,
     setShowCookiePrompt,
     moveConversationToFolder,
+    toggleProviderEnabled,
+    enabledProviders: state.enabledProviders,
+    unifiedProviders: state.unifiedProviders,
   };
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;

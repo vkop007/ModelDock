@@ -205,6 +205,7 @@ export interface ChatState {
   unifiedProviders: LLMProvider[];
   isFocusMode: boolean;
   isSidebarCollapsed: boolean;
+  enabledProviders: LLMProvider[];
 }
 
 // Chat context actions
@@ -271,7 +272,8 @@ export type ChatAction =
       type: "MOVE_CONVERSATION_TO_FOLDER";
       conversationId: string;
       folderId: string | undefined;
-    };
+    }
+  | { type: "TOGGLE_PROVIDER_ENABLED"; provider: LLMProvider };
 
 // Voice settings configuration
 export interface VoiceSettings {
