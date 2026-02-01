@@ -383,7 +383,7 @@ body {
   padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 10px;
   background: var(--bg-secondary);
 }
 
@@ -3897,6 +3897,17 @@ body {
   text-overflow: ellipsis;
 }
 
+.folder-conv-item .conv-actions {
+  display: flex;
+  gap: 4px;
+  opacity: 0.6;
+  transition: opacity 0.2s ease;
+}
+
+.folder-conv-item:hover .conv-actions {
+  opacity: 1;
+}
+
 .folder-conv-item:hover {
   background: var(--bg-hover);
   color: var(--text-primary);
@@ -3920,6 +3931,7 @@ body {
 .unsorted-header {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 6px;
   padding: 4px 4px; /* Reduced side padding */
   margin: 0 8px; /* Matched margin */
@@ -3970,7 +3982,7 @@ body {
 }
 
 .unsorted-conv-item .delete-conv-btn {
-  opacity: 0;
+  opacity: 1 !important;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3993,7 +4005,7 @@ body {
 .unsorted-conv-item .conv-actions {
   display: flex;
   gap: 4px;
-  opacity: 0;
+  opacity: 0.6;
   transition: opacity 0.2s ease;
 }
 
@@ -4111,4 +4123,25 @@ body {
   display: flex;
   gap: 4px;
   padding-top: 8px;
+}
+/* Pin conversation button */
+.pin-conv-btn {
+  color: var(--text-secondary) !important;
+  transition: all 0.2s ease !important;
+  opacity: 1 !important;
+}
+
+.pin-conv-btn:hover {
+  color: #fbbf24 !important;
+  fill: #fbbf24 !important;
+}
+
+.pin-conv-btn.pinned {
+  color: #fbbf24 !important;
+  fill: #fbbf24 !important;
+}
+
+.pin-conv-btn.pinned svg {
+  fill: #fbbf24 !important;
+  stroke: #fbbf24 !important;
 }

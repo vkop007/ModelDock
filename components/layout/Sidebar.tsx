@@ -39,6 +39,8 @@ export default function Sidebar() {
     toggleSidebar: toggleCollapse,
     moveConversationToFolder,
     deleteAllConversations,
+    pinConversation,
+    unpinConversation,
   } = useChatContext();
 
   const {
@@ -55,10 +57,16 @@ export default function Sidebar() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Filter conversations by active provider
-  const filteredConversations = conversations.filter(
-    (c) => c.provider === activeProvider,
-  );
+  // Filter conversations by active provider and sort pinned to top
+  const filteredConversations = conversations
+    .filter((c) => c.provider === activeProvider)
+    .sort((a, b) => {
+      // Pinned conversations first
+      if (a.isPinned && !b.isPinned) return -1;
+      if (!a.isPinned && b.isPinned) return 1;
+      // Then by most recent
+      return b.updatedAt - a.updatedAt;
+    });
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -178,6 +186,8 @@ export default function Sidebar() {
                 onDeleteConversation={deleteConversation}
                 onMoveConversationToFolder={moveConversationToFolder}
                 onNewChatInFolder={(folderId) => newChat(folderId)}
+                onPinConversation={pinConversation}
+                onUnpinConversation={unpinConversation}
                 isCollapsed={isCollapsed}
               />
             </>
