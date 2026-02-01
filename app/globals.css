@@ -3621,7 +3621,8 @@ body {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 6px 8px;
+  padding: 6px 4px; /* Reduced side padding to work with margin */
+  margin: 0 8px; /* Standard horizontal margin */
   border-radius: 6px;
   cursor: pointer;
   transition: background-color 0.2s ease;
@@ -3738,7 +3739,6 @@ body {
 .folder-conversations {
   display: flex;
   flex-direction: column;
-  padding-left: 28px;
   gap: 2px;
   margin-top: 2px;
 }
@@ -3759,13 +3759,13 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 8px 4px 8px 16px;
-  border-radius: 6px;
+  padding: 5px 8px;
+  margin-left: 30px;
+  border-radius: 8px;
   color: var(--text-secondary);
   font-size: 13px;
   cursor: pointer;
   transition: all 0.2s ease;
-  margin: 0 -4px;
 }
 
 .folder-conv-item .conv-title {
@@ -3799,7 +3799,8 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 8px;
+  padding: 4px 4px; /* Reduced side padding */
+  margin: 0 8px; /* Matched margin */
   font-size: 12px;
   color: var(--text-muted);
 }
@@ -3820,8 +3821,9 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 8px 4px 8px 12px;
-  border-radius: 6px;
+  padding: 8px 12px;
+  margin: 0 8px; /* Matched margin */
+  border-radius: 8px;
   color: var(--text-secondary);
   font-size: 13px;
   cursor: pointer;
