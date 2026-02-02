@@ -726,10 +726,32 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
             }
 
             if (isWarmed) {
+              // After warmup, confirm authentication before marking ready
+              let isAuthenticated = false;
+              let authAttempts = 0;
+              const maxAuthAttempts = 10;
+
+              while (!isAuthenticated && authAttempts < maxAuthAttempts) {
+                try {
+                  const sessionRes = await fetch(
+                    `/api/session?provider=${provider}`,
+                  );
+                  const sessionData = await sessionRes.json();
+                  if (sessionData.success && sessionData.isAuthenticated) {
+                    isAuthenticated = true;
+                    break;
+                  }
+                } catch (e) {
+                  // ignore and retry
+                }
+                await new Promise((resolve) => setTimeout(resolve, 1000));
+                authAttempts++;
+              }
+
               dispatch({
                 type: "SET_PROVIDER_STATUS",
                 provider,
-                status: "ready",
+                status: isAuthenticated ? "ready" : "error",
               });
             } else {
               // Timeout
