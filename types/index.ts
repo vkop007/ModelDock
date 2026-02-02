@@ -78,6 +78,38 @@ export const PROVIDERS: Record<LLMProvider, ProviderConfig> = {
   },
 };
 
+// Default provider display/execution order
+export const PROVIDER_ORDER: LLMProvider[] = [
+  "chatgpt",
+  "gemini",
+  "claude",
+  "zai",
+  "grok",
+  "qwen",
+  "mistral",
+  "ollama",
+];
+
+export const orderProviders = (providers: LLMProvider[]): LLMProvider[] => {
+  const seen = new Set<LLMProvider>();
+  const unique = providers.filter((p) => {
+    if (seen.has(p)) return false;
+    seen.add(p);
+    return true;
+  });
+
+  const orderIndex = new Map(
+    PROVIDER_ORDER.map((provider, index) => [provider, index]),
+  );
+
+  return unique.sort((a, b) => {
+    const indexA = orderIndex.get(a) ?? Number.MAX_SAFE_INTEGER;
+    const indexB = orderIndex.get(b) ?? Number.MAX_SAFE_INTEGER;
+    if (indexA !== indexB) return indexA - indexB;
+    return a.localeCompare(b);
+  });
+};
+
 // Message structure
 export interface Message {
   id: string;

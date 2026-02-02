@@ -1,7 +1,7 @@
 "use client";
 
 import { useChatContext } from "@/context/ChatContext";
-import { PROVIDERS, LLMProvider } from "@/types";
+import { PROVIDERS, LLMProvider, orderProviders } from "@/types";
 import MessageList from "./MessageList";
 import Image from "next/image";
 import {
@@ -136,24 +136,9 @@ export default function UnifiedChatArea() {
 
   const { currentConversationId } = useChatContext();
 
-  const combinedProviders = Array.from(
-    new Set([...unifiedProviders, activeProvider]),
+  const sortedProviders = orderProviders(
+    [...unifiedProviders, activeProvider].filter(Boolean) as LLMProvider[],
   );
-  const sortedProviders = combinedProviders.filter(Boolean).sort((a, b) => {
-    const priority = ["chatgpt", "gemini"];
-    if (activeProvider && !priority.includes(activeProvider)) {
-      priority.push(activeProvider);
-    }
-
-    const idxA = priority.indexOf(a);
-    const idxB = priority.indexOf(b);
-
-    if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-    if (idxA !== -1) return -1;
-    if (idxB !== -1) return 1;
-
-    return a.localeCompare(b);
-  });
 
   const providerConversations = sortedProviders.map((provider) => {
     const providerConvos = conversations.filter((c) => c.provider === provider);

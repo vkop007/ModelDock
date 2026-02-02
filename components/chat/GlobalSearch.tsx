@@ -80,23 +80,6 @@ export default function GlobalSearch() {
   // Define commands
   const commands: Command[] = useMemo(
     () => [
-      // Provider Switching
-      ...Object.entries(PROVIDERS).map(([key, config]) => ({
-        id: `switch-${key}`,
-        title: `Switch to ${config.name}`,
-        keywords: ["switch", "provider", key, config.name.toLowerCase()],
-        icon: (
-          <Image
-            src={PROVIDER_LOGOS[key as LLMProvider]}
-            alt={config.name}
-            width={16}
-            height={16}
-            style={{ borderRadius: "2px" }}
-          />
-        ),
-        action: () => setProvider(key as LLMProvider),
-        section: "Navigation" as const,
-      })),
       // Actions
       {
         id: "new-chat",

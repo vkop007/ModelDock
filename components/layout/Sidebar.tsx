@@ -75,9 +75,11 @@ export default function Sidebar() {
 
     try {
       const text = await file.text();
-      const success = importConversation(text);
-      if (!success) {
-        alert("Failed to import conversation. Invalid file format.");
+      const result = importConversation(text);
+      if (!result.success) {
+        alert(result.error || "Failed to import conversation.");
+      } else {
+        alert(`Imported ${result.importedCount} conversation(s).`);
       }
     } catch (error) {
       alert("Failed to read file.");
