@@ -33,6 +33,8 @@ import {
   loadUnifiedProviders,
   saveEnabledProviders,
   loadEnabledProviders,
+  saveColumnWidths,
+  loadColumnWidths,
 } from "@/lib/storage";
 
 // Initial state
@@ -93,6 +95,7 @@ const initialState: ChatState = {
     "mistral",
     "ollama",
   ],
+  columnWidths: {},
 };
 
 // Reducer
@@ -224,13 +227,16 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
 
     case "LOAD_STATE": {
       // Validate that currentConversationId exists in the loaded conversations
-      let currentConversationId = action.state.currentConversationId;
+      let currentConversationId = action.state.currentConversationId ?? null;
+      const loadedConversations = action.state.conversations || [];
+
       if (
         currentConversationId &&
-        !action.state.conversations.some((c) => c.id === currentConversationId)
+        loadedConversations.length > 0 &&
+        !loadedConversations.some((c) => c.id === currentConversationId)
       ) {
         // If the saved currentConversationId doesn't exist, find the most recent conversation
-        const recentConversation = action.state.conversations[0];
+        const recentConversation = loadedConversations[0];
         currentConversationId = recentConversation?.id || null;
       }
       return { ...state, ...action.state, currentConversationId };
@@ -372,14 +378,18 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
 
     case "PIN_CONVERSATION": {
       const conversations = state.conversations.map((conv) =>
-        conv.id === action.id ? { ...conv, isPinned: true, updatedAt: Date.now() } : conv,
+        conv.id === action.id
+          ? { ...conv, isPinned: true, updatedAt: Date.now() }
+          : conv,
       );
       return { ...state, conversations };
     }
 
     case "UNPIN_CONVERSATION": {
       const conversations = state.conversations.map((conv) =>
-        conv.id === action.id ? { ...conv, isPinned: false, updatedAt: Date.now() } : conv,
+        conv.id === action.id
+          ? { ...conv, isPinned: false, updatedAt: Date.now() }
+          : conv,
       );
       return { ...state, conversations };
     }
@@ -474,6 +484,9 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
       return { ...state, enabledProviders: updated };
     }
 
+    case "SET_COLUMN_WIDTHS":
+      return { ...state, columnWidths: action.widths };
+
     default:
       return state;
   }
@@ -520,6 +533,8 @@ interface ChatContextValue extends ChatState {
   deleteAllConversations: () => void;
   pinConversation: (id: string) => void;
   unpinConversation: (id: string) => void;
+  setColumnWidths: (widths: Record<string, number>) => void;
+  resetColumnWidths: () => void;
 }
 
 const ChatContext = createContext<ChatContextValue | null>(null);
@@ -551,6 +566,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         "mistral",
         "ollama",
       ]);
+      const columnWidths = loadColumnWidths();
 
       dispatch({
         type: "LOAD_STATE",
@@ -562,6 +578,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           currentConversationId,
           unifiedProviders,
           enabledProviders,
+          columnWidths,
         },
       });
 
@@ -614,6 +631,12 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       saveEnabledProviders(state.enabledProviders);
     }
   }, [state.enabledProviders]);
+
+  useEffect(() => {
+    if (isInitializedRef.current) {
+      saveColumnWidths(state.columnWidths);
+    }
+  }, [state.columnWidths]);
 
   // Warmup browser page for active provider and unified providers
   const activeProviderCookies =
@@ -1902,6 +1925,14 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
+  const setColumnWidths = useCallback((widths: Record<string, number>) => {
+    dispatch({ type: "SET_COLUMN_WIDTHS", widths });
+  }, []);
+
+  const resetColumnWidths = useCallback(() => {
+    dispatch({ type: "SET_COLUMN_WIDTHS", widths: {} });
+  }, []);
+
   const value: ChatContextValue = {
     ...state,
     dispatch,
@@ -1939,6 +1970,9 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     unpinConversation,
     enabledProviders: state.enabledProviders,
     unifiedProviders: state.unifiedProviders,
+    columnWidths: state.columnWidths,
+    setColumnWidths,
+    resetColumnWidths,
   };
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;

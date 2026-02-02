@@ -17,6 +17,7 @@ const STORAGE_KEYS = {
   UNIFIED_PROVIDERS: "llm-chat-unified-providers",
   VOICE_SETTINGS: "llm-chat-voice-settings",
   ENABLED_PROVIDERS: "llm-chat-enabled-providers",
+  COLUMN_WIDTHS: "llm-chat-column-widths",
 };
 
 // Check if we're in browser environment
@@ -312,6 +313,27 @@ export function loadEnabledProviders(
   } catch (error) {
     console.error("Failed to load enabled providers:", error);
     return allProviders;
+  }
+}
+
+// Column Widths
+export function saveColumnWidths(widths: Record<string, number>): void {
+  if (!isBrowser) return;
+  try {
+    localStorage.setItem(STORAGE_KEYS.COLUMN_WIDTHS, JSON.stringify(widths));
+  } catch (error) {
+    console.error("Failed to save column widths:", error);
+  }
+}
+
+export function loadColumnWidths(): Record<string, number> {
+  if (!isBrowser) return {};
+  try {
+    const data = localStorage.getItem(STORAGE_KEYS.COLUMN_WIDTHS);
+    return data ? JSON.parse(data) : {};
+  } catch (error) {
+    console.error("Failed to load column widths:", error);
+    return {};
   }
 }
 

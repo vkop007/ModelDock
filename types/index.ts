@@ -207,6 +207,7 @@ export interface ChatState {
   isFocusMode: boolean;
   isSidebarCollapsed: boolean;
   enabledProviders: LLMProvider[];
+  columnWidths: Record<string, number>;
 }
 
 // Chat context actions
@@ -277,7 +278,8 @@ export type ChatAction =
       conversationId: string;
       folderId: string | undefined;
     }
-  | { type: "TOGGLE_PROVIDER_ENABLED"; provider: LLMProvider };
+  | { type: "TOGGLE_PROVIDER_ENABLED"; provider: LLMProvider }
+  | { type: "SET_COLUMN_WIDTHS"; widths: Record<string, number> };
 
 // Voice settings configuration
 export interface VoiceSettings {

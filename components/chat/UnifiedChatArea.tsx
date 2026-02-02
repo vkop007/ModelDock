@@ -11,6 +11,10 @@ import {
   FiMaximize2,
   FiMinimize2,
   FiPower,
+  FiLayout,
+  FiGrid,
+  FiSidebar,
+  FiMaximize,
 } from "react-icons/fi";
 import { useState, useEffect } from "react";
 import ProviderStatusBadge from "./ProviderStatusBadge";
@@ -56,29 +60,25 @@ export default function UnifiedChatArea() {
     toggleFocusMode,
     enabledProviders,
     toggleProviderEnabled,
+    columnWidths: contextColumnWidths,
+    setColumnWidths: setContextColumnWidths,
+    resetColumnWidths,
   } = useChatContext();
 
   const [showAddMenu, setShowAddMenu] = useState(false);
-  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
+  const [showLayoutMenu, setShowLayoutMenu] = useState(false);
+  // Local state for smooth resizing (syncs with context)
+  const [columnWidths, setColumnWidths] =
+    useState<Record<string, number>>(contextColumnWidths);
   const [isResizing, setIsResizing] = useState<string | null>(null);
   const [resizeWidth, setResizeWidth] = useState<number | null>(null);
 
-  // Load from localStorage on mount (client-side only to avoid hydration mismatch)
+  // Sync with context when not resizing
   useEffect(() => {
-    const saved = localStorage.getItem("unifiedColumnWidths");
-    if (saved) {
-      try {
-        setColumnWidths(JSON.parse(saved));
-      } catch {}
+    if (!isResizing) {
+      setColumnWidths(contextColumnWidths);
     }
-  }, []);
-
-  // Save to localStorage when widths change
-  useEffect(() => {
-    if (Object.keys(columnWidths).length > 0) {
-      localStorage.setItem("unifiedColumnWidths", JSON.stringify(columnWidths));
-    }
-  }, [columnWidths]);
+  }, [contextColumnWidths, isResizing]);
 
   // Initialize widths if not set
   const getColumnWidth = (provider: string) => {
@@ -93,17 +93,6 @@ export default function UnifiedChatArea() {
     const startX = e.clientX;
     const startWidth = getColumnWidth(provider);
 
-    const onMouseMove = (moveEvent: MouseEvent) => {
-      const diff = moveEvent.clientX - startX;
-      // Minimum width 300px, max 800px or so
-      const newWidth = Math.max(300, Math.min(800, startWidth + diff));
-      setColumnWidths((prev) => ({
-        ...prev,
-        [provider]: newWidth,
-      }));
-      setResizeWidth(newWidth);
-    };
-
     const onMouseUp = () => {
       setIsResizing(null);
       setResizeWidth(null);
@@ -111,6 +100,25 @@ export default function UnifiedChatArea() {
       document.removeEventListener("mouseup", onMouseUp);
       document.body.style.cursor = "default";
       document.body.style.userSelect = "auto";
+
+      // Commit final widths to context
+      setContextColumnWidths(currentWidths);
+    };
+
+    let currentWidths = { ...columnWidths };
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const diff = moveEvent.clientX - startX;
+      // Minimum width 300px, max 800px or so
+      const newWidth = Math.max(300, Math.min(800, startWidth + diff));
+
+      currentWidths = {
+        ...columnWidths,
+        [provider]: newWidth,
+      };
+
+      setColumnWidths(currentWidths);
+      setResizeWidth(newWidth);
     };
 
     document.addEventListener("mousemove", onMouseMove);
@@ -195,8 +203,8 @@ export default function UnifiedChatArea() {
             key={provider}
             className="unified-chat-column-wrapper"
             style={{
-              width: customWidth ? `${customWidth}px` : "auto",
-              flex: "1 1 auto",
+              width: customWidth ? `${customWidth}px` : "0px",
+              flex: customWidth ? "0 0 auto" : "1 1 0",
               minWidth: "320px",
             }}
           >
@@ -269,12 +277,11 @@ export default function UnifiedChatArea() {
               className={`column-resizer ${isResizing === provider ? "resizing" : ""}`}
               onMouseDown={(e) => startResizing(provider, e)}
               onDoubleClick={() => {
-                // Double-click to reset to default width
-                setColumnWidths((prev) => {
-                  const updated = { ...prev };
-                  delete updated[provider];
-                  return updated;
-                });
+                // Double-click to reset THIS column to default
+                const newWidths = { ...columnWidths };
+                delete newWidths[provider];
+                setColumnWidths(newWidths);
+                setContextColumnWidths(newWidths);
               }}
               title="Drag to resize • Double-click to reset"
             >
@@ -296,6 +303,96 @@ export default function UnifiedChatArea() {
         </button>
 
         <div className="add-column-content">
+          <button
+            className="add-column-btn"
+            onClick={() => setShowLayoutMenu(!showLayoutMenu)}
+            title="Layout Options"
+          >
+            <FiLayout size={20} />
+          </button>
+
+          {showLayoutMenu && (
+            <div
+              className="add-provider-menu"
+              style={{
+                top: "0",
+                right: "48px",
+                width: "220px",
+              }}
+            >
+              <h3>Layouts</h3>
+              <div
+                className="provider-grid"
+                style={{ gridTemplateColumns: "1fr" }}
+              >
+                <button
+                  className="provider-option-btn"
+                  style={{
+                    flexDirection: "row",
+                    justifyContent: "flex-start",
+                    padding: "12px",
+                  }}
+                  onClick={() => {
+                    resetColumnWidths();
+                    setShowLayoutMenu(false);
+                  }}
+                >
+                  <FiGrid size={18} />
+                  <span>Grid (Equal)</span>
+                </button>
+
+                <button
+                  className="provider-option-btn"
+                  style={{
+                    flexDirection: "row",
+                    justifyContent: "flex-start",
+                    padding: "12px",
+                  }}
+                  onClick={() => {
+                    // Focus: Active gets 800px, others default (or minimal)
+                    const newWidths: Record<string, number> = {};
+                    unifiedProviders.forEach((p) => {
+                      if (p === activeProvider) {
+                        newWidths[p] = 800;
+                      } else {
+                        newWidths[p] = 320;
+                      }
+                    });
+                    setContextColumnWidths(newWidths);
+                    setShowLayoutMenu(false);
+                  }}
+                >
+                  <FiMaximize size={18} />
+                  <span>Focus (Active)</span>
+                </button>
+
+                <button
+                  className="provider-option-btn"
+                  style={{
+                    flexDirection: "row",
+                    justifyContent: "flex-start",
+                    padding: "12px",
+                  }}
+                  onClick={() => {
+                    // Sidebar: Active gets Auto (undefined), others fixed 320px
+                    const newWidths: Record<string, number> = {};
+                    unifiedProviders.forEach((p) => {
+                      if (p !== activeProvider) {
+                        newWidths[p] = 320;
+                      }
+                      // Active left as undefined -> auto/flex grow
+                    });
+                    setContextColumnWidths(newWidths);
+                    setShowLayoutMenu(false);
+                  }}
+                >
+                  <FiSidebar size={18} />
+                  <span>Sidebar</span>
+                </button>
+              </div>
+            </div>
+          )}
+
           <button
             className="add-column-btn"
             onClick={() => setShowAddMenu(!showAddMenu)}

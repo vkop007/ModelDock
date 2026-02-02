@@ -16,6 +16,7 @@ import {
   FiChevronRight,
   FiFolder,
   FiX,
+  FiLayout,
 } from "react-icons/fi";
 import SettingsModal from "../settings/SettingsModal";
 import ThemeToggle from "../settings/ThemeToggle";
