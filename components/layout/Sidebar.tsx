@@ -16,6 +16,7 @@ import {
   FiChevronRight,
   FiFolder,
   FiX,
+  FiLayout,
 } from "react-icons/fi";
 import SettingsModal from "../settings/SettingsModal";
 import ThemeToggle from "../settings/ThemeToggle";
@@ -41,6 +42,7 @@ export default function Sidebar() {
     deleteAllConversations,
     pinConversation,
     unpinConversation,
+    resetColumnWidths,
   } = useChatContext();
 
   const {
@@ -117,6 +119,33 @@ export default function Sidebar() {
             </button>
           )}
         </div>
+
+        {/* Layout Actions */}
+        {!isCollapsed && (
+          <button
+            className="sidebar-row-btn"
+            onClick={() => resetColumnWidths()}
+            title="Auto Adjust Layout (Equal Widths)"
+            style={{
+              margin: "0 10px 10px",
+              justifyContent: "center",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "8px",
+              background: "var(--bg-secondary)",
+              border: "1px solid var(--border-color)",
+              borderRadius: "6px",
+              width: "calc(100% - 20px)",
+              cursor: "pointer",
+              fontSize: "0.9rem",
+              color: "var(--text-primary)",
+            }}
+          >
+            <FiLayout size={16} />
+            <span>Auto Adjust Layout</span>
+          </button>
+        )}
 
         {/* Export/Import Actions */}
         {!isCollapsed && (
