@@ -12,6 +12,9 @@ import {
   FiMinimize2,
   FiPower,
   FiLayout,
+  FiGrid,
+  FiSidebar,
+  FiMaximize,
 } from "react-icons/fi";
 import { useState, useEffect } from "react";
 import ProviderStatusBadge from "./ProviderStatusBadge";
@@ -63,6 +66,7 @@ export default function UnifiedChatArea() {
   } = useChatContext();
 
   const [showAddMenu, setShowAddMenu] = useState(false);
+  const [showLayoutMenu, setShowLayoutMenu] = useState(false);
   // Local state for smooth resizing (syncs with context)
   const [columnWidths, setColumnWidths] =
     useState<Record<string, number>>(contextColumnWidths);
@@ -301,11 +305,93 @@ export default function UnifiedChatArea() {
         <div className="add-column-content">
           <button
             className="add-column-btn"
-            onClick={() => resetColumnWidths()}
-            title="Auto Adjust Layout (Equal Widths)"
+            onClick={() => setShowLayoutMenu(!showLayoutMenu)}
+            title="Layout Options"
           >
             <FiLayout size={20} />
           </button>
+
+          {showLayoutMenu && (
+            <div
+              className="add-provider-menu"
+              style={{
+                top: "0",
+                right: "48px",
+                width: "220px",
+              }}
+            >
+              <h3>Layouts</h3>
+              <div
+                className="provider-grid"
+                style={{ gridTemplateColumns: "1fr" }}
+              >
+                <button
+                  className="provider-option-btn"
+                  style={{
+                    flexDirection: "row",
+                    justifyContent: "flex-start",
+                    padding: "12px",
+                  }}
+                  onClick={() => {
+                    resetColumnWidths();
+                    setShowLayoutMenu(false);
+                  }}
+                >
+                  <FiGrid size={18} />
+                  <span>Grid (Equal)</span>
+                </button>
+
+                <button
+                  className="provider-option-btn"
+                  style={{
+                    flexDirection: "row",
+                    justifyContent: "flex-start",
+                    padding: "12px",
+                  }}
+                  onClick={() => {
+                    // Focus: Active gets 800px, others default (or minimal)
+                    const newWidths: Record<string, number> = {};
+                    unifiedProviders.forEach((p) => {
+                      if (p === activeProvider) {
+                        newWidths[p] = 800;
+                      } else {
+                        newWidths[p] = 320;
+                      }
+                    });
+                    setContextColumnWidths(newWidths);
+                    setShowLayoutMenu(false);
+                  }}
+                >
+                  <FiMaximize size={18} />
+                  <span>Focus (Active)</span>
+                </button>
+
+                <button
+                  className="provider-option-btn"
+                  style={{
+                    flexDirection: "row",
+                    justifyContent: "flex-start",
+                    padding: "12px",
+                  }}
+                  onClick={() => {
+                    // Sidebar: Active gets Auto (undefined), others fixed 320px
+                    const newWidths: Record<string, number> = {};
+                    unifiedProviders.forEach((p) => {
+                      if (p !== activeProvider) {
+                        newWidths[p] = 320;
+                      }
+                      // Active left as undefined -> auto/flex grow
+                    });
+                    setContextColumnWidths(newWidths);
+                    setShowLayoutMenu(false);
+                  }}
+                >
+                  <FiSidebar size={18} />
+                  <span>Sidebar</span>
+                </button>
+              </div>
+            </div>
+          )}
 
           <button
             className="add-column-btn"
