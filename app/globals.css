@@ -4149,3 +4149,27 @@ body {
   fill: #fbbf24 !important;
   stroke: #fbbf24 !important;
 }
+/* Command Palette Footer */
+.search-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+  padding: 8px 16px;
+  background: var(--bg-tertiary);
+  border-top: 1px solid var(--border-color);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.footer-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.search-item-subtitle {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-left: auto;
+}
