@@ -6,10 +6,11 @@ import { LLMProvider, CookieEntry } from "@/types";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { provider, cookies, preventSwitch } = body as {
+    const { provider, cookies, preventSwitch, awaitWarmup } = body as {
       provider: LLMProvider;
       cookies?: CookieEntry[];
       preventSwitch?: boolean;
+      awaitWarmup?: boolean;
     };
 
     if (!provider) {
@@ -53,6 +54,17 @@ export async function POST(request: NextRequest) {
         success: true,
         warmed: true,
         cached: true,
+        switched: !preventSwitch,
+      });
+    }
+
+    // If caller wants deterministic ordering, await warmup completion
+    if (awaitWarmup) {
+      console.log(`[Warmup API] Starting awaited warmup for ${provider}`);
+      await browserManager.warmPage(provider, cookies, { preventSwitch });
+      return NextResponse.json({
+        success: true,
+        warmed: true,
         switched: !preventSwitch,
       });
     }

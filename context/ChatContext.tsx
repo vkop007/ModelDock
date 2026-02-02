@@ -17,6 +17,7 @@ import {
   LLMProvider,
   Message,
   SessionState,
+  orderProviders,
 } from "@/types";
 import {
   saveConversations,
@@ -519,8 +520,15 @@ interface ChatContextValue extends ChatState {
     conversationId?: string,
   ) => Promise<void>;
   stopGeneration: () => void;
-  exportConversation: (format: "json" | "markdown") => void;
-  importConversation: (jsonData: string) => boolean;
+  exportConversation: (
+    format: "json" | "markdown",
+    conversationIds?: string[],
+  ) => void;
+  importConversation: (jsonData: string) => {
+    success: boolean;
+    importedCount: number;
+    error?: string;
+  };
   pinMessage: (messageId: string, conversationId?: string) => void;
   unpinMessage: (messageId: string, conversationId?: string) => void;
   toggleUnifiedMode: () => void;
@@ -660,17 +668,16 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   // Trigger warmup for a list of providers
   const warmupProviders = useCallback(
     async (providers: LLMProvider[]) => {
-      // Deduplicate
-      const uniqueProviders = Array.from(new Set(providers));
+      const uniqueProviders = orderProviders(providers);
 
       console.log(
         `[ChatContext] Warming up providers: ${uniqueProviders.join(", ")}`,
       );
 
-      // We can parallelize the status updates and polling, even if the backend queues them
-      uniqueProviders.forEach(async (provider) => {
+      // Sequential execution to ensure tab order matches initialization order
+      for (const provider of uniqueProviders) {
         const cookies = state.cookieConfigs[provider]?.cookies;
-        if (!cookies || cookies.length === 0) return;
+        if (!cookies || cookies.length === 0) continue;
 
         // Set status to warming immediately
         dispatch({
@@ -680,53 +687,60 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         });
 
         try {
-          // Trigger warmup
+          // Trigger warmup request and wait for it to complete (initial navigation)
           await fetch("/api/session/warmup", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               provider: provider,
               cookies: cookies,
-              preventSwitch: true, // We'll switch explicitly later if needed
+              preventSwitch: true,
+              awaitWarmup: true,
             }),
           });
 
-          // Poll for readiness
-          let isWarmed = false;
-          let attempts = 0;
-          const maxAttempts = 60; // 60 seconds (generous timeout for parallel loads)
+          // Start polling in parallel (don't block next provider on full readiness, just on creation)
+          (async () => {
+            let isWarmed = false;
+            let attempts = 0;
+            const maxAttempts = 60; // 60 seconds (generous timeout for parallel loads)
 
-          while (!isWarmed && attempts < maxAttempts) {
-            const warmupRes = await fetch(
-              `/api/session/warmup?provider=${provider}`,
-            );
-            const warmupData = await warmupRes.json();
+            while (!isWarmed && attempts < maxAttempts) {
+              try {
+                const warmupRes = await fetch(
+                  `/api/session/warmup?provider=${provider}`,
+                );
+                const warmupData = await warmupRes.json();
 
-            if (warmupData.success && warmupData.isWarmed) {
-              isWarmed = true;
-              break;
+                if (warmupData.success && warmupData.isWarmed) {
+                  isWarmed = true;
+                  break;
+                }
+              } catch (e) {
+                // ignore fetch errors during polling
+              }
+
+              // Wait 1 second
+              await new Promise((resolve) => setTimeout(resolve, 1000));
+              attempts++;
             }
 
-            // Wait 1 second
-            await new Promise((resolve) => setTimeout(resolve, 1000));
-            attempts++;
-          }
-
-          if (isWarmed) {
-            dispatch({
-              type: "SET_PROVIDER_STATUS",
-              provider,
-              status: "ready",
-            });
-          } else {
-            // Timeout
-            console.warn(`[ChatContext] Warmup timed out for ${provider}`);
-            dispatch({
-              type: "SET_PROVIDER_STATUS",
-              provider,
-              status: "idle", // Reset to idle or error? Idle seems safer if just timeout
-            });
-          }
+            if (isWarmed) {
+              dispatch({
+                type: "SET_PROVIDER_STATUS",
+                provider,
+                status: "ready",
+              });
+            } else {
+              // Timeout
+              console.warn(`[ChatContext] Warmup timed out for ${provider}`);
+              dispatch({
+                type: "SET_PROVIDER_STATUS",
+                provider,
+                status: "idle",
+              });
+            }
+          })();
         } catch (error) {
           console.error(`[ChatContext] Warmup failed for ${provider}:`, error);
           dispatch({
@@ -735,14 +749,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
             status: "error",
           });
         }
-      });
-
-      // We removed the sequential loop and final focus switch here because
-      // the polling logic is async/parallel.
-      // If we need to focus the active provider, we can do it separately or rely on user interaction.
-      // However, to be safe, let's just trigger a lightweight active provider focus *after* a small delay
-      // to ensure it gets some priority in the queue?
-      // Actually, since we're fire-and-forgetting the polling, the UI updates are what matters.
+      }
     },
     [state.cookieConfigs],
   );
@@ -854,31 +861,70 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const deleteConversation = useCallback(
     async (id: string) => {
       const conversation = state.conversations.find((c) => c.id === id);
-      const externalId = conversation?.externalId;
-      const provider = conversation?.provider;
+      if (!conversation) return;
 
-      // Delete locally first (optimistic update)
-      dispatch({ type: "DELETE_CONVERSATION", id });
+      const normalizeText = (value?: string) =>
+        value ? value.trim().toLowerCase() : "";
+      const firstUserMessage = normalizeText(
+        conversation.messages.find((m) => m.role === "user")?.content,
+      );
+      const title = normalizeText(conversation.title);
+      const createdAt = conversation.createdAt;
 
-      // If we have an external ID, try to delete remotely
-      if (externalId && provider) {
-        try {
-          const cookies = state.cookieConfigs[provider]?.cookies || [];
-          await fetch("/api/chat/delete", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              provider,
-              conversationId: externalId,
-              cookies,
-            }),
-          });
-        } catch (error) {
-          console.error("Failed to delete remote conversation", error);
+      let conversationsToDelete = [conversation];
+
+      if (state.isUnifiedMode) {
+        const siblingMatches = state.conversations.filter((c) => {
+          if (c.id === conversation.id) return false;
+          const siblingFirstUser = normalizeText(
+            c.messages.find((m) => m.role === "user")?.content,
+          );
+          const siblingTitle = normalizeText(c.title);
+          const timeDiff = Math.abs(c.createdAt - createdAt);
+          const timeMatch = timeDiff <= 2 * 60 * 1000;
+          const titleMatch = title && siblingTitle === title;
+          const messageMatch =
+            firstUserMessage && siblingFirstUser === firstUserMessage;
+
+          return (messageMatch && timeMatch) || (messageMatch && titleMatch);
+        });
+
+        if (siblingMatches.length > 0) {
+          conversationsToDelete = [conversation, ...siblingMatches];
         }
       }
+
+      const uniqueIds = Array.from(
+        new Set(conversationsToDelete.map((c) => c.id)),
+      );
+
+      // Delete locally first (optimistic update)
+      uniqueIds.forEach((convId) => {
+        dispatch({ type: "DELETE_CONVERSATION", id: convId });
+      });
+
+      // Delete remotely if possible
+      await Promise.all(
+        conversationsToDelete.map(async (conv) => {
+          if (!conv.externalId || !conv.provider) return;
+          try {
+            const cookies = state.cookieConfigs[conv.provider]?.cookies || [];
+            await fetch("/api/chat/delete", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                provider: conv.provider,
+                conversationId: conv.externalId,
+                cookies,
+              }),
+            });
+          } catch (error) {
+            console.error("Failed to delete remote conversation", error);
+          }
+        }),
+      );
     },
-    [state.conversations, state.cookieConfigs],
+    [state.conversations, state.cookieConfigs, state.isUnifiedMode],
   );
 
   const deleteAllConversations = useCallback(() => {
@@ -1340,26 +1386,14 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
       dispatch({ type: "SET_SENDING", isSending: true });
 
-      // Always include active provider in broadcast IF enabled
-      // Filter by enabled providers
-      const providersToCall = Array.from(
-        new Set([...state.unifiedProviders, state.activeProvider]),
-      ).filter((p) => state.enabledProviders.includes(p));
+      const orderedProviders = orderProviders([
+        ...state.unifiedProviders,
+        state.activeProvider,
+      ]);
 
-      // Sort providers based on UI order (unifiedProviders)
-      providersToCall.sort((a, b) => {
-        const indexA = state.unifiedProviders.indexOf(a);
-        const indexB = state.unifiedProviders.indexOf(b);
-
-        // If both are in unified list, sort by index
-        if (indexA !== -1 && indexB !== -1) return indexA - indexB;
-        // If only A is in list, it comes first
-        if (indexA !== -1) return -1;
-        // If only B is in list, it comes first
-        if (indexB !== -1) return 1;
-        // If neither, keep original order
-        return 0;
-      });
+      const providersToCall = orderedProviders.filter((p) =>
+        state.enabledProviders.includes(p),
+      );
 
       try {
         // Track all active streams
@@ -1550,28 +1584,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           }
         } // End for loop
 
-        // Final step: Ensure the active provider is focused/switched to
-        // We do this by triggering a lightweight warmup/switch call
-        const activeProvider = state.activeProvider;
-        if (activeProvider) {
-          try {
-            console.log(
-              `[ChatContext] Final focus switch to active provider: ${activeProvider}`,
-            );
-            const cookies = state.cookieConfigs[activeProvider]?.cookies;
-            // We execute this AFTER the loop, so it happens after all inputs are sent
-            await fetch("/api/session/warmup", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                provider: activeProvider,
-                cookies: cookies || [],
-              }),
-            });
-          } catch (e) {
-            console.error(`[ChatContext] Failed to focus active provider:`, e);
-          }
-        }
+        // Do not auto-focus any provider after broadcast.
+        // This prevents the UI from snapping back to the first provider tab.
 
         // Wait for all streams to finish before setting isSending to false
         await Promise.all(streamPromises);
@@ -1896,24 +1910,215 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const exportConversation = useCallback(
-    (format: "json" | "markdown") => {
-      // ... export logic (using currentConversation) ...
-      // For brevity, skipping full implementation update unless requested
+    (format: "json" | "markdown", conversationIds?: string[]) => {
+      const ids =
+        conversationIds && conversationIds.length > 0
+          ? conversationIds
+          : state.currentConversationId
+            ? [state.currentConversationId]
+            : [];
+
+      if (ids.length === 0) return;
+
+      const conversationsToExport = state.conversations.filter((c) =>
+        ids.includes(c.id),
+      );
+      if (conversationsToExport.length === 0) return;
+
+      const sanitizeFilePart = (value: string) =>
+        value
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-+|-+$/g, "")
+          .slice(0, 80) || "conversation";
+
+      const formatDate = (timestamp: number) =>
+        new Date(timestamp).toLocaleString();
+
+      let content = "";
+      let filename = "conversations";
+      let mimeType = "application/json";
+
+      if (format === "json") {
+        content = JSON.stringify(
+          conversationsToExport.length === 1
+            ? conversationsToExport[0]
+            : conversationsToExport,
+          null,
+          2,
+        );
+        mimeType = "application/json";
+        if (conversationsToExport.length === 1) {
+          filename = sanitizeFilePart(conversationsToExport[0].title);
+        } else {
+          filename = `conversations-${new Date().toISOString().slice(0, 10)}`;
+        }
+      } else {
+        const markdownBlocks = conversationsToExport.map((conv) => {
+          const header = [
+            `# ${conv.title || "Conversation"}`,
+            `- Provider: ${conv.provider}`,
+            `- Created: ${formatDate(conv.createdAt)}`,
+            `- Updated: ${formatDate(conv.updatedAt)}`,
+            "",
+          ].join("\n");
+
+          const messageBlocks = conv.messages.map((msg) => {
+            const role = msg.role === "assistant" ? "Assistant" : "User";
+            const meta = `**${role}** • ${formatDate(msg.timestamp)}`;
+            const images =
+              msg.images && msg.images.length > 0
+                ? msg.images
+                    .map(
+                      (img, index) =>
+                        `![image ${index + 1}](data:image/png;base64,${img})`,
+                    )
+                    .join("\n")
+                : "";
+
+            return [meta, "", msg.content || "", images, ""]
+              .filter(Boolean)
+              .join("\n");
+          });
+
+          return [header, ...messageBlocks].join("\n");
+        });
+
+        content = markdownBlocks.join("\n---\n\n");
+        mimeType = "text/markdown";
+        if (conversationsToExport.length === 1) {
+          filename = sanitizeFilePart(conversationsToExport[0].title);
+        } else {
+          filename = `conversations-${new Date().toISOString().slice(0, 10)}`;
+        }
+      }
+
+      const blob = new Blob([content], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${filename}.${format === "json" ? "json" : "md"}`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
     },
     [state.currentConversationId, state.conversations],
   );
 
-  const importConversation = useCallback((jsonData: string) => {
-    try {
-      const conversation = JSON.parse(jsonData) as Conversation;
-      // basic validation
-      if (!conversation.id || !conversation.messages) return false;
-      dispatch({ type: "IMPORT_CONVERSATION", conversation });
-      return true;
-    } catch {
-      return false;
-    }
-  }, []);
+  const importConversation = useCallback(
+    (jsonData: string) => {
+      const existingIds = new Set(state.conversations.map((c) => c.id));
+      const normalizeProvider = (value: any): LLMProvider | null => {
+        if (typeof value !== "string") return null;
+        const normalized = value.toLowerCase().trim();
+        const map: Record<string, LLMProvider> = {
+          chatgpt: "chatgpt",
+          openai: "chatgpt",
+          "gpt-4": "chatgpt",
+          "gpt-3.5": "chatgpt",
+          claude: "claude",
+          anthropic: "claude",
+          gemini: "gemini",
+          google: "gemini",
+          zai: "zai",
+          "z.ai": "zai",
+          grok: "grok",
+          xai: "grok",
+          qwen: "qwen",
+          alibaba: "qwen",
+          mistral: "mistral",
+          ollama: "ollama",
+        };
+        return map[normalized] || null;
+      };
+
+      const normalizeMessage = (msg: any, fallbackProvider: LLMProvider) => {
+        if (!msg || (msg.role !== "user" && msg.role !== "assistant"))
+          return null;
+        return {
+          id: typeof msg.id === "string" ? msg.id : uuidv4(),
+          role: msg.role,
+          content: typeof msg.content === "string" ? msg.content : "",
+          timestamp:
+            typeof msg.timestamp === "number" ? msg.timestamp : Date.now(),
+          provider: normalizeProvider(msg.provider) || fallbackProvider,
+          images: Array.isArray(msg.images) ? msg.images : undefined,
+          isPinned: Boolean(msg.isPinned),
+        };
+      };
+
+      const normalizeConversation = (raw: any): Conversation | null => {
+        if (!raw) return null;
+        const inferredFromMessages = Array.isArray(raw.messages)
+          ? raw.messages
+              .map((msg: any) => normalizeProvider(msg?.provider))
+              .find(Boolean) || null
+          : null;
+        const provider =
+          normalizeProvider(raw.provider) ||
+          inferredFromMessages ||
+          state.activeProvider;
+        const messages = Array.isArray(raw.messages)
+          ? raw.messages
+              .map((msg: any) => normalizeMessage(msg, provider))
+              .filter(Boolean)
+          : [];
+
+        const baseId =
+          typeof raw.id === "string" && raw.id.trim() ? raw.id : uuidv4();
+        const id = existingIds.has(baseId) ? uuidv4() : baseId;
+        existingIds.add(id);
+
+        const now = Date.now();
+        return {
+          id,
+          title:
+            typeof raw.title === "string" && raw.title.trim()
+              ? raw.title
+              : "Imported Chat",
+          messages,
+          provider,
+          createdAt: typeof raw.createdAt === "number" ? raw.createdAt : now,
+          updatedAt: typeof raw.updatedAt === "number" ? raw.updatedAt : now,
+          externalId:
+            typeof raw.externalId === "string" ? raw.externalId : undefined,
+          folderId: typeof raw.folderId === "string" ? raw.folderId : undefined,
+          isPinned: Boolean(raw.isPinned),
+        };
+      };
+
+      try {
+        const parsed = JSON.parse(jsonData);
+        const payload = Array.isArray(parsed)
+          ? parsed
+          : parsed?.conversations && Array.isArray(parsed.conversations)
+            ? parsed.conversations
+            : [parsed];
+
+        const normalized = payload
+          .map((item: any) => normalizeConversation(item))
+          .filter(Boolean) as Conversation[];
+
+        if (normalized.length === 0) {
+          return { success: false, importedCount: 0, error: "No valid chats" };
+        }
+
+        normalized.forEach((conversation) => {
+          dispatch({ type: "IMPORT_CONVERSATION", conversation });
+        });
+
+        return { success: true, importedCount: normalized.length };
+      } catch (error) {
+        return {
+          success: false,
+          importedCount: 0,
+          error: "Invalid JSON format",
+        };
+      }
+    },
+    [state.conversations, state.activeProvider],
+  );
 
   const pinMessage = useCallback(
     (messageId: string, conversationId?: string) => {

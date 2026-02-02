@@ -3,7 +3,7 @@
 import { useChatContext } from "@/context/ChatContext";
 import { useVoiceSettings } from "@/context/VoiceContext";
 import { PROVIDERS, LLMProvider, CookieEntry } from "@/types";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   FiX,
   FiCheck,
@@ -18,6 +18,8 @@ import {
   FiPlay,
   FiSettings,
   FiDatabase,
+  FiDownload,
+  FiUpload,
 } from "react-icons/fi";
 import { SiOpenai, SiGoogle } from "react-icons/si";
 import { parseCookiesFromJSON } from "@/lib/storage";
@@ -37,6 +39,10 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
     setSystemInstructions,
     testConnection,
     sessions,
+    conversations,
+    currentConversationId,
+    exportConversation,
+    importConversation,
   } = useChatContext();
 
   const {
@@ -71,6 +77,12 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
   const [testing, setTesting] = useState(false);
   const [applyingInstructions, setApplyingInstructions] = useState(false);
   const [instructionsSuccess, setInstructionsSuccess] = useState(false);
+  const [selectedConversationIds, setSelectedConversationIds] = useState<
+    string[]
+  >([]);
+  const [dataMessage, setDataMessage] = useState<string | null>(null);
+  const [dataError, setDataError] = useState<string | null>(null);
+  const dataFileInputRef = useRef<HTMLInputElement>(null);
 
   // TTS for voice preview
   const {
@@ -109,6 +121,16 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
     setError(null);
     setInstructionsSuccess(false);
   };
+
+  useEffect(() => {
+    if (
+      settingsTab === "data" &&
+      selectedConversationIds.length === 0 &&
+      currentConversationId
+    ) {
+      setSelectedConversationIds([currentConversationId]);
+    }
+  }, [settingsTab, currentConversationId, selectedConversationIds.length]);
 
   const handleSaveCookies = () => {
     if (!jsonInput.trim()) {
@@ -182,6 +204,77 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
       setError(String(err));
     } finally {
       setApplyingInstructions(false);
+    }
+  };
+
+  const sortedConversations = [...conversations].sort(
+    (a, b) => b.updatedAt - a.updatedAt,
+  );
+
+  const toggleConversationSelection = (id: string) => {
+    setSelectedConversationIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
+    );
+  };
+
+  const handleSelectAllConversations = () => {
+    if (selectedConversationIds.length === sortedConversations.length) {
+      setSelectedConversationIds([]);
+    } else {
+      setSelectedConversationIds(sortedConversations.map((c) => c.id));
+    }
+  };
+
+  const handleExportSelected = (format: "json" | "markdown") => {
+    const idsToExport =
+      selectedConversationIds.length > 0
+        ? selectedConversationIds
+        : currentConversationId
+          ? [currentConversationId]
+          : [];
+
+    if (idsToExport.length === 0) {
+      setDataError("Select at least one conversation to export.");
+      setDataMessage(null);
+      return;
+    }
+
+    exportConversation(format, idsToExport);
+    setDataError(null);
+    setDataMessage(
+      `Exported ${idsToExport.length} conversation${
+        idsToExport.length === 1 ? "" : "s"
+      }.`,
+    );
+  };
+
+  const handleDataImport = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const result = importConversation(text);
+      if (!result.success) {
+        setDataError(result.error || "Failed to import conversations.");
+        setDataMessage(null);
+      } else {
+        setDataError(null);
+        setDataMessage(
+          `Imported ${result.importedCount} conversation${
+            result.importedCount === 1 ? "" : "s"
+          }.`,
+        );
+      }
+    } catch (error) {
+      setDataError("Failed to read file.");
+      setDataMessage(null);
+    }
+
+    if (dataFileInputRef.current) {
+      dataFileInputRef.current.value = "";
     }
   };
 
@@ -799,12 +892,101 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                 </p>
               </div>
 
-              {error && !error.includes("failed") && (
-                <div className="success-message" style={{ marginTop: "20px" }}>
-                  <FiCheck size={14} />
-                  <span>{error}</span>
+              <div className="data-actions">
+                <button
+                  className="secondary-btn"
+                  onClick={handleSelectAllConversations}
+                  disabled={sortedConversations.length === 0}
+                >
+                  {selectedConversationIds.length ===
+                  sortedConversations.length
+                    ? "Clear Selection"
+                    : "Select All"}
+                </button>
+                <div className="data-actions-right">
+                  <button
+                    className="secondary-btn"
+                    onClick={() => handleExportSelected("json")}
+                    disabled={sortedConversations.length === 0}
+                  >
+                    <FiDownload size={14} />
+                    <span>Export JSON</span>
+                  </button>
+                  <button
+                    className="secondary-btn"
+                    onClick={() => handleExportSelected("markdown")}
+                    disabled={sortedConversations.length === 0}
+                  >
+                    <FiDownload size={14} />
+                    <span>Export Markdown</span>
+                  </button>
+                  <button
+                    className="primary-btn"
+                    onClick={() => dataFileInputRef.current?.click()}
+                  >
+                    <FiUpload size={14} />
+                    <span>Import JSON</span>
+                  </button>
+                  <input
+                    type="file"
+                    ref={dataFileInputRef}
+                    onChange={handleDataImport}
+                    accept=".json"
+                    style={{ display: "none" }}
+                  />
+                </div>
+              </div>
+
+              {dataError && (
+                <div className="error-message" style={{ marginTop: "16px" }}>
+                  <FiAlertCircle size={14} />
+                  <span>{dataError}</span>
                 </div>
               )}
+
+              {dataMessage && (
+                <div className="success-message" style={{ marginTop: "16px" }}>
+                  <FiCheck size={14} />
+                  <span>{dataMessage}</span>
+                </div>
+              )}
+
+              <div className="conversation-picker">
+                {sortedConversations.length === 0 && (
+                  <div className="conversation-empty">
+                    No conversations found.
+                  </div>
+                )}
+                {sortedConversations.map((conv) => {
+                  const isSelected = selectedConversationIds.includes(conv.id);
+                  return (
+                    <label
+                      key={conv.id}
+                      className={`conversation-row ${
+                        isSelected ? "selected" : ""
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleConversationSelection(conv.id)}
+                      />
+                      <div className="conversation-info">
+                        <div className="conversation-title">
+                          {conv.title || "Untitled Chat"}
+                        </div>
+                        <div className="conversation-meta">
+                          <span>{conv.provider}</span>
+                          <span>
+                            {new Date(conv.updatedAt).toLocaleString()}
+                          </span>
+                          <span>{conv.messages.length} messages</span>
+                        </div>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
             </>
           )}
         </div>
