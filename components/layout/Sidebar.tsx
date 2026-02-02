@@ -264,7 +264,7 @@ export default function Sidebar() {
             /* Expanded Footer: Tools Row */
             <div className="sidebar-footer-content">
               <button
-                className="settings-btn profile-integrated"
+                className="settings-btn"
                 onClick={() => setShowSettingsModal(true)}
                 title="Settings"
               >

@@ -408,6 +408,7 @@ body {
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   width: 100%;
   justify-content: flex-start;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .sidebar-row-btn:hover {
@@ -417,14 +418,16 @@ body {
 }
 
 .delete-all-row-btn {
-  color: var(--error-red);
-  border-color: rgba(239, 68, 68, 0.2);
+  /* Subtle default state */
+  color: var(--text-muted);
+  border-color: var(--border-color);
+  background: transparent;
 }
 
 .delete-all-row-btn:hover {
   background: rgba(239, 68, 68, 0.1);
   color: var(--error-red);
-  border-color: var(--error-red);
+  border-color: rgba(239, 68, 68, 0.3);
 }
 
 /* Confirmation Styles in Sidebar */
@@ -610,9 +613,9 @@ body {
 }
 
 .settings-btn.profile-integrated {
-  gap: 8px;
-  padding-left: 8px;
-  min-width: 0; /* Fix flex overflow in Safari */
+  /* Removed distinctive styling to blend in */
+  gap: 10px;
+  padding-left: 12px;
 }
 
 .footer-actions {

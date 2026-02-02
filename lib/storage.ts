@@ -18,6 +18,7 @@ const STORAGE_KEYS = {
   VOICE_SETTINGS: "llm-chat-voice-settings",
   ENABLED_PROVIDERS: "llm-chat-enabled-providers",
   COLUMN_WIDTHS: "llm-chat-column-widths",
+  LAYOUT_MODE: "llm-chat-layout-mode",
 };
 
 // Check if we're in browser environment
@@ -334,6 +335,29 @@ export function loadColumnWidths(): Record<string, number> {
   } catch (error) {
     console.error("Failed to load column widths:", error);
     return {};
+  }
+}
+
+// Layout Mode
+export function saveLayoutMode(
+  mode: "grid" | "focus" | "sidebar" | "custom",
+): void {
+  if (!isBrowser) return;
+  try {
+    localStorage.setItem(STORAGE_KEYS.LAYOUT_MODE, mode);
+  } catch (error) {
+    console.error("Failed to save layout mode:", error);
+  }
+}
+
+export function loadLayoutMode(): "grid" | "focus" | "sidebar" | "custom" {
+  if (!isBrowser) return "grid";
+  try {
+    const data = localStorage.getItem(STORAGE_KEYS.LAYOUT_MODE);
+    return (data as "grid" | "focus" | "sidebar" | "custom") || "grid";
+  } catch (error) {
+    console.error("Failed to load layout mode:", error);
+    return "grid";
   }
 }
 
