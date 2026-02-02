@@ -35,6 +35,8 @@ import {
   loadEnabledProviders,
   saveColumnWidths,
   loadColumnWidths,
+  saveLayoutMode,
+  loadLayoutMode,
 } from "@/lib/storage";
 
 // Initial state
@@ -96,6 +98,7 @@ const initialState: ChatState = {
     "ollama",
   ],
   columnWidths: {},
+  layoutMode: "grid",
 };
 
 // Reducer
@@ -464,6 +467,9 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
     case "TOGGLE_FOCUS_MODE":
       return { ...state, isFocusMode: !state.isFocusMode };
 
+    case "SET_LAYOUT_MODE":
+      return { ...state, layoutMode: action.mode };
+
     case "TOGGLE_SIDEBAR":
       return { ...state, isSidebarCollapsed: !state.isSidebarCollapsed };
 
@@ -534,6 +540,7 @@ interface ChatContextValue extends ChatState {
   pinConversation: (id: string) => void;
   unpinConversation: (id: string) => void;
   setColumnWidths: (widths: Record<string, number>) => void;
+  setLayoutMode: (mode: "grid" | "focus" | "sidebar" | "custom") => void;
   resetColumnWidths: () => void;
 }
 
@@ -567,6 +574,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         "ollama",
       ]);
       const columnWidths = loadColumnWidths();
+      const layoutMode = loadLayoutMode();
 
       dispatch({
         type: "LOAD_STATE",
@@ -579,6 +587,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           unifiedProviders,
           enabledProviders,
           columnWidths,
+          layoutMode,
         },
       });
 
@@ -637,6 +646,12 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       saveColumnWidths(state.columnWidths);
     }
   }, [state.columnWidths]);
+
+  useEffect(() => {
+    if (isInitializedRef.current) {
+      saveLayoutMode(state.layoutMode);
+    }
+  }, [state.layoutMode]);
 
   // Warmup browser page for active provider and unified providers
   const activeProviderCookies =
@@ -1929,8 +1944,16 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: "SET_COLUMN_WIDTHS", widths });
   }, []);
 
+  const setLayoutMode = useCallback(
+    (mode: "grid" | "focus" | "sidebar" | "custom") => {
+      dispatch({ type: "SET_LAYOUT_MODE", mode });
+    },
+    [],
+  );
+
   const resetColumnWidths = useCallback(() => {
     dispatch({ type: "SET_COLUMN_WIDTHS", widths: {} });
+    dispatch({ type: "SET_LAYOUT_MODE", mode: "grid" });
   }, []);
 
   const value: ChatContextValue = {
@@ -1972,6 +1995,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     unifiedProviders: state.unifiedProviders,
     columnWidths: state.columnWidths,
     setColumnWidths,
+    setLayoutMode,
     resetColumnWidths,
   };
 

@@ -63,6 +63,8 @@ export default function UnifiedChatArea() {
     columnWidths: contextColumnWidths,
     setColumnWidths: setContextColumnWidths,
     resetColumnWidths,
+    layoutMode,
+    setLayoutMode,
   } = useChatContext();
 
   const [showAddMenu, setShowAddMenu] = useState(false);
@@ -119,6 +121,11 @@ export default function UnifiedChatArea() {
 
       setColumnWidths(currentWidths);
       setResizeWidth(newWidth);
+
+      // Switch to custom mode if resizing
+      if (layoutMode !== "custom") {
+        setLayoutMode("custom");
+      }
     };
 
     document.addEventListener("mousemove", onMouseMove);
@@ -206,6 +213,9 @@ export default function UnifiedChatArea() {
               width: customWidth ? `${customWidth}px` : "0px",
               flex: customWidth ? "0 0 auto" : "1 1 0",
               minWidth: "320px",
+              transition: isResizing
+                ? "none"
+                : "all 0.4s cubic-bezier(0.25, 1, 0.5, 1)",
             }}
           >
             <div
@@ -326,14 +336,19 @@ export default function UnifiedChatArea() {
                 style={{ gridTemplateColumns: "1fr" }}
               >
                 <button
-                  className="provider-option-btn"
+                  className={`provider-option-btn ${layoutMode === "grid" ? "active-layout" : ""}`}
                   style={{
                     flexDirection: "row",
                     justifyContent: "flex-start",
                     padding: "12px",
+                    background:
+                      layoutMode === "grid" ? "var(--bg-secondary)" : undefined,
+                    borderColor:
+                      layoutMode === "grid" ? "var(--text-primary)" : undefined,
                   }}
                   onClick={() => {
                     resetColumnWidths();
+                    // Mode is set to 'grid' inside resetColumnWidths
                     setShowLayoutMenu(false);
                   }}
                 >
@@ -342,11 +357,19 @@ export default function UnifiedChatArea() {
                 </button>
 
                 <button
-                  className="provider-option-btn"
+                  className={`provider-option-btn ${layoutMode === "focus" ? "active-layout" : ""}`}
                   style={{
                     flexDirection: "row",
                     justifyContent: "flex-start",
                     padding: "12px",
+                    background:
+                      layoutMode === "focus"
+                        ? "var(--bg-secondary)"
+                        : undefined,
+                    borderColor:
+                      layoutMode === "focus"
+                        ? "var(--text-primary)"
+                        : undefined,
                   }}
                   onClick={() => {
                     // Focus: Active gets 800px, others default (or minimal)
@@ -359,6 +382,7 @@ export default function UnifiedChatArea() {
                       }
                     });
                     setContextColumnWidths(newWidths);
+                    setLayoutMode("focus");
                     setShowLayoutMenu(false);
                   }}
                 >
@@ -367,11 +391,19 @@ export default function UnifiedChatArea() {
                 </button>
 
                 <button
-                  className="provider-option-btn"
+                  className={`provider-option-btn ${layoutMode === "sidebar" ? "active-layout" : ""}`}
                   style={{
                     flexDirection: "row",
                     justifyContent: "flex-start",
                     padding: "12px",
+                    background:
+                      layoutMode === "sidebar"
+                        ? "var(--bg-secondary)"
+                        : undefined,
+                    borderColor:
+                      layoutMode === "sidebar"
+                        ? "var(--text-primary)"
+                        : undefined,
                   }}
                   onClick={() => {
                     // Sidebar: Active gets Auto (undefined), others fixed 320px
@@ -383,6 +415,7 @@ export default function UnifiedChatArea() {
                       // Active left as undefined -> auto/flex grow
                     });
                     setContextColumnWidths(newWidths);
+                    setLayoutMode("sidebar");
                     setShowLayoutMenu(false);
                   }}
                 >
