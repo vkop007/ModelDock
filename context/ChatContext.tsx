@@ -704,7 +704,19 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   // Trigger warmup for a list of providers
   const warmupProviders = useCallback(
     async (providers: LLMProvider[]) => {
-      const uniqueProviders = orderProviders(providers);
+      // Use state.providerOrder if available, otherwise fallback to default order
+      const uniqueProviders = (() => {
+        const defaults = orderProviders(providers);
+        if (state.providerOrder && state.providerOrder.length > 0) {
+          return [...defaults].sort((a, b) => {
+            const idxA = state.providerOrder.indexOf(a);
+            const idxB = state.providerOrder.indexOf(b);
+            // If not found in custom order, push to end
+            return (idxA === -1 ? 999 : idxA) - (idxB === -1 ? 999 : idxB);
+          });
+        }
+        return defaults;
+      })();
 
       console.log(
         `[ChatContext] Warming up providers: ${uniqueProviders.join(", ")}`,
@@ -1444,10 +1456,25 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
       dispatch({ type: "SET_SENDING", isSending: true });
 
-      const orderedProviders = orderProviders([
-        ...state.unifiedProviders,
-        state.activeProvider,
-      ]);
+      let orderedProviders: LLMProvider[];
+
+      if (state.providerOrder && state.providerOrder.length > 0) {
+        // Use custom order
+        const toOrder = Array.from(
+          new Set([...state.unifiedProviders, state.activeProvider]),
+        );
+        orderedProviders = toOrder.sort((a, b) => {
+          const idxA = state.providerOrder.indexOf(a);
+          const idxB = state.providerOrder.indexOf(b);
+          return (idxA === -1 ? 999 : idxA) - (idxB === -1 ? 999 : idxB);
+        });
+      } else {
+        // Default order
+        orderedProviders = orderProviders([
+          ...state.unifiedProviders,
+          state.activeProvider,
+        ]);
+      }
 
       const providersToCall = orderedProviders.filter((p) =>
         state.enabledProviders.includes(p),
