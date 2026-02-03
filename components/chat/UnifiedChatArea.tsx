@@ -21,7 +21,7 @@ import ProviderStatusBadge from "./ProviderStatusBadge";
 import StreamingStats from "./StreamingStats";
 import ProviderLoadingOverlay from "./ProviderLoadingOverlay";
 import Toggle from "./Toggle";
-import { estimateTokensFromText, estimateCostUSD } from "@/lib/utils/token";
+import { estimateTokensFromText } from "@/lib/utils/token";
 
 const getProviderLogo = (provider: LLMProvider, size: number) => {
   const logos: Record<LLMProvider, string> = {
@@ -66,6 +66,8 @@ export default function UnifiedChatArea() {
     resetColumnWidths,
     layoutMode,
     setLayoutMode,
+    providerOrder,
+    setProviderOrder,
   } = useChatContext();
 
   const [showAddMenu, setShowAddMenu] = useState(false);
@@ -137,11 +139,35 @@ export default function UnifiedChatArea() {
 
   const { currentConversationId } = useChatContext();
 
+  // Default sort logic (used as fallback)
   const sortedProviders = orderProviders(
     [...unifiedProviders, activeProvider].filter(Boolean) as LLMProvider[],
   );
 
-  const providerConversations = sortedProviders.map((provider) => {
+  // Ensure providerOrder is populated (fallback to logic if waiting for load)
+  // We use the context's providerOrder but filter it to only include currently unified providers
+  // This ensures we respect the Unified Mode toggle while keeping custom sort
+  const getOrderedUnifiedProviders = (): LLMProvider[] => {
+    // If we have a custom order, use it as the base
+    const baseOrder =
+      providerOrder && providerOrder.length > 0
+        ? providerOrder
+        : sortedProviders; // Fallback to default sort logic
+
+    // 1. Get all providers that SHOULD be visible (unifiedProviders)
+    // 2. Sort them according to baseOrder
+    // 3. Append any unified providers that might be missing from baseOrder (edge case)
+
+    const ordered = baseOrder.filter((p) => unifiedProviders.includes(p));
+    const missing = unifiedProviders.filter((p) => !baseOrder.includes(p));
+
+    return [...ordered, ...missing];
+  };
+
+  const visibleProviders = getOrderedUnifiedProviders();
+
+  // Sort logic for conversations matching behavior in original file, but mapped to visibleProviders
+  const providerConversations = visibleProviders.map((provider) => {
     const providerConvos = conversations.filter((c) => c.provider === provider);
     const sorted = providerConvos.sort((a, b) => b.updatedAt - a.updatedAt);
 
@@ -183,6 +209,60 @@ export default function UnifiedChatArea() {
     };
   });
 
+  // Drag and Drop State
+  const [draggedProvider, setDraggedProvider] = useState<LLMProvider | null>(
+    null,
+  );
+  const [dragOverProvider, setDragOverProvider] = useState<LLMProvider | null>(
+    null,
+  );
+
+  const handleDragStart = (e: React.DragEvent, provider: LLMProvider) => {
+    setDraggedProvider(provider);
+    e.dataTransfer.effectAllowed = "move";
+    // Set a transparent image or custom drag image if desired
+  };
+
+  const handleDragOver = (e: React.DragEvent, provider: LLMProvider) => {
+    e.preventDefault();
+    if (draggedProvider === provider) return;
+    setDragOverProvider(provider);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOverProvider(null);
+  };
+
+  const handleDragEnd = (e: React.DragEvent) => {
+    setDraggedProvider(null);
+    setDragOverProvider(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, targetProvider: LLMProvider) => {
+    e.preventDefault();
+    // Cleared in dragEnd usually, but good to clear here too or rely on dragEnd
+    // setDragOverProvider(null);
+    // setDraggedProvider(null);
+    // Actually, let's keep logic here but rely on DragEnd for final cleanup
+
+    if (!draggedProvider || draggedProvider === targetProvider) return;
+
+    // Reorder logic
+    const currentOrder =
+      providerOrder.length > 0 ? [...providerOrder] : [...sortedProviders];
+    const fromIndex = currentOrder.indexOf(draggedProvider);
+    const toIndex = currentOrder.indexOf(targetProvider);
+
+    if (fromIndex !== -1 && toIndex !== -1) {
+      const newOrder = [...currentOrder];
+      newOrder.splice(fromIndex, 1);
+      newOrder.splice(toIndex, 0, draggedProvider);
+      setProviderOrder(newOrder);
+    }
+    // State cleanup happens in onDragEnd which fires after drop
+  };
+
   return (
     <div className="unified-chat-container">
       {providerConversations.map(({ provider, conversation }) => {
@@ -205,47 +285,65 @@ export default function UnifiedChatArea() {
         const lastResponseTokens = lastAssistantMessage
           ? estimateTokensFromText(lastAssistantMessage.content || "")
           : 0;
-        const estimatedCost = estimateCostUSD(totalTokens);
-
-        const formatCost = (value: number) => {
-          if (value <= 0) return "$0.00";
-          if (value < 0.01) return `$${value.toFixed(4)}`;
-          return `$${value.toFixed(2)}`;
-        };
 
         return (
           <div
             key={provider}
-            className="unified-chat-column-wrapper"
+            className={`unified-chat-column-wrapper ${draggedProvider === provider ? "opacity-40 scale-[0.98]" : ""} ${dragOverProvider === provider ? "drop-target" : ""}`}
             style={{
               width: customWidth ? `${customWidth}px` : "0px",
               flex: customWidth ? "0 0 auto" : "1 1 0",
               minWidth: "320px",
+              position: "relative", // For absolute indicators
               transition: isResizing
                 ? "none"
-                : "all 0.4s cubic-bezier(0.25, 1, 0.5, 1)",
+                : "all 0.4s cubic-bezier(0.25, 1, 0.5, 1), transform 0.2s ease, opacity 0.2s ease",
             }}
+            draggable={!isResizing}
+            onDragStart={(e) => handleDragStart(e, provider as LLMProvider)}
+            onDragOver={(e) => handleDragOver(e, provider as LLMProvider)}
+            onDragLeave={handleDragLeave}
+            onDragEnd={handleDragEnd}
+            onDrop={(e) => handleDrop(e, provider as LLMProvider)}
           >
+            {/* Drop Indicator Line */}
+            {dragOverProvider === provider && draggedProvider !== provider && (
+              <div
+                style={{
+                  position: "absolute",
+                  left: 0,
+                  top: 0,
+                  bottom: 0,
+                  width: "3px",
+                  background: "var(--text-primary)", // Or accent color
+                  boxShadow: "0 0 8px rgba(0,0,0,0.5)",
+                  zIndex: 50,
+                  borderRadius: "4px",
+                }}
+              />
+            )}
+
             <div
               className={`unified-chat-column ${!enabledProviders.includes(provider) ? "disabled" : ""}`}
             >
-              <div className="unified-column-header">
+              <div className="unified-column-header cursor-move">
                 <div className="provider-header">
                   <div className="provider-info">
-                    {getProviderLogo(provider, 20)}
+                    {getProviderLogo(provider as LLMProvider, 20)}
                     <span className="provider-name">{config.name}</span>
                     <ProviderStatusBadge status={session?.status || "idle"} />
                   </div>
                   <div className="provider-metrics">
                     <span>Tokens: ~{totalTokens}</span>
                     <span>Last: ~{lastResponseTokens}</span>
-                    <span>Est: {formatCost(estimatedCost)}</span>
                   </div>
                 </div>
                 <div className="column-actions">
                   <Toggle
                     enabled={enabledProviders.includes(provider)}
-                    onChange={() => toggleProviderEnabled(provider)}
+                    onChange={() =>
+                      toggleProviderEnabled(provider as LLMProvider)
+                    }
                     title={
                       enabledProviders.includes(provider)
                         ? "Disable for messaging"
@@ -264,7 +362,9 @@ export default function UnifiedChatArea() {
                   )}
                   <button
                     className="column-action-btn"
-                    onClick={() => toggleUnifiedProvider(provider)}
+                    onClick={() =>
+                      toggleUnifiedProvider(provider as LLMProvider)
+                    }
                     title="Remove from view"
                   >
                     <FiX size={14} />
@@ -284,7 +384,7 @@ export default function UnifiedChatArea() {
                   <MessageList
                     messages={conversation.messages}
                     isSending={isSending}
-                    conversationProvider={provider}
+                    conversationProvider={provider as LLMProvider}
                     conversationId={conversation.id}
                   />
                 ) : (
@@ -293,7 +393,7 @@ export default function UnifiedChatArea() {
               </div>
 
               <ProviderLoadingOverlay
-                provider={provider}
+                provider={provider as LLMProvider}
                 status={session?.status || "idle"}
               />
             </div>
