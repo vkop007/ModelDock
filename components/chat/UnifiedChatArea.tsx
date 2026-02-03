@@ -21,6 +21,7 @@ import ProviderStatusBadge from "./ProviderStatusBadge";
 import StreamingStats from "./StreamingStats";
 import ProviderLoadingOverlay from "./ProviderLoadingOverlay";
 import Toggle from "./Toggle";
+import { estimateTokensFromText, estimateCostUSD } from "@/lib/utils/token";
 
 const getProviderLogo = (provider: LLMProvider, size: number) => {
   const logos: Record<LLMProvider, string> = {
@@ -190,6 +191,28 @@ export default function UnifiedChatArea() {
         const session = sessions[provider];
         const isStreaming = session?.status === "streaming";
 
+        const totalTokens = conversation
+          ? conversation.messages.reduce(
+              (sum, msg) => sum + estimateTokensFromText(msg.content || ""),
+              0,
+            )
+          : 0;
+        const lastAssistantMessage = conversation
+          ? [...conversation.messages]
+              .reverse()
+              .find((msg) => msg.role === "assistant")
+          : null;
+        const lastResponseTokens = lastAssistantMessage
+          ? estimateTokensFromText(lastAssistantMessage.content || "")
+          : 0;
+        const estimatedCost = estimateCostUSD(totalTokens);
+
+        const formatCost = (value: number) => {
+          if (value <= 0) return "$0.00";
+          if (value < 0.01) return `$${value.toFixed(4)}`;
+          return `$${value.toFixed(2)}`;
+        };
+
         return (
           <div
             key={provider}
@@ -207,10 +230,17 @@ export default function UnifiedChatArea() {
               className={`unified-chat-column ${!enabledProviders.includes(provider) ? "disabled" : ""}`}
             >
               <div className="unified-column-header">
-                <div className="provider-info">
-                  {getProviderLogo(provider, 20)}
-                  <span className="provider-name">{config.name}</span>
-                  <ProviderStatusBadge status={session?.status || "idle"} />
+                <div className="provider-header">
+                  <div className="provider-info">
+                    {getProviderLogo(provider, 20)}
+                    <span className="provider-name">{config.name}</span>
+                    <ProviderStatusBadge status={session?.status || "idle"} />
+                  </div>
+                  <div className="provider-metrics">
+                    <span>Tokens: ~{totalTokens}</span>
+                    <span>Last: ~{lastResponseTokens}</span>
+                    <span>Est: {formatCost(estimatedCost)}</span>
+                  </div>
                 </div>
                 <div className="column-actions">
                   <Toggle
