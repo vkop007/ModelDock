@@ -38,6 +38,8 @@ import {
   loadColumnWidths,
   saveLayoutMode,
   loadLayoutMode,
+  saveProviderOrder,
+  loadProviderOrder,
 } from "@/lib/storage";
 
 // Initial state
@@ -100,6 +102,16 @@ const initialState: ChatState = {
   ],
   columnWidths: {},
   layoutMode: "grid",
+  providerOrder: orderProviders([
+    "chatgpt",
+    "claude",
+    "gemini",
+    "zai",
+    "grok",
+    "qwen",
+    "mistral",
+    "ollama",
+  ]),
 };
 
 // Reducer
@@ -494,6 +506,9 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
     case "SET_COLUMN_WIDTHS":
       return { ...state, columnWidths: action.widths };
 
+    case "SET_PROVIDER_ORDER":
+      return { ...state, providerOrder: action.order };
+
     default:
       return state;
   }
@@ -550,6 +565,7 @@ interface ChatContextValue extends ChatState {
   setColumnWidths: (widths: Record<string, number>) => void;
   setLayoutMode: (mode: "grid" | "focus" | "sidebar" | "custom") => void;
   resetColumnWidths: () => void;
+  setProviderOrder: (order: LLMProvider[]) => void;
 }
 
 const ChatContext = createContext<ChatContextValue | null>(null);
@@ -583,6 +599,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       ]);
       const columnWidths = loadColumnWidths();
       const layoutMode = loadLayoutMode();
+      const providerOrder = loadProviderOrder();
 
       dispatch({
         type: "LOAD_STATE",
@@ -596,6 +613,19 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           enabledProviders,
           columnWidths,
           layoutMode,
+          providerOrder:
+            providerOrder.length > 0
+              ? providerOrder
+              : orderProviders([
+                  "chatgpt",
+                  "claude",
+                  "gemini",
+                  "zai",
+                  "grok",
+                  "qwen",
+                  "mistral",
+                  "ollama",
+                ]),
         },
       });
 
@@ -660,6 +690,12 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       saveLayoutMode(state.layoutMode);
     }
   }, [state.layoutMode]);
+
+  useEffect(() => {
+    if (isInitializedRef.current) {
+      saveProviderOrder(state.providerOrder);
+    }
+  }, [state.providerOrder]);
 
   // Warmup browser page for active provider and unified providers
   const activeProviderCookies =
@@ -2183,6 +2219,10 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: "SET_LAYOUT_MODE", mode: "grid" });
   }, []);
 
+  const setProviderOrder = useCallback((order: LLMProvider[]) => {
+    dispatch({ type: "SET_PROVIDER_ORDER", order });
+  }, []);
+
   const value: ChatContextValue = {
     ...state,
     dispatch,
@@ -2224,6 +2264,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     setColumnWidths,
     setLayoutMode,
     resetColumnWidths,
+    setProviderOrder,
+    providerOrder: state.providerOrder,
   };
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;

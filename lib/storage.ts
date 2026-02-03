@@ -19,6 +19,7 @@ const STORAGE_KEYS = {
   ENABLED_PROVIDERS: "llm-chat-enabled-providers",
   COLUMN_WIDTHS: "llm-chat-column-widths",
   LAYOUT_MODE: "llm-chat-layout-mode",
+  PROVIDER_ORDER: "llm-chat-provider-order",
 };
 
 // Check if we're in browser environment
@@ -439,5 +440,27 @@ export function loadVoiceSettings(): VoiceSettings {
   } catch (error) {
     console.error("Failed to load voice settings:", error);
     return defaultVoiceSettings;
+  }
+}
+
+// ==================== Provider Order Storage ====================
+
+export function saveProviderOrder(order: LLMProvider[]): void {
+  if (!isBrowser) return;
+  try {
+    localStorage.setItem(STORAGE_KEYS.PROVIDER_ORDER, JSON.stringify(order));
+  } catch (error) {
+    console.error("Failed to save provider order:", error);
+  }
+}
+
+export function loadProviderOrder(): LLMProvider[] {
+  if (!isBrowser) return [];
+  try {
+    const data = localStorage.getItem(STORAGE_KEYS.PROVIDER_ORDER);
+    return data ? JSON.parse(data) : [];
+  } catch (error) {
+    console.error("Failed to load provider order:", error);
+    return [];
   }
 }

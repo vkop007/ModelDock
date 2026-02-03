@@ -241,6 +241,7 @@ export interface ChatState {
   enabledProviders: LLMProvider[];
   columnWidths: Record<string, number>;
   layoutMode: "grid" | "focus" | "sidebar" | "custom";
+  providerOrder: LLMProvider[];
 }
 
 // Chat context actions
@@ -313,7 +314,8 @@ export type ChatAction =
     }
   | { type: "TOGGLE_PROVIDER_ENABLED"; provider: LLMProvider }
   | { type: "SET_COLUMN_WIDTHS"; widths: Record<string, number> }
-  | { type: "SET_LAYOUT_MODE"; mode: "grid" | "focus" | "sidebar" | "custom" };
+  | { type: "SET_LAYOUT_MODE"; mode: "grid" | "focus" | "sidebar" | "custom" }
+  | { type: "SET_PROVIDER_ORDER"; order: LLMProvider[] };
 
 // Voice settings configuration
 export interface VoiceSettings {
