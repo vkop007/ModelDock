@@ -21,7 +21,7 @@ import ProviderStatusBadge from "./ProviderStatusBadge";
 import StreamingStats from "./StreamingStats";
 import ProviderLoadingOverlay from "./ProviderLoadingOverlay";
 import Toggle from "./Toggle";
-import { estimateTokensFromText, estimateCostUSD } from "@/lib/utils/token";
+import { estimateTokensFromText } from "@/lib/utils/token";
 
 const getProviderLogo = (provider: LLMProvider, size: number) => {
   const logos: Record<LLMProvider, string> = {
@@ -205,7 +205,6 @@ export default function UnifiedChatArea() {
         const lastResponseTokens = lastAssistantMessage
           ? estimateTokensFromText(lastAssistantMessage.content || "")
           : 0;
-        const estimatedCost = estimateCostUSD(totalTokens);
 
         const formatCost = (value: number) => {
           if (value <= 0) return "$0.00";
@@ -239,7 +238,6 @@ export default function UnifiedChatArea() {
                   <div className="provider-metrics">
                     <span>Tokens: ~{totalTokens}</span>
                     <span>Last: ~{lastResponseTokens}</span>
-                    <span>Est: {formatCost(estimatedCost)}</span>
                   </div>
                 </div>
                 <div className="column-actions">

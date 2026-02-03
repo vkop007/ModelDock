@@ -6,11 +6,3 @@ export function estimateTokensFromText(text: string): number {
   if (!trimmed) return 0;
   return Math.max(1, Math.ceil(trimmed.length / 4));
 }
-
-export function estimateCostUSD(
-  tokens: number,
-  costPer1k = DEFAULT_COST_PER_1K_TOKENS_USD,
-): number {
-  if (!tokens || tokens <= 0) return 0;
-  return (tokens / 1000) * costPer1k;
-}
