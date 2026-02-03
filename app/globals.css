@@ -2797,6 +2797,8 @@ body {
   border-right: 1px solid var(--border-color);
   background: var(--bg-secondary);
   height: 100%;
+  position: relative; /* Contain absolute children like overlay */
+  overflow: hidden; /* Ensure overlay respects borders/corners */
 }
 
 .column-resizer {
@@ -2888,9 +2890,11 @@ body {
   justify-content: space-between;
   padding: 14px 18px;
   border-bottom: 1px solid var(--border-color);
-  background: var(--bg-secondary);
+  background: transparent; /* Allow column BG or overlay to show through */
   width: 100%;
   backdrop-filter: blur(8px);
+  position: relative; /* Ensure z-index works */
+  z-index: 20; /* Sit above loading overlay (z-index 10) */
 }
 
 /* Provider Toggle Styles */
@@ -3079,7 +3083,7 @@ body {
 /* Provider Loading Overlay */
 .provider-loading-overlay {
   position: absolute;
-  top: 56px; /* Below header */
+  top: 0; /* Cover entire column including header */
   left: 0;
   right: 0;
   bottom: 0;
