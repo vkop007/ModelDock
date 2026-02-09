@@ -85,7 +85,7 @@ class BrowserManager {
     }
 
     const response = await connect({
-      headless: false, // Use visible browser for reliability
+      headless: true, // Use visible browser for reliability
       turnstile: true, // Auto-solve Cloudflare Turnstile
       disableXvfb: platform === "darwin", // Only disable Xvfb on macOS
       args: [
@@ -172,6 +172,17 @@ class BrowserManager {
       await newPage.setUserAgent(
         "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
       );
+
+      // Performance Optimization: Block non-essential resources
+      await newPage.setRequestInterception(true);
+      newPage.on("request", (request) => {
+        const resourceType = request.resourceType();
+        if (["image", "font", "media"].includes(resourceType)) {
+          request.abort();
+        } else {
+          request.continue();
+        }
+      });
 
       await newPage.evaluateOnNewDocument(() => {
         Object.defineProperty(document, "visibilityState", {
