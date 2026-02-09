@@ -61,7 +61,12 @@ export class MistralProvider extends BaseProvider {
               waitUntil: "domcontentloaded",
               timeout: 30000,
             });
-            await new Promise((resolve) => setTimeout(resolve, 1000));
+            try {
+              await page.waitForSelector(
+                PROVIDER_CONFIGS.mistral.inputSelectors.join(", "),
+                { timeout: 10000 },
+              );
+            } catch {}
           }
         } else {
           if (currentUrl.includes("/chat/")) {
@@ -70,16 +75,27 @@ export class MistralProvider extends BaseProvider {
               waitUntil: "domcontentloaded",
               timeout: 30000,
             });
-            await new Promise((resolve) => setTimeout(resolve, 1000));
+            try {
+              await page.waitForSelector(
+                PROVIDER_CONFIGS.mistral.inputSelectors.join(", "),
+                { timeout: 10000 },
+              );
+            } catch {}
           } else if (!currentUrl.includes("chat.mistral.ai")) {
             console.log("[Mistral] Navigating to Mistral...");
             await this.navigate();
-            await new Promise((resolve) => setTimeout(resolve, 1000));
+            try {
+              await page.waitForSelector(
+                PROVIDER_CONFIGS.mistral.inputSelectors.join(", "),
+                { timeout: 10000 },
+              );
+            } catch {}
           }
         }
 
         console.log("[Mistral] Checking page state...");
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        // Minimal settle
+        await new Promise((resolve) => setTimeout(resolve, 50));
 
         const inputSelector =
           PROVIDER_CONFIGS.mistral.inputSelectors.join(", ");
@@ -106,7 +122,8 @@ export class MistralProvider extends BaseProvider {
           inputSelector,
           message,
         );
-        await new Promise((resolve) => setTimeout(resolve, 300));
+        // Minimal delay for DOM synchronization
+        await new Promise((resolve) => setTimeout(resolve, 50));
 
         // Count existing assistant messages
         previousResponseCount = await page.evaluate((selectors: string[]) => {
@@ -186,7 +203,7 @@ export class MistralProvider extends BaseProvider {
     const startTime = Date.now();
 
     while (Date.now() - startTime < maxWait) {
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 200));
 
       const isGenerating = await page.evaluate((selectors: string[]) => {
         for (const selector of selectors) {

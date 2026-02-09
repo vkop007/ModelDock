@@ -45,8 +45,11 @@ export class ChatGPTProvider extends BaseProvider {
       if (!isOnChatGPT) {
         console.log("[ChatGPT] First time - navigating to ChatGPT");
         await this.navigate();
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+        // Smart Wait: Wait for input to be present instead of fixed delay
+        const inputSelector =
+          PROVIDER_CONFIGS.chatgpt.inputSelectors.join(", ");
         try {
+          await page.waitForSelector(inputSelector, { timeout: 15000 });
           await page.waitForNetworkIdle({ timeout: 3000 });
         } catch {}
       } else if (this.hasActiveConversation && isInConversation) {
@@ -54,10 +57,15 @@ export class ChatGPTProvider extends BaseProvider {
           "[ChatGPT] Continuing existing conversation at:",
           currentUrl,
         );
-        await new Promise((resolve) => setTimeout(resolve, 300));
+        // Minimal delay for DOM settling
+        await new Promise((resolve) => setTimeout(resolve, 50));
       } else {
         console.log("[ChatGPT] On ChatGPT, waiting for chat interface...");
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        const inputSelector =
+          PROVIDER_CONFIGS.chatgpt.inputSelectors.join(", ");
+        try {
+          await page.waitForSelector(inputSelector, { timeout: 5000 });
+        } catch {}
       }
 
       // Wait for input
@@ -96,7 +104,8 @@ export class ChatGPTProvider extends BaseProvider {
       }
 
       await inputEl.click();
-      await new Promise((resolve) => setTimeout(resolve, 100)); // Reduced from 300ms
+      // Click verification or minimal settle
+      await new Promise((resolve) => setTimeout(resolve, 20));
 
       // Use direct value setting for speed (like paste)
       await page.evaluate((text) => {
@@ -119,8 +128,21 @@ export class ChatGPTProvider extends BaseProvider {
         `[ChatGPT] Set message content: ${message.substring(0, 50)}...`,
       );
 
-      // Quick wait for text to register in UI state
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      // Quick verification that text was set
+      await page.waitForFunction(
+        (text) => {
+          const active = document.activeElement as HTMLElement;
+          if (!active) return false;
+          return (
+            active.textContent?.includes(text.substring(0, 10)) ||
+            (active as HTMLTextAreaElement).value?.includes(
+              text.substring(0, 10),
+            )
+          );
+        },
+        { timeout: 2000 },
+        message,
+      );
 
       // Find and click the send button
       // Find and click the send button
@@ -232,7 +254,8 @@ export class ChatGPTProvider extends BaseProvider {
     const startTime = Date.now();
 
     while (Date.now() - startTime < maxWait) {
-      await new Promise((resolve) => setTimeout(resolve, 500)); // Standard poll 500ms
+      // Reduced polling delay for faster detection
+      await new Promise((resolve) => setTimeout(resolve, 200));
 
       const isGenerating = await page.evaluate((selectors: string[]) => {
         for (const selector of selectors) {
@@ -272,8 +295,8 @@ export class ChatGPTProvider extends BaseProvider {
       }
     }
 
-    // Small delay to ensure content is fully rendered
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    // Final verify step with minimal wait
+    await new Promise((resolve) => setTimeout(resolve, 50));
 
     // Get the LAST assistant message text content
     const response = await page.evaluate((selectors: string[]) => {
@@ -419,7 +442,11 @@ export class ChatGPTProvider extends BaseProvider {
       if (!page.url().includes("chatgpt.com")) {
         if (onStatusUpdate) onStatusUpdate("Navigating to ChatGPT...");
         await this.navigate();
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+        try {
+          await page.waitForSelector('[data-testid="composer-plus-btn"]', {
+            timeout: 15000,
+          });
+        } catch {}
       }
 
       // 1. Click the "+" button
@@ -429,7 +456,8 @@ export class ChatGPTProvider extends BaseProvider {
           timeout: 5000,
         });
         await page.click('[data-testid="composer-plus-btn"]');
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        // Wait for menu to appear instead of fixed delay
+        await page.waitForSelector('div[role="menu"]', { timeout: 5000 });
       } catch (e) {
         console.error("Plus button not found", e);
       }
@@ -454,7 +482,8 @@ export class ChatGPTProvider extends BaseProvider {
         throw new Error("Could not find 'Create image' option");
       }
 
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Minimal settle
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
       // 3. Type prompt
       if (onStatusUpdate) onStatusUpdate("Typing prompt...");
@@ -611,25 +640,31 @@ export class ChatGPTProvider extends BaseProvider {
             waitUntil: "domcontentloaded",
             timeout: 60000,
           });
-          await new Promise((resolve) => setTimeout(resolve, 2000));
+          const inputSelector =
+            PROVIDER_CONFIGS.chatgpt.inputSelectors.join(", ");
+          try {
+            await page.waitForSelector(inputSelector, { timeout: 10000 });
+          } catch {}
         } else if (!conversationId && currentUrl.includes("/c/")) {
-          // If no conversation ID provided but we are in a conversation, go to new chat
           console.log(
             "[ChatGPT] Starting new conversation - navigating to root",
           );
           await this.navigate();
-          await new Promise((resolve) => setTimeout(resolve, 2000));
+          const inputSelector =
+            PROVIDER_CONFIGS.chatgpt.inputSelectors.join(", ");
+          try {
+            await page.waitForSelector(inputSelector, { timeout: 10000 });
+          } catch {}
         } else if (!currentUrl.includes("chatgpt.com")) {
           console.log("[ChatGPT] First time - navigating to ChatGPT");
           await this.navigate();
-          await new Promise((resolve) => setTimeout(resolve, 2000));
+          const inputSelector =
+            PROVIDER_CONFIGS.chatgpt.inputSelectors.join(", ");
           try {
-            await page.waitForNetworkIdle({ timeout: 3000 });
-          } catch {
-            // Continue anyway
-          }
+            await page.waitForSelector(inputSelector, { timeout: 15000 });
+          } catch {}
         } else {
-          await new Promise((resolve) => setTimeout(resolve, 300));
+          await new Promise((resolve) => setTimeout(resolve, 50));
         }
 
         if (signal?.aborted) throw new Error("AbortError");
@@ -726,9 +761,22 @@ export class ChatGPTProvider extends BaseProvider {
         }
 
         await inputEl.click();
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 20));
         await page.keyboard.type(message, { delay: 10 });
-        await new Promise((resolve) => setTimeout(resolve, 200));
+        // Verification wait
+        await page.waitForFunction(
+          (text) => {
+            const active = document.activeElement as HTMLElement;
+            return (
+              active?.textContent?.includes(text.substring(0, 5)) ||
+              (active as HTMLTextAreaElement)?.value?.includes(
+                text.substring(0, 5),
+              )
+            );
+          },
+          { timeout: 2000 },
+          message,
+        );
 
         // NOW click send button
         const sendButtonClicked = await page.evaluate((selectors: string[]) => {
@@ -844,7 +892,9 @@ export class ChatGPTProvider extends BaseProvider {
       const currentUrl = page.url();
       if (!currentUrl.includes("chatgpt.com")) {
         await this.navigate();
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+        try {
+          await page.waitForSelector("form", { timeout: 10000 });
+        } catch {}
       }
 
       const result = await page.evaluate(async (convId: string) => {

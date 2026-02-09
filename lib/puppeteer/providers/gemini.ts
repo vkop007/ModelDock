@@ -69,7 +69,12 @@ export class GeminiProvider extends BaseProvider {
             waitUntil: "domcontentloaded",
             timeout: 30000,
           });
-          await new Promise((resolve) => setTimeout(resolve, 500));
+          try {
+            await page.waitForSelector(
+              PROVIDER_CONFIGS.gemini.inputSelectors.join(", "),
+              { timeout: 10000 },
+            );
+          } catch {}
         } else if (!conversationId && currentUrl.includes("/app/")) {
           // If no ID but we are in a chat (URL has ID), go to new chat
           const isNewChat =
@@ -80,11 +85,21 @@ export class GeminiProvider extends BaseProvider {
             await page.goto("https://gemini.google.com/app", {
               waitUntil: "domcontentloaded",
             });
-            await new Promise((resolve) => setTimeout(resolve, 500));
+            try {
+              await page.waitForSelector(
+                PROVIDER_CONFIGS.gemini.inputSelectors.join(", "),
+                { timeout: 10000 },
+              );
+            } catch {}
           }
         } else if (!currentUrl.includes("gemini.google.com")) {
           await this.navigate();
-          await new Promise((resolve) => setTimeout(resolve, 500));
+          try {
+            await page.waitForSelector(
+              PROVIDER_CONFIGS.gemini.inputSelectors.join(", "),
+              { timeout: 10000 },
+            );
+          } catch {}
         }
 
         if (signal?.aborted) throw new Error("AbortError");
@@ -140,34 +155,54 @@ export class GeminiProvider extends BaseProvider {
 
         // Focus and type the message
         const input = await page.$(inputSelector);
-        if (!input) {
-          throw new Error("Could not find input field");
+        if (input) {
+          await input.click();
         }
 
-        // Click to focus and clear any existing content
-        await input.click();
-        await new Promise((resolve) => setTimeout(resolve, 500)); // Increased wait for focus
+        // Use direct value setting for speed
+        await page.evaluate(
+          (sel, text) => {
+            const el = document.querySelector(sel) as HTMLElement;
+            if (el) {
+              el.textContent = text;
+              el.dispatchEvent(new Event("input", { bubbles: true }));
+              el.dispatchEvent(new Event("change", { bubbles: true }));
+            }
+          },
+          inputSelector,
+          message,
+        );
 
-        // Select all and delete any existing content
-        await page.keyboard.down("Meta"); // Cmd on Mac
-        await page.keyboard.press("a");
-        await page.keyboard.up("Meta");
-        await page.keyboard.press("Backspace");
-        await new Promise((resolve) => setTimeout(resolve, 100));
-
-        // Type the message using keyboard
-        await page.keyboard.type(message, { delay: 10 }); // Slightly slower typing
+        // Minimal wait for UI to register
+        await new Promise((resolve) => setTimeout(resolve, 50));
 
         // Verification: Check if text was actually typed
-        const typedValue = await page.evaluate((sel) => {
+        let typedValue = await page.evaluate((sel) => {
           const el = document.querySelector(sel) as HTMLElement;
           return el?.textContent || "";
         }, inputSelector);
 
-        // Fallback: If typing failed (e.g. lost focus), try one more time or direct injection (risky for complex editors)
+        // Fallback: If direct injection failed to set text, try typing
+        if (!typedValue || typedValue.trim() === "") {
+          console.log("[Gemini] Injection failed, falling back to typing...");
+          if (input) {
+            await input.click();
+          }
+          await page.keyboard.type(message, { delay: 5 });
+
+          // Re-verify after typing
+          typedValue = await page.evaluate((sel) => {
+            const el = document.querySelector(sel) as HTMLElement;
+            return el?.textContent || "";
+          }, inputSelector);
+        }
+
+        // Final retry if still empty
         if (!typedValue || typedValue.trim() === "") {
           console.log("[Gemini] Typing verification failed, retrying...");
-          await input.click();
+          if (input) {
+            await input.click();
+          }
           await new Promise((resolve) => setTimeout(resolve, 300));
           await page.keyboard.type(message, { delay: 15 });
         }
@@ -296,7 +331,7 @@ export class GeminiProvider extends BaseProvider {
     const startTime = Date.now();
 
     while (Date.now() - startTime < maxWait) {
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 200));
 
       // Check for stop button
       const isGenerating = await page.evaluate((selectors: string[]) => {
@@ -362,7 +397,12 @@ export class GeminiProvider extends BaseProvider {
           waitUntil: "domcontentloaded",
           timeout: 30000,
         });
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+        try {
+          await page.waitForSelector(
+            '[data-test-id="conversation-actions-button"]',
+            { timeout: 10000 },
+          );
+        } catch {}
       }
 
       // Step 1: Click the conversation actions button (three dots menu)
@@ -447,7 +487,11 @@ export class GeminiProvider extends BaseProvider {
       if (!page.url().includes("gemini.google.com")) {
         if (onStatusUpdate) onStatusUpdate("Navigating to Gemini...");
         await this.navigate();
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+        try {
+          await page.waitForSelector('button[aria-label="Tools"]', {
+            timeout: 15000,
+          });
+        } catch {}
       }
 
       // 1. Open Toolbox if not already open (or just find the button)
@@ -458,7 +502,15 @@ export class GeminiProvider extends BaseProvider {
         const toolsBtn = await page.$('button[aria-label="Tools"]');
         if (toolsBtn) {
           await toolsBtn.click();
-          await new Promise((resolve) => setTimeout(resolve, 1000));
+          await page.waitForFunction(
+            () => {
+              const buttons = Array.from(document.querySelectorAll("button"));
+              return buttons.some((btn) =>
+                btn.textContent?.includes("Create images"),
+              );
+            },
+            { timeout: 5000 },
+          );
         }
       } catch (e) {
         console.log(
@@ -631,7 +683,11 @@ export class GeminiProvider extends BaseProvider {
         waitUntil: "domcontentloaded",
         timeout: 30000,
       });
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      try {
+        await page.waitForSelector("button.create-memory-button", {
+          timeout: 15000,
+        });
+      } catch {}
 
       // If instructions is empty, just delete all and return
       if (!instructions || instructions.trim() === "") {

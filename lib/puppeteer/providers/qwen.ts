@@ -62,7 +62,12 @@ export class QwenProvider extends BaseProvider {
               waitUntil: "domcontentloaded",
               timeout: 30000,
             });
-            await new Promise((resolve) => setTimeout(resolve, 2000));
+            try {
+              await page.waitForSelector(
+                PROVIDER_CONFIGS.qwen.inputSelectors.join(", "),
+                { timeout: 10000 },
+              );
+            } catch {}
           } else {
             console.log(`[Qwen] Already in conversation ${conversationId}`);
           }
@@ -73,15 +78,26 @@ export class QwenProvider extends BaseProvider {
             waitUntil: "domcontentloaded",
             timeout: 30000,
           });
-          await new Promise((resolve) => setTimeout(resolve, 1000));
+          try {
+            await page.waitForSelector(
+              PROVIDER_CONFIGS.qwen.inputSelectors.join(", "),
+              { timeout: 10000 },
+            );
+          } catch {}
         } else if (!currentUrl.includes("chat.qwen.ai")) {
           console.log("[Qwen] Navigating to Qwen...");
           await this.navigate();
-          await new Promise((resolve) => setTimeout(resolve, 1000));
+          try {
+            await page.waitForSelector(
+              PROVIDER_CONFIGS.qwen.inputSelectors.join(", "),
+              { timeout: 10000 },
+            );
+          } catch {}
         }
 
         console.log("[Qwen] Checking page state...");
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        // Minimal settle
+        await new Promise((resolve) => setTimeout(resolve, 50));
 
         // Wait for the input field - Qwen uses textarea
         const inputSelector = PROVIDER_CONFIGS.qwen.inputSelectors.join(", ");
