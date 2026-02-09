@@ -99,6 +99,11 @@ class BrowserManager {
         "--disable-renderer-backgrounding",
         "--disable-features=CalculateNativeWinOcclusion,IsolateOrigins,site-per-process",
         "--disable-site-isolation-trials",
+        "--disable-gpu", // Performance Optimization
+        "--disable-background-networking", // Performance Optimization
+        "--no-zygote", // Performance Optimization
+        "--disable-extensions", // Performance Optimization
+        '--js-flags="--max-old-space-size=512"', // Performance Optimization: Limit V8 heap
       ],
       connectOption: {
         defaultViewport: null, // Let the window size dictate viewport
