@@ -85,7 +85,7 @@ class BrowserManager {
     }
 
     const response = await connect({
-      headless: true, // Use visible browser for reliability
+      headless: false, // Use visible browser for reliability
       turnstile: true, // Auto-solve Cloudflare Turnstile
       disableXvfb: platform === "darwin", // Only disable Xvfb on macOS
       args: [

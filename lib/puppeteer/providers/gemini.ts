@@ -157,54 +157,17 @@ export class GeminiProvider extends BaseProvider {
         const input = await page.$(inputSelector);
         if (input) {
           await input.click();
-        }
+          await new Promise((resolve) => setTimeout(resolve, 50));
 
-        // Use direct value setting for speed
-        await page.evaluate(
-          (sel, text) => {
-            const el = document.querySelector(sel) as HTMLElement;
-            if (el) {
-              el.textContent = text;
-              el.dispatchEvent(new Event("input", { bubbles: true }));
-              el.dispatchEvent(new Event("change", { bubbles: true }));
-            }
-          },
-          inputSelector,
-          message,
-        );
+          // Select all and delete any existing content
+          await page.keyboard.down("Meta"); // Cmd on Mac
+          await page.keyboard.press("a");
+          await page.keyboard.up("Meta");
+          await page.keyboard.press("Backspace");
+          await new Promise((resolve) => setTimeout(resolve, 100));
 
-        // Minimal wait for UI to register
-        await new Promise((resolve) => setTimeout(resolve, 50));
-
-        // Verification: Check if text was actually typed
-        let typedValue = await page.evaluate((sel) => {
-          const el = document.querySelector(sel) as HTMLElement;
-          return el?.textContent || "";
-        }, inputSelector);
-
-        // Fallback: If direct injection failed to set text, try typing
-        if (!typedValue || typedValue.trim() === "") {
-          console.log("[Gemini] Injection failed, falling back to typing...");
-          if (input) {
-            await input.click();
-          }
+          // Type the message using keyboard
           await page.keyboard.type(message, { delay: 5 });
-
-          // Re-verify after typing
-          typedValue = await page.evaluate((sel) => {
-            const el = document.querySelector(sel) as HTMLElement;
-            return el?.textContent || "";
-          }, inputSelector);
-        }
-
-        // Final retry if still empty
-        if (!typedValue || typedValue.trim() === "") {
-          console.log("[Gemini] Typing verification failed, retrying...");
-          if (input) {
-            await input.click();
-          }
-          await new Promise((resolve) => setTimeout(resolve, 300));
-          await page.keyboard.type(message, { delay: 15 });
         }
 
         // Small delay for UI to update
