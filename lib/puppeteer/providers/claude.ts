@@ -202,7 +202,7 @@ export class ClaudeProvider extends BaseProvider {
     const startTime = Date.now();
 
     while (Date.now() - startTime < maxWait) {
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 200));
 
       // Check for stop button (indicates still generating)
       const isGenerating = await page.evaluate((selectors: string[]) => {
@@ -241,7 +241,7 @@ export class ClaudeProvider extends BaseProvider {
       }
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, 50));
 
     const response = await page.evaluate((selectors: string[]) => {
       const responses = document.querySelectorAll(selectors.join(", "));

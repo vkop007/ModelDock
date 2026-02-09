@@ -67,7 +67,12 @@ export class GrokProvider extends BaseProvider {
               waitUntil: "domcontentloaded",
               timeout: 30000,
             });
-            await new Promise((resolve) => setTimeout(resolve, 1000));
+            try {
+              await page.waitForSelector(
+                PROVIDER_CONFIGS.grok.inputSelectors.join(", "),
+                { timeout: 10000 },
+              );
+            } catch {}
           } else {
             console.log(`[Grok] Already in conversation ${conversationId}`);
           }
@@ -78,16 +83,27 @@ export class GrokProvider extends BaseProvider {
             waitUntil: "domcontentloaded",
             timeout: 30000,
           });
-          await new Promise((resolve) => setTimeout(resolve, 1000));
+          try {
+            await page.waitForSelector(
+              PROVIDER_CONFIGS.grok.inputSelectors.join(", "),
+              { timeout: 10000 },
+            );
+          } catch {}
         } else if (!currentUrl.includes("grok.com")) {
           console.log("[Grok] Navigating to Grok...");
           await this.navigate();
-          await new Promise((resolve) => setTimeout(resolve, 1000));
+          try {
+            await page.waitForSelector(
+              PROVIDER_CONFIGS.grok.inputSelectors.join(", "),
+              { timeout: 10000 },
+            );
+          } catch {}
         }
         // If already on grok.com homepage with no conversation, stay there
 
         console.log("[Grok] Checking page state...");
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        // Minimal settle
+        await new Promise((resolve) => setTimeout(resolve, 50));
 
         // Wait for the input field - Grok uses textarea
         const inputSelector = PROVIDER_CONFIGS.grok.inputSelectors.join(", ");
@@ -99,8 +115,21 @@ export class GrokProvider extends BaseProvider {
           throw new Error("Could not find input field");
         }
 
-        await input.click();
-        await page.keyboard.type(message, { delay: 10 });
+        // Use direct value setting for speed
+        await page.evaluate(
+          (selector, text) => {
+            const el = document.querySelector(selector) as HTMLTextAreaElement;
+            if (el) {
+              el.value = text;
+              el.dispatchEvent(new Event("input", { bubbles: true }));
+              el.dispatchEvent(new Event("change", { bubbles: true }));
+            }
+          },
+          inputSelector,
+          message,
+        );
+        // Minimal delay for UI to register
+        await new Promise((resolve) => setTimeout(resolve, 50));
 
         // Count existing responses BEFORE clicking send
         previousResponseCount = await page.evaluate((selectors: string[]) => {

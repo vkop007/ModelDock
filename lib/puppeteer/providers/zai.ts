@@ -69,17 +69,32 @@ export class ZaiProvider extends BaseProvider {
             waitUntil: "domcontentloaded",
             timeout: 30000,
           });
-          await new Promise((resolve) => setTimeout(resolve, 2000));
+          try {
+            await page.waitForSelector(
+              PROVIDER_CONFIGS.zai.inputSelectors.join(", "),
+              { timeout: 10000 },
+            );
+          } catch {}
         } else if (!conversationId && currentUrl.includes("/c/")) {
           // If no ID but we are in a chat, go to root for new chat
           console.log("[Z.ai] Navigating to new chat");
           await page.goto("https://chat.z.ai", {
             waitUntil: "domcontentloaded",
           });
-          await new Promise((resolve) => setTimeout(resolve, 2000));
+          try {
+            await page.waitForSelector(
+              PROVIDER_CONFIGS.zai.inputSelectors.join(", "),
+              { timeout: 10000 },
+            );
+          } catch {}
         } else if (!currentUrl.includes("chat.z.ai")) {
           await this.navigate();
-          await new Promise((resolve) => setTimeout(resolve, 2000));
+          try {
+            await page.waitForSelector(
+              PROVIDER_CONFIGS.zai.inputSelectors.join(", "),
+              { timeout: 10000 },
+            );
+          } catch {}
         }
 
         // Wait for input
@@ -97,7 +112,7 @@ export class ZaiProvider extends BaseProvider {
         }
 
         await inputEl.click();
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 20));
 
         // Count existing responses BEFORE clicking send
         previousResponseCount = await page.evaluate((selectors: string[]) => {
@@ -132,8 +147,8 @@ export class ZaiProvider extends BaseProvider {
           inputSelector,
           message,
         );
-        await new Promise((resolve) => setTimeout(resolve, 300));
-        await new Promise((resolve) => setTimeout(resolve, 200));
+        // Minimal delay for UI to register change
+        await new Promise((resolve) => setTimeout(resolve, 50));
 
         // Check for presence of chat interface elements
         await page.waitForSelector(
@@ -239,7 +254,7 @@ export class ZaiProvider extends BaseProvider {
     const startTime = Date.now();
 
     while (Date.now() - startTime < maxWait) {
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 200));
 
       const isGenerating = await page.evaluate((selectors: string[]) => {
         for (const selector of selectors) {
