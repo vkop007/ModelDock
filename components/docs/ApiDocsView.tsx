@@ -143,6 +143,12 @@ const sections = [
   { id: "operations", label: "Operational notes" },
 ];
 
+const recommendedFlow = [
+  "Discover providers",
+  "Configure a provider session",
+  "Send prompts or stream replies",
+];
+
 export default function ApiDocsView() {
   const { showChatView } = useChatContext();
 
@@ -164,67 +170,33 @@ export default function ApiDocsView() {
               Developer API
             </span>
             <span className={styles.statusMeta}>
-              Optional locally. Set MODELDOCK_API_KEY to require auth.
+              Local by default. Add MODELDOCK_API_KEY for Bearer auth.
             </span>
           </div>
         </div>
 
-        <div className={styles.frame}>
-          <aside className={styles.navPanel}>
-            <div className={styles.navLabel}>Reference</div>
-            <h1 className={styles.navTitle}>ModelDock API</h1>
-            <p className={styles.navLead}>
-              Local HTTP access to the same multi-provider engine that powers
-              the chat UI.
-            </p>
+        <div className={styles.content}>
+          <nav className={styles.sectionTabs} aria-label="API sections">
+            {sections.map((section) => (
+              <a
+                key={section.id}
+                href={`#${section.id}`}
+                className={styles.sectionTab}
+              >
+                {section.label}
+              </a>
+            ))}
+          </nav>
 
-            <nav className={styles.navList}>
-              {sections.map((section) => (
-                <a
-                  key={section.id}
-                  href={`#${section.id}`}
-                  className={styles.navLink}
-                >
-                  <span>{section.label}</span>
-                  <FiCompass size={14} />
-                </a>
-              ))}
-            </nav>
-
-            <div className={styles.navMeta}>
-              <div className={styles.metaCard}>
-                <div className={styles.metaLabel}>Session storage</div>
-                <div className={styles.metaValue}>
-                  Persisted API sessions live in{" "}
-                  <span className={styles.inlineCode}>
-                    .browser-data/api-config.json
-                  </span>
-                  .
-                </div>
-              </div>
-              <div className={styles.metaCard}>
-                <div className={styles.metaLabel}>Streaming</div>
-                <div className={styles.metaValue}>
-                  SSE responses emit{" "}
-                  <span className={styles.inlineCode}>start</span>,{" "}
-                  <span className={styles.inlineCode}>chunk</span>,{" "}
-                  <span className={styles.inlineCode}>done</span>, and{" "}
-                  <span className={styles.inlineCode}>error</span>.
-                </div>
-              </div>
-            </div>
-          </aside>
-
-          <div className={styles.content}>
             <section className={`${styles.surface} ${styles.hero}`}>
               <div className={styles.heroGrid}>
-                <div>
+                <div className={styles.heroMain}>
                   <span className={styles.eyebrow}>
                     <FiCode size={14} />
                     Scriptable provider access
                   </span>
                   <h2 className={styles.title}>
-                    Use every ModelDock provider through HTTP.
+                    Use every ModelDock provider through one local HTTP API.
                   </h2>
                   <p className={styles.lead}>
                     ModelDock already knows how to drive ChatGPT, Claude,
@@ -281,14 +253,17 @@ export default function ApiDocsView() {
                     </p>
                     <pre className={styles.code}>{curlProvidersExample}</pre>
                   </div>
-                  <div className={styles.heroCard}>
+                  <div className={`${styles.heroCard} ${styles.flowCard}`}>
                     <div className={styles.heroCardLabel}>Recommended flow</div>
-                    <div className={styles.heroCardText}>
-                      1. Discover providers
-                      <br />
-                      2. Configure a provider session
-                      <br />
-                      3. Send prompts or stream replies
+                    <div className={styles.flowList}>
+                      {recommendedFlow.map((step, index) => (
+                        <div className={styles.flowStep} key={step}>
+                          <span className={styles.flowStepNumber}>
+                            {index + 1}
+                          </span>
+                          <span>{step}</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </div>
@@ -506,7 +481,6 @@ export default function ApiDocsView() {
                 your scripts and reuse returned conversation IDs.
               </p>
             </section>
-          </div>
         </div>
       </div>
     </section>
