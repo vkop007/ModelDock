@@ -10,6 +10,7 @@ import React, {
 } from "react";
 import { v4 as uuidv4 } from "uuid";
 import {
+  AppView,
   ChatAction,
   ChatState,
   Conversation,
@@ -54,6 +55,7 @@ const initialState: ChatState = {
   conversations: [],
   currentConversationId: null,
   activeProvider: "chatgpt",
+  activeView: "chat",
   sessions: {
     chatgpt: { ...initialSessionState, provider: "chatgpt" },
     claude: { ...initialSessionState, provider: "claude" },
@@ -128,9 +130,13 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
       return {
         ...state,
         activeProvider: action.provider,
+        activeView: "chat",
         currentConversationId: mostRecent,
       };
     }
+
+    case "SET_ACTIVE_VIEW":
+      return { ...state, activeView: action.view };
 
     case "NEW_CONVERSATION": {
       const provider = action.provider || state.activeProvider;
@@ -146,6 +152,7 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
 
       return {
         ...state,
+        activeView: "chat",
         conversations: [newConversation, ...state.conversations],
         currentConversationId: newConversation.id,
       };
@@ -155,6 +162,7 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
       const selectedConv = state.conversations.find((c) => c.id === action.id);
       return {
         ...state,
+        activeView: "chat",
         currentConversationId: action.id,
         activeProvider: selectedConv?.provider || state.activeProvider,
       };
@@ -359,6 +367,7 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
     case "IMPORT_CONVERSATION": {
       return {
         ...state,
+        activeView: "chat",
         conversations: [action.conversation, ...state.conversations],
         currentConversationId: action.conversation.id,
       };
@@ -521,6 +530,9 @@ interface ChatContextValue extends ChatState {
   newChat: (folderId?: string) => void;
   selectConversation: (id: string) => void;
   setProvider: (provider: LLMProvider) => void;
+  setActiveView: (view: AppView) => void;
+  showApiDocsView: () => void;
+  showChatView: () => void;
   setCookies: (provider: LLMProvider, cookies: CookieEntry[]) => void;
   setSystemInstructions: (provider: LLMProvider, instructions: string) => void;
   testConnection: (provider: LLMProvider) => Promise<boolean>;
@@ -912,6 +924,18 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     }
     dispatch({ type: "SET_SENDING", isSending: false });
     dispatch({ type: "SET_PROVIDER", provider });
+  }, []);
+
+  const setActiveView = useCallback((view: AppView) => {
+    dispatch({ type: "SET_ACTIVE_VIEW", view });
+  }, []);
+
+  const showApiDocsView = useCallback(() => {
+    dispatch({ type: "SET_ACTIVE_VIEW", view: "api-docs" });
+  }, []);
+
+  const showChatView = useCallback(() => {
+    dispatch({ type: "SET_ACTIVE_VIEW", view: "chat" });
   }, []);
 
   const setCookies = useCallback(
@@ -2257,6 +2281,9 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     newChat,
     selectConversation,
     setProvider,
+    setActiveView,
+    showApiDocsView,
+    showChatView,
     setCookies,
     setSystemInstructions,
     testConnection,

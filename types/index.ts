@@ -224,11 +224,14 @@ export interface SessionResponse {
   error?: string;
 }
 
+export type AppView = "chat" | "api-docs";
+
 // Chat context state
 export interface ChatState {
   conversations: Conversation[];
   currentConversationId: string | null;
   activeProvider: LLMProvider;
+  activeView: AppView;
   sessions: Record<LLMProvider, SessionState>;
   cookieConfigs: Record<LLMProvider, CookieConfig | null>;
   systemInstructions: Record<LLMProvider, SystemInstructions | null>;
@@ -247,6 +250,7 @@ export interface ChatState {
 // Chat context actions
 export type ChatAction =
   | { type: "SET_PROVIDER"; provider: LLMProvider }
+  | { type: "SET_ACTIVE_VIEW"; view: AppView }
   | { type: "NEW_CONVERSATION"; provider?: LLMProvider; folderId?: string }
   | { type: "SELECT_CONVERSATION"; id: string }
   | { type: "ADD_MESSAGE"; message: Message; conversationId?: string }

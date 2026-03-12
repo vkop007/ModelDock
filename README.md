@@ -59,6 +59,17 @@ ModelDock uses `puppeteer-real-browser` to launch a headless/visible Chrome inst
 
 Navigate to the settings icon in the sidebar to configure individual providers, manage cookies, and adjust your theme/voice preferences.
 
+## Developer API
+
+ModelDock now includes a developer-facing local API so you can talk to every supported provider without using the chat UI directly.
+
+- **Docs page**: Open `http://localhost:3000/docs/api`
+- **Provider discovery**: `GET /api/v1/providers`
+- **Session setup**: `POST /api/v1/providers/:provider/session`
+- **Chat endpoint**: `POST /api/v1/chat`
+
+The public API is designed for local scripts, CLIs, automations, and companion tools. Browser-backed providers can reuse your existing web sessions by importing cookies from a local browser or by posting cookies directly to the session endpoint. If you want to protect the API, set `MODELDOCK_API_KEY` in your environment and send it as a Bearer token or `x-modeldock-api-key` header.
+
 ## Contributing
 
 We welcome contributions! Please see the [CONTRIBUTING.md](CONTRIBUTING.md) file for guidelines on how to get started.
