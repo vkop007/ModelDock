@@ -1,5 +1,5 @@
 # ModelDock (Locally All Model Support)
-![D4343233-A1E6-4AB1-9C13-6452071229B8_1_201_a](https://github.com/user-attachments/assets/5fd7edf0-b69f-45a2-be65-a277570b1516)
+![D4343233-A1E6-4AB1-9C13-6452071229B8_1_201_a](https://github.com/user-attachments/assets/eb005f09-301d-4750-907b-67028f45fd7e)
 
 ModelDock is a unified Next.js application that provides a single, clean chat interface to communicate with all major Large Language Models (LLMs) including ChatGPT, Claude, Gemini, Grok, Qwen, Mistral, and local Ollama models.
 
