@@ -33,6 +33,32 @@ When writing code, please ensure you adhere to the existing code style. We use E
 npm run lint
 ```
 
+## Project Structure
+
+Here is a high-level overview of the ModelDock codebase structure to help you navigate:
+
+```text
+ModelDock/
+├── app/                  # Next.js App Router pages and API routes
+│   ├── api/              # Backend API endpoints used by the frontend
+│   ├── layout.tsx        # Main application layout
+│   └── page.tsx          # Main chat interface entry point
+├── components/           # Reusable React components
+│   ├── chat/             # Chat UI components (messages, input, search)
+│   ├── folders/          # Sidebar folder management UI
+│   ├── layout/           # Global layout components (Sidebar, ChatArea)
+│   └── settings/         # Settings modals and configuration UI
+├── context/              # React Context providers for centralized state
+├── hooks/                # Custom React hooks
+├── lib/                  # Core application logic and utilities
+│   ├── puppeteer/        # Browser automation and LLM scraping logic
+│   ├── utils/            # General utility functions
+│   └── storage.ts        # Database (SQLite) and secure credential (keytar) management
+├── public/               # Static assets (images, fonts)
+├── types/                # TypeScript type definitions and interfaces
+└── package.json          # Project dependencies and scripts
+```
+
 ## Adding a New LLM Provider
 
 If you are adding support for a new LLM provider, you will generally need to:
