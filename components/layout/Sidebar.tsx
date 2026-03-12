@@ -1,12 +1,9 @@
 "use client";
 
 import { useChatContext } from "@/context/ChatContext";
-import { useFolderContext } from "@/context/FolderContext";
-import { LLMProvider } from "@/types";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import {
   FiPlus,
-  FiMessageSquare,
   FiSettings,
   FiTrash2,
   FiSearch,
@@ -14,9 +11,8 @@ import {
   FiUpload,
   FiChevronLeft,
   FiChevronRight,
-  FiFolder,
   FiX,
-  FiLayout,
+  FiCode,
 } from "react-icons/fi";
 import SettingsModal from "../settings/SettingsModal";
 import ThemeToggle from "../settings/ThemeToggle";
@@ -30,6 +26,7 @@ export default function Sidebar() {
     conversations,
     currentConversationId,
     activeProvider,
+    activeView,
     newChat,
     selectConversation,
     deleteConversation,
@@ -42,18 +39,10 @@ export default function Sidebar() {
     deleteAllConversations,
     pinConversation,
     unpinConversation,
+    showApiDocsView,
   } = useChatContext();
 
-  const {
-    folders,
-    isLoading: foldersLoading,
-    createFolder,
-  } = useFolderContext();
-
   const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const [hoveredConversation, setHoveredConversation] = useState<string | null>(
-    null,
-  );
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -81,7 +70,7 @@ export default function Sidebar() {
       } else {
         alert(`Imported ${result.importedCount} conversation(s).`);
       }
-    } catch (error) {
+    } catch {
       alert("Failed to read file.");
     }
 
@@ -119,6 +108,28 @@ export default function Sidebar() {
               <FiSearch size={18} />
             </button>
           )}
+        </div>
+
+        <div className={`sidebar-docs-section ${isCollapsed ? "collapsed" : ""}`}>
+          <button
+            type="button"
+            className={`sidebar-docs-link ${isCollapsed ? "collapsed" : ""} ${
+              activeView === "api-docs" ? "active" : ""
+            }`}
+            onClick={showApiDocsView}
+            title="API Docs"
+            aria-pressed={activeView === "api-docs"}
+          >
+            <div className="sidebar-docs-icon">
+              <FiCode size={18} />
+            </div>
+            {!isCollapsed && (
+              <div className="sidebar-docs-copy">
+                <strong>API Docs</strong>
+                <span>Use every provider through HTTP</span>
+              </div>
+            )}
+          </button>
         </div>
 
         {/* Export/Import Actions */}
