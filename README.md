@@ -1,9 +1,7 @@
 # ModelDock (All in One LLM Model)
 ![D4343233-A1E6-4AB1-9C13-6452071229B8_1_201_a](https://github.com/user-attachments/assets/eb005f09-301d-4750-907b-67028f45fd7e)
 
-ModelDock is a unified Next.js application that provides a single, clean chat interface to communicate with all major Large Language Models (LLMs) including ChatGPT, Claude, Gemini, Grok, Qwen, Mistral, and local Ollama models.
-
-Instead of relying on costly API keys, ModelDock automates real local browser sessions using Puppeteer. This allows you to leverage your existing web accounts seamlessly and bypasses typical bot detection systems (like Cloudflare Turnstile).
+Meet ModelDock – the local AI cockpit for power users. One clean chat UI, every major LLM. ChatGPT, Claude, Gemini, Grok, Qwen, Mistral, Z.ai, even local Ollama – all docked in a single interface and driven by real Chrome sessions, not fragile APIs. Forget juggling tabs, logins, and keys; ModelDock reuses your own browser sessions with Puppeteer, defeats typical bot detection, and streams responses back into a unified chat with voice support and full local privacy. Use the built‑in developer API to script, automate, and wire every provider into your tools from http://localhost:3000/docs/api without sending a single token to a third‑party server.
 
 ## Features
 
