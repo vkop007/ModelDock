@@ -32,7 +32,7 @@ Meet ModelDock – the local AI cockpit for power users. One clean chat UI, ever
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/yourusername/ModelDock.git
+   git clone https://github.com/vkop007/ModelDock.git
    cd ModelDock
    ```
 
